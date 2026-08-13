@@ -15,6 +15,10 @@ variables:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONDONTWRITEBYTECODE: "1"
   PYTHONUNBUFFERED: "1"
+  REGISTRY: $CI_REGISTRY
+  IMAGE: $CI_REGISTRY_IMAGE
+  DOCKER_HOST: tcp://docker:2375
+  DOCKER_TLS_CERTDIR: ""
 
 # One pipeline per change: on merge requests, and on branches without an open
 # merge request. Avoids the duplicate branch+MR pipelines.
@@ -76,7 +80,7 @@ test:postgres:
 # runners cannot provide one, delete this job - the tests above stand alone.
 build:image:
   stage: build
-  image: docker:27-cli
+  image: docker:27
   services:
     - docker:27-dind
   interruptible: true
@@ -86,14 +90,15 @@ build:image:
     - if: $CI_COMMIT_TAG
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   script:
-    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-    - docker build --pull -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
-    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - apk add --no-cache findutils coreutils
+    - echo "$CI_REGISTRY_PASSWORD" | docker login $CI_REGISTRY -u $CI_REGISTRY_USER --password-stdin
+    - docker build --pull -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA .
+    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA
     # Only a tagged release or the default branch updates the moving tags.
     - |
       if [ -n "$CI_COMMIT_TAG" ]; then
-        docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
-        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+        docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+        docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
       fi
-    - docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:latest"
-    - docker push "$CI_REGISTRY_IMAGE:latest"
+    - docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:latest
+    - docker push $CI_REGISTRY_IMAGE:latest
