@@ -76,6 +76,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+          # Not inferred from the tag automatically - this action always
+          # creates a regular release unless told otherwise. A tag containing
+          # "-" (v1.0.0-beta, v1.0.0-rc1, ...) is this project's convention
+          # for a pre-release; matches the same rule already applied to the
+          # image's :latest tag in this same workflow and in .gitlab-ci.yml.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the full history.
 
