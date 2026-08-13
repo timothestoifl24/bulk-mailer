@@ -47,10 +47,14 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE_NAME }}
+          # No explicit `latest` entry here on purpose: metadata-action's
+          # default flavor (latest=auto) already tags `latest` only for a
+          # non-prerelease semver tag, and skips it for one with a `-` suffix
+          # like v1.0.0-beta. A manual `type=raw,value=latest` entry would
+          # bypass that and move `latest` onto every push, betas included.
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest
 
       - name: Build and push
         uses: docker/build-push-action@v6

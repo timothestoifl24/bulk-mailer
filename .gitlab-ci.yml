@@ -159,8 +159,21 @@ build:image:
         docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
         docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
       fi
-    - docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:latest
-    - docker push $CI_REGISTRY_IMAGE:latest
+    - |
+      # A tag containing "-" (v1.0.0-beta, v1.0.0-rc1, ...) is a pre-release by
+      # this project's tagging convention - :latest must never move to point at
+      # one. A push to the default branch (CI_COMMIT_TAG unset) still moves it,
+      # unchanged from before. Mirrors the GHCR side, which gets the same
+      # behaviour for free from metadata-action's semver-aware latest=auto.
+      case "$CI_COMMIT_TAG" in
+        *-*)
+          echo "$CI_COMMIT_TAG looks like a pre-release - not moving :latest."
+          ;;
+        *)
+          docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:latest
+          docker push $CI_REGISTRY_IMAGE:latest
+          ;;
+      esac
 
 # Publishes the exact commit a release tag points to as the public GitHub
 # repository's default branch, plus the tag itself. Pushing the branch here
