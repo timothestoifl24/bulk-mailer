@@ -1,0 +1,99 @@
+# Pipeline for the bulk mailer.
+#
+# The presence of this file turns Auto DevOps off for the project. Auto DevOps
+# cannot test this app: its Python buildpack has no test support ("Selected
+# buildpack does not support test feature"), and Auto Build produces artifacts
+# this repository has no use for. The jobs below run the real test suite
+# against both supported databases and build the image from our own Dockerfile.
+
+stages:
+  - test
+  - build
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+
+# One pipeline per change: on merge requests, and on branches without an open
+# merge request. Avoids the duplicate branch+MR pipelines.
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+.python:
+  image: python:3.13-slim
+  interruptible: true
+  cache:
+    key:
+      files:
+        - requirements-dev.txt
+    paths:
+      - .cache/pip
+  before_script:
+    - pip install --quiet -r requirements-dev.txt
+
+# The suite defaults to SQLite: no service container needed.
+test:sqlite:
+  extends: .python
+  stage: test
+  script:
+    - python -m pytest -q --junitxml=report-sqlite.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report-sqlite.xml
+    expire_in: 1 week
+
+# The same suite against PostgreSQL. conftest.py drops and recreates the
+# schema, so this must point at a throwaway database - never a real one.
+test:postgres:
+  extends: .python
+  stage: test
+  services:
+    - name: postgres:17-alpine
+      alias: postgres
+  variables:
+    POSTGRES_DB: mailer_test
+    POSTGRES_USER: mailer
+    POSTGRES_PASSWORD: mailer_ci_pw
+    TEST_DATABASE_URL: "postgresql+psycopg://mailer:mailer_ci_pw@postgres:5432/mailer_test"
+  script:
+    - python -m pytest -q --junitxml=report-postgres.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report-postgres.xml
+    expire_in: 1 week
+
+# Builds the Dockerfile in this repository and pushes to the project's
+# container registry. Needs a runner with the docker-in-docker service; if the
+# runners cannot provide one, delete this job - the tests above stand alone.
+build:image:
+  stage: build
+  image: docker:27-cli
+  services:
+    - docker:27-dind
+  interruptible: true
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build --pull -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    # Only a tagged release or the default branch updates the moving tags.
+    - |
+      if [ -n "$CI_COMMIT_TAG" ]; then
+        docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_TAG"
+      fi
+    - docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:latest"
+    - docker push "$CI_REGISTRY_IMAGE:latest"
