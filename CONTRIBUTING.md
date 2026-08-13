@@ -97,12 +97,17 @@ on the default branch. Pushing the tag to GitLab makes CI:
 5. Create a GitLab Release.
 
 Steps 3 and 4 need CI/CD variables that don't ship with the repository
-(`GITHUB_DEPLOY_KEY`, `GITLAB_PUSH_TOKEN`) — until they're configured, those
-two jobs skip themselves with an explanation instead of failing the pipeline.
-Full setup instructions are in the comment block at the top of
+(`GITHUB_TOKEN`, `GITHUB_REPO` for the mirror; `CI_DEPLOY_USER`,
+`CI_DEPLOY_PASSWORD` for the changelog commit) — until they're configured,
+those two jobs skip themselves with an explanation instead of failing the
+pipeline. Full setup instructions are in the comment block at the top of
 [`.gitlab-ci.yml`](.gitlab-ci.yml).
 
 Once GitHub has the tag, its own Actions workflow
-(`.github/workflows/docker-publish.yml`) builds and pushes the image to
-Docker Hub and creates a GitHub Release — that side needs `DOCKERHUB_USERNAME`
-and `DOCKERHUB_TOKEN` set as repository secrets on GitHub.
+(`.github/workflows/docker-publish.yml`) builds and pushes the image to the
+GitHub Container Registry and creates a GitHub Release. That side needs no
+secrets to be configured — it authenticates with the token GitHub injects
+into every workflow run automatically. The one manual step is on the *first*
+publish only: GHCR packages start out private regardless of the repository's
+own visibility, so flip it to public once from the package's own settings
+page (linked from the repo sidebar under **Packages**).

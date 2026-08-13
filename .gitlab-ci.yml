@@ -8,28 +8,37 @@
 #
 # The release stage (tags only) mirrors the tagged commit to the public GitHub
 # repository, which in turn runs a GitHub Action that publishes the image to
-# Docker Hub (see .github/workflows/docker-publish.yml), updates CHANGELOG.md
-# from the commits since the previous tag, and creates a GitLab Release. The
-# mirror and changelog jobs need CI/CD variables this repository does not ship
-# with secrets for; each is written to skip itself with a clear explanation
-# when its variable is unset, rather than turning the pipeline red for
-# something that was never configured. To enable them:
+# the GitHub Container Registry (see .github/workflows/docker-publish.yml),
+# updates CHANGELOG.md from the commits since the previous tag, and creates a
+# GitLab Release. The mirror and changelog jobs need CI/CD variables this
+# repository does not ship with secrets for; each is written to skip itself
+# with a clear explanation when its variables are unset, rather than turning
+# the pipeline red for something that was never configured. To enable them:
 #
-#   GITHUB_DEPLOY_KEY   Private half of an SSH key (ed25519 recommended).
-#                        Settings > CI/CD > Variables: add it as a File-type,
-#                        masked, protected variable. Add the matching public
-#                        key on GitHub as a Deploy key on the target repo with
-#                        "Allow write access" checked (repo Settings > Deploy
-#                        keys). Generate a pair with:
-#                          ssh-keygen -t ed25519 -C "gitlab-ci mirror" -f mirror_key -N ""
+#   GITHUB_TOKEN     A GitHub personal access token with write access to the
+#                     target repository (classic PAT with the `repo` scope,
+#                     or a fine-grained token scoped to it with "Contents:
+#                     write"). Masked, protected.
 #
-#   GITLAB_PUSH_TOKEN    A Project Access Token (Settings > Access Tokens)
-#                        with the write_repository scope and at least the
-#                        Developer role, masked and protected. Used to commit
-#                        the generated changelog back to the default branch;
-#                        CI_JOB_TOKEN is intentionally not used here because it
-#                        cannot push to a protected default branch unless that
-#                        is separately allowed in project settings.
+#   GITHUB_REPO      The target repository as `owner/name`, e.g.
+#                     timothestoifl24/bulk-mailer. Not sensitive; a plain
+#                     variable is fine.
+#
+#   CI_DEPLOY_USER,   Push the generated changelog back to this project's own
+#   CI_DEPLOY_PASSWORD default branch. A GitLab Deploy Token (Settings >
+#                     Repository > Deploy tokens) with the write_repository
+#                     scope, masked and protected. Naming the token exactly
+#                     `gitlab-deploy-token` makes GitLab populate both of
+#                     these automatically in every pipeline - nothing further
+#                     to configure in that case. CI_JOB_TOKEN is intentionally
+#                     not used here: it cannot push to a protected default
+#                     branch unless that is separately allowed in project
+#                     settings.
+#
+# The token is never placed in a URL: a failed push would otherwise echo the
+# credential back in git's own error message. It travels as a Basic-auth
+# Authorization header set with `-c http.extraHeader`, which git does not
+# print on error.
 #
 # "Protected" variables only need setting if the release is cut from a
 # protected branch/tag, which it should be - check Settings > Repository >
@@ -167,26 +176,23 @@ mirror:github:
   variables:
     # A shallow clone would push an incomplete history to GitHub.
     GIT_DEPTH: "0"
-    GITHUB_REPO: "git@github.com:timothestoifl24/bulk-mailer.git"
   script:
     - |
-      if [ -z "$GITHUB_DEPLOY_KEY" ]; then
-        echo "GITHUB_DEPLOY_KEY is not set - skipping the GitHub mirror."
+      if [ -z "$GITHUB_TOKEN" ] || [ -z "$GITHUB_REPO" ]; then
+        echo "GITHUB_TOKEN and/or GITHUB_REPO are not set - skipping the GitHub mirror."
         echo "See the comment at the top of this file to enable it."
         exit 0
       fi
-      mkdir -p ~/.ssh
-      chmod 700 ~/.ssh
-      printf '%s\n' "$GITHUB_DEPLOY_KEY" > ~/.ssh/id_ed25519
-      chmod 600 ~/.ssh/id_ed25519
-      ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts 2>/dev/null
-      git remote add github "$GITHUB_REPO"
+      AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)
+      TARGET="https://github.com/${GITHUB_REPO}.git"
       # Force only the branch: a release always reflects exactly what was
       # tagged, even if GitHub's main has diverged. Tags are pushed normally -
       # a name collision there should fail loudly, never overwrite silently.
-      git push --force github "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
-      git push github "refs/tags/$CI_COMMIT_TAG"
-      echo "Mirrored $CI_COMMIT_TAG to $GITHUB_REPO."
+      git -c http.extraHeader="AUTHORIZATION: basic ${AUTH}" \
+        push --force "$TARGET" "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
+      git -c http.extraHeader="AUTHORIZATION: basic ${AUTH}" \
+        push "$TARGET" "refs/tags/$CI_COMMIT_TAG"
+      echo "Mirrored $CI_COMMIT_TAG to https://github.com/${GITHUB_REPO}"
 
 # Generates a changelog entry from the commits since the previous tag and
 # commits it to the default branch. Runs independently of mirror:github -
@@ -203,8 +209,8 @@ changelog:update:
     GIT_STRATEGY: clone
   script:
     - |
-      if [ -z "$GITLAB_PUSH_TOKEN" ]; then
-        echo "GITLAB_PUSH_TOKEN is not set - skipping the changelog update."
+      if [ -z "$CI_DEPLOY_USER" ] || [ -z "$CI_DEPLOY_PASSWORD" ]; then
+        echo "CI_DEPLOY_USER and/or CI_DEPLOY_PASSWORD are not set - skipping the changelog update."
         echo "See the comment at the top of this file to enable it."
         exit 0
       fi
@@ -255,8 +261,9 @@ changelog:update:
       # [skip ci]: this commit reaches the default branch and would otherwise
       # trigger another pipeline for a docs-only change.
       git commit -m "docs: changelog for $CI_COMMIT_TAG [skip ci]"
-      git push "https://oauth2:${GITLAB_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" \
-        "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
+      AUTH=$(printf '%s:%s' "$CI_DEPLOY_USER" "$CI_DEPLOY_PASSWORD" | base64 -w0)
+      git -c http.extraHeader="AUTHORIZATION: basic ${AUTH}" \
+        push "https://${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
       echo "CHANGELOG.md updated for $CI_COMMIT_TAG."
 
 # GitLab's native Releases feature. Authenticates as the job itself - no

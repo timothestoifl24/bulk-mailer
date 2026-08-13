@@ -7,8 +7,8 @@
   <a href="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker-publish.yml">
     <img alt="Docker publish" src="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker-publish.yml/badge.svg">
   </a>
-  <a href="https://hub.docker.com/r/timothestoifl24/bulk-mailer">
-    <img alt="Docker pulls" src="https://img.shields.io/docker/pulls/timothestoifl24/bulk-mailer">
+  <a href="https://github.com/timothestoifl24/bulk-mailer/pkgs/container/bulk-mailer">
+    <img alt="Container image" src="https://img.shields.io/badge/ghcr.io-bulk--mailer-blue">
   </a>
   <a href="https://github.com/timothestoifl24/bulk-mailer/releases">
     <img alt="Latest release" src="https://img.shields.io/github/v/release/timothestoifl24/bulk-mailer">
@@ -24,12 +24,6 @@
 - [Typical run](#typical-run)
 - [Configuration](#configuration)
 - [Contributing](#contributing) · [Security](#security) · [Changelog](#changelog) · [License](#license)
-
-> **Note on the badges above:** the Docker Hub repository is assumed to be
-> `timothestoifl24/bulk-mailer` — the same handle as this GitHub account. If
-> yours differs, update the badge URLs and set a `DOCKERHUB_IMAGE` repository
-> variable in GitHub Actions (Settings → Secrets and variables → Actions →
-> Variables) rather than editing the workflow file.
 
 Built with FastAPI + Jinja2 + SQLAlchemy, a [Tabler](https://tabler.io)
 (Bootstrap 5) UI vendored locally rather than pulled from a CDN, and either
@@ -93,7 +87,7 @@ network.
 # compose.yaml
 services:
   app:
-    image: timothestoifl24/bulk-mailer:latest
+    image: ghcr.io/timothestoifl24/bulk-mailer:latest
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -118,7 +112,7 @@ docker run -d -p 8000:8000 \
   -e SECRET_KEY=$(openssl rand -base64 36) \
   -e ADMIN_PASSWORD=choose-one \
   -v mailer-data:/data \
-  timothestoifl24/bulk-mailer:latest
+  ghcr.io/timothestoifl24/bulk-mailer:latest
 ```
 
 Open <http://127.0.0.1:8000> and sign in with `admin` / whatever
@@ -229,8 +223,13 @@ Notes on the published image:
   image) that polls `/healthz`.
 - One container = one sender worker. Scaling beyond one replica requires
   PostgreSQL — see [Deployment notes](#deployment-notes).
+- Published from [GitHub Container Registry](https://github.com/timothestoifl24/bulk-mailer/pkgs/container/bulk-mailer)
+  on every tagged release (`.github/workflows/docker-publish.yml`). If
+  `docker pull` reports the image doesn't exist or access is denied right
+  after a release, the package is likely still set to private from its first
+  publish — a one-time GitHub quirk, not a broken build.
 
-Building it yourself instead of pulling from Docker Hub:
+Building it yourself instead of pulling from the registry:
 
 ```bash
 docker build --pull -t bulk-mailer .
