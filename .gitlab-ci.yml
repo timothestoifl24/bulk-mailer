@@ -5,10 +5,40 @@
 # buildpack does not support test feature"), and Auto Build produces artifacts
 # this repository has no use for. The jobs below run the real test suite
 # against both supported databases and build the image from our own Dockerfile.
+#
+# The release stage (tags only) mirrors the tagged commit to the public GitHub
+# repository, which in turn runs a GitHub Action that publishes the image to
+# Docker Hub (see .github/workflows/docker-publish.yml), updates CHANGELOG.md
+# from the commits since the previous tag, and creates a GitLab Release. The
+# mirror and changelog jobs need CI/CD variables this repository does not ship
+# with secrets for; each is written to skip itself with a clear explanation
+# when its variable is unset, rather than turning the pipeline red for
+# something that was never configured. To enable them:
+#
+#   GITHUB_DEPLOY_KEY   Private half of an SSH key (ed25519 recommended).
+#                        Settings > CI/CD > Variables: add it as a File-type,
+#                        masked, protected variable. Add the matching public
+#                        key on GitHub as a Deploy key on the target repo with
+#                        "Allow write access" checked (repo Settings > Deploy
+#                        keys). Generate a pair with:
+#                          ssh-keygen -t ed25519 -C "gitlab-ci mirror" -f mirror_key -N ""
+#
+#   GITLAB_PUSH_TOKEN    A Project Access Token (Settings > Access Tokens)
+#                        with the write_repository scope and at least the
+#                        Developer role, masked and protected. Used to commit
+#                        the generated changelog back to the default branch;
+#                        CI_JOB_TOKEN is intentionally not used here because it
+#                        cannot push to a protected default branch unless that
+#                        is separately allowed in project settings.
+#
+# "Protected" variables only need setting if the release is cut from a
+# protected branch/tag, which it should be - check Settings > Repository >
+# Protected tags covers the tag pattern you release with (e.g. v*).
 
 stages:
   - test
   - build
+  - release
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
@@ -122,3 +152,126 @@ build:image:
       fi
     - docker tag $CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA $CI_REGISTRY_IMAGE:latest
     - docker push $CI_REGISTRY_IMAGE:latest
+
+# Publishes the exact commit a release tag points to as the public GitHub
+# repository's default branch, plus the tag itself. Pushing the branch here
+# (rather than mirroring every commit) is what makes this "only on new
+# releases" - GitLab stays the working repository, GitHub only ever sees a
+# fast-forward to what was just tagged.
+mirror:github:
+  stage: release
+  image: alpine/git:latest
+  interruptible: false
+  rules:
+    - if: $CI_COMMIT_TAG
+  variables:
+    # A shallow clone would push an incomplete history to GitHub.
+    GIT_DEPTH: "0"
+    GITHUB_REPO: "git@github.com:timothestoifl24/bulk-mailer.git"
+  script:
+    - |
+      if [ -z "$GITHUB_DEPLOY_KEY" ]; then
+        echo "GITHUB_DEPLOY_KEY is not set - skipping the GitHub mirror."
+        echo "See the comment at the top of this file to enable it."
+        exit 0
+      fi
+      mkdir -p ~/.ssh
+      chmod 700 ~/.ssh
+      printf '%s\n' "$GITHUB_DEPLOY_KEY" > ~/.ssh/id_ed25519
+      chmod 600 ~/.ssh/id_ed25519
+      ssh-keyscan -t ed25519,rsa github.com >> ~/.ssh/known_hosts 2>/dev/null
+      git remote add github "$GITHUB_REPO"
+      # Force only the branch: a release always reflects exactly what was
+      # tagged, even if GitHub's main has diverged. Tags are pushed normally -
+      # a name collision there should fail loudly, never overwrite silently.
+      git push --force github "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
+      git push github "refs/tags/$CI_COMMIT_TAG"
+      echo "Mirrored $CI_COMMIT_TAG to $GITHUB_REPO."
+
+# Generates a changelog entry from the commits since the previous tag and
+# commits it to the default branch. Runs independently of mirror:github -
+# GitHub only ever receives what was already tagged, so this always lands
+# after the fact and is picked up by the *next* release's mirror push.
+changelog:update:
+  stage: release
+  image: alpine/git:latest
+  interruptible: false
+  rules:
+    - if: $CI_COMMIT_TAG
+  variables:
+    GIT_DEPTH: "0"
+    GIT_STRATEGY: clone
+  script:
+    - |
+      if [ -z "$GITLAB_PUSH_TOKEN" ]; then
+        echo "GITLAB_PUSH_TOKEN is not set - skipping the changelog update."
+        echo "See the comment at the top of this file to enable it."
+        exit 0
+      fi
+      if grep -qF "## [$CI_COMMIT_TAG]" CHANGELOG.md; then
+        echo "CHANGELOG.md already has an entry for $CI_COMMIT_TAG, nothing to do."
+        exit 0
+      fi
+
+      PREV_TAG=$(git describe --tags --abbrev=0 "${CI_COMMIT_TAG}^" 2>/dev/null || true)
+      if [ -n "$PREV_TAG" ]; then
+        RANGE="$PREV_TAG..$CI_COMMIT_TAG"
+      else
+        RANGE="$CI_COMMIT_TAG"
+      fi
+
+      {
+        echo "## [$CI_COMMIT_TAG] - $(date -u +%Y-%m-%d)"
+        echo
+        git log "$RANGE" --no-merges --grep='^docs: changelog for' --invert-grep \
+          --pretty=format:'- %s (%h)'
+        echo
+      } > new_section.md
+
+      # A friendly nudge, not a hard failure: a tag/version mismatch is worth
+      # noticing but shouldn't block the release notes from being generated.
+      APP_VERSION=$(grep -oP '(?<=__version__ = ")[^"]+' app/__init__.py || true)
+      TAG_VERSION="${CI_COMMIT_TAG#v}"
+      if [ -n "$APP_VERSION" ] && [ "$APP_VERSION" != "$TAG_VERSION" ]; then
+        echo "Note: app/__init__.py says __version__ = \"$APP_VERSION\", tag is $CI_COMMIT_TAG."
+      fi
+
+      # Insert right after the "## [Unreleased]" heading, ahead of whatever
+      # follows it - the most recent release always reads top-to-bottom.
+      awk '
+        /^## \[Unreleased\]/ {
+          print
+          print ""
+          while ((getline line < "new_section.md") > 0) print line
+          next
+        }
+        { print }
+      ' CHANGELOG.md > CHANGELOG.md.new
+      mv CHANGELOG.md.new CHANGELOG.md
+
+      git config user.name "GitLab CI"
+      git config user.email "gitlab-ci@$CI_SERVER_HOST"
+      git add CHANGELOG.md
+      # [skip ci]: this commit reaches the default branch and would otherwise
+      # trigger another pipeline for a docs-only change.
+      git commit -m "docs: changelog for $CI_COMMIT_TAG [skip ci]"
+      git push "https://oauth2:${GITLAB_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" \
+        "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
+      echo "CHANGELOG.md updated for $CI_COMMIT_TAG."
+
+# GitLab's native Releases feature. Authenticates as the job itself - no
+# extra credentials needed, unlike the two jobs above. The full notes live in
+# CHANGELOG.md (or GitHub's auto-generated release notes); this is a shorter
+# pointer so it stays correct even if the changelog commit above was skipped.
+release:gitlab:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  interruptible: false
+  rules:
+    - if: $CI_COMMIT_TAG
+  allow_failure: true
+  script:
+    - echo "Creating the GitLab release for $CI_COMMIT_TAG"
+  release:
+    tag_name: "$CI_COMMIT_TAG"
+    description: "Release $CI_COMMIT_TAG. See CHANGELOG.md for details."

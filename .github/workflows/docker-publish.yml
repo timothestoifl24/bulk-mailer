@@ -1,0 +1,72 @@
+name: Publish Docker image
+
+# Fires when GitLab CI mirrors a release tag here (see the mirror:github job
+# in .gitlab-ci.yml on the GitLab side) - GitLab is the working repository,
+# this repo only ever receives tagged releases, so "on tag push" here already
+# means "on release".
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch: {} # manual re-run from the Actions tab, same trigger shape
+
+env:
+  # Falls back to the GitHub owner if a DOCKERHUB_IMAGE repository variable
+  # isn't set (Settings > Secrets and variables > Actions > Variables), so
+  # this line rarely needs editing even if the Docker Hub username differs
+  # from the GitHub one.
+  IMAGE_NAME: ${{ vars.DOCKERHUB_IMAGE || format('{0}/bulk-mailer', github.repository_owner) }}
+
+permissions:
+  contents: write # to attach release notes with softprops/action-gh-release
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Derive tags and labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # linux/amd64 is what this project's own CI and every local test in
+          # its history actually run and verify. Cross-arch (e.g. linux/arm64)
+          # needs QEMU emulation this repository has not exercised - add it
+          # with docker/setup-qemu-action@v3 and `platforms: linux/amd64,linux/arm64`
+          # below once you have verified an arm64 image boots correctly.
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          body: |
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the full history.
+
+            Image: `${{ env.IMAGE_NAME }}:${{ github.ref_name }}`
