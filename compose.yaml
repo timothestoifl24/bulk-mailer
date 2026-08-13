@@ -1,0 +1,83 @@
+# Full stack: app + PostgreSQL.
+#
+#   podman compose up -d --build          (or: docker compose up -d --build)
+#   podman compose --profile dev up -d    also starts a throwaway SMTP sink
+#
+# Override any MAILER_* value in a .env file next to this one, or export it;
+# the defaults below are deliberately obvious placeholders.
+#
+# Why the MAILER_ prefix: compose reads .env from this directory for variable
+# substitution, and that same .env configures the app when it runs directly on
+# the host. Reusing the app's own names would let a host setting silently
+# reconfigure the containers - a host SMTP_HOST=127.0.0.1 would point the app
+# container at itself rather than at the sink. The two namespaces stay separate.
+
+services:
+  db:
+    image: docker.io/library/postgres:17-alpine
+    environment:
+      POSTGRES_USER: mailer
+      POSTGRES_PASSWORD: ${MAILER_DB_PASSWORD:-mailer_dev_pw}
+      POSTGRES_DB: mailer
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailer -d mailer"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    image: bulk-mailer:latest
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://mailer:${MAILER_DB_PASSWORD:-mailer_dev_pw}@db:5432/mailer
+      SECRET_KEY: ${MAILER_SECRET_KEY:-CHANGE-ME-generate-a-long-random-string}
+      ADMIN_USERNAME: ${MAILER_ADMIN_USERNAME:-admin}
+      # Whatever this resolves to *is* the first admin password, placeholder
+      # included. It is only read while the users table is empty; afterwards
+      # change it with `python -m app.cli set-password admin`.
+      ADMIN_PASSWORD: ${MAILER_ADMIN_PASSWORD:-CHANGE-ME}
+      PUBLIC_BASE_URL: ${MAILER_PUBLIC_BASE_URL:-http://127.0.0.1:8000}
+      # Point at your real mail server, or leave it on the dev sink below.
+      # This must be a name the app *container* can resolve, not localhost.
+      SMTP_HOST: ${MAILER_SMTP_HOST:-smtp-sink}
+      SMTP_PORT: ${MAILER_SMTP_PORT:-8025}
+      SMTP_SECURITY: ${MAILER_SMTP_SECURITY:-none}
+      SMTP_FROM_EMAIL: ${MAILER_SMTP_FROM_EMAIL:-noreply@example.com}
+      SMTP_FROM_NAME: ${MAILER_SMTP_FROM_NAME:-Bulk Mailer}
+    ports:
+      - "${MAILER_APP_PORT:-8000}:8000"
+    volumes:
+      - mailerdata:/data
+    # Declared here as well as in the Dockerfile: podman builds OCI-format
+    # images by default, which drop the image's own HEALTHCHECK.
+    healthcheck:
+      test: ["CMD", "python", "tools/healthcheck.py"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # Development only: accepts every message and writes it to /data/sent.
+  smtp-sink:
+    build: .
+    image: bulk-mailer:latest
+    profiles: ["dev"]
+    command: ["python", "tools/dev_smtp.py", "--host", "0.0.0.0", "--port", "8025", "--out", "/data/sent"]
+    volumes:
+      - mailerdata:/data
+    # This service runs the SMTP sink, not the web app, so the image's
+    # /healthz probe would fail forever and mark it unhealthy.
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  mailerdata:

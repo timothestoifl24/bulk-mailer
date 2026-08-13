@@ -1,0 +1,53 @@
+/* Overrides on top of Tabler. Keep this file small - prefer Tabler utilities. */
+
+/* Show the moon in light mode and the sun in dark mode, never both. */
+[data-bs-theme="dark"] .theme-light,
+[data-bs-theme="light"] .theme-dark,
+:root:not([data-bs-theme="dark"]) .theme-dark {
+  display: none;
+}
+
+/* Long values (DNs, subjects, error strings) inside table cells. */
+.cell-truncate {
+  max-width: 22rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Monospace for addresses, DNs and filters. */
+.mono {
+  font-family: var(--tblr-font-monospace);
+  font-size: 0.85em;
+}
+
+/* Inline placeholder chips such as {{ first_name }}. */
+code.var {
+  background: var(--tblr-bg-surface-secondary);
+  border: 1px solid var(--tblr-border-color);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+
+/* Rendered HTML preview of a message. */
+.preview-frame {
+  width: 100%;
+  min-height: 460px;
+  border: 0;
+  border-radius: var(--tblr-border-radius);
+  background: #fff;
+}
+
+/* Scrollable list of checkboxes (lists, group members). */
+.checklist {
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+/* The textareas holding HTML bodies benefit from a monospace face. */
+textarea.code {
+  font-family: var(--tblr-font-monospace);
+  font-size: 0.85rem;
+}

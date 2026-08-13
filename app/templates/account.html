@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Account - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Signed in as {{ user.username }}</div>
+        <h2 class="page-title">
+          {{ user.name }}
+          {% if user.auth_source == 'ldap' %}<span class="badge bg-blue-lt ms-2">LDAP</span>{% endif %}
+          {% if user.is_admin %}<span class="badge bg-purple-lt ms-1">admin</span>{% endif %}
+        </h2>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row row-cards">
+  <div class="col-md-6 col-lg-5">
+    {% if user.auth_source == 'ldap' %}
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Directory account</h3></div>
+      <div class="card-body">
+        <p class="text-secondary">
+          You sign in with your directory credentials, so there is no password stored here.
+          Change it wherever your organisation manages passwords.
+        </p>
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">Username</div>
+            <div class="datagrid-content mono">{{ user.username }}</div>
+          </div>
+          {% if user.email %}
+          <div class="datagrid-item">
+            <div class="datagrid-title">Email</div>
+            <div class="datagrid-content mono">{{ user.email }}</div>
+          </div>
+          {% endif %}
+          {% if user.ldap_dn %}
+          <div class="datagrid-item">
+            <div class="datagrid-title">Directory DN</div>
+            <div class="datagrid-content mono">{{ user.ldap_dn }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Change password</h3></div>
+      <div class="card-body">
+        <form method="post" action="/account/password">
+          <div class="mb-3">
+            <label class="form-label" for="current_password">Current password</label>
+            <input type="password" class="form-control" id="current_password"
+                   name="current_password" autocomplete="current-password" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="new_password">New password</label>
+            <input type="password" class="form-control" id="new_password" name="new_password"
+                   autocomplete="new-password" minlength="8" required>
+            <small class="form-hint">At least 8 characters.</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="confirm_password">Repeat new password</label>
+            <input type="password" class="form-control" id="confirm_password"
+                   name="confirm_password" autocomplete="new-password" required>
+          </div>
+          <button class="btn btn-primary" type="submit">Update password</button>
+        </form>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

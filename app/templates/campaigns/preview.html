@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Preview - {{ campaign.name }}{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">
+          Rendered with the data of <span class="mono">{{ context.email }}</span>
+        </div>
+        <h2 class="page-title">Preview</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <a class="btn" href="/campaigns/{{ campaign.id }}">Back to the campaign</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if rendered.error %}
+  <div class="alert alert-danger" role="alert">Template error: {{ rendered.error }}</div>
+{% else %}
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="datagrid">
+      <div class="datagrid-item">
+        <div class="datagrid-title">From</div>
+        <div class="datagrid-content">{{ from_name }} &lt;{{ from_email }}&gt;</div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">To</div>
+        <div class="datagrid-content mono">{{ context.email }}</div>
+      </div>
+      <div class="datagrid-item">
+        <div class="datagrid-title">Subject</div>
+        <div class="datagrid-content"><strong>{{ rendered.subject }}</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row row-cards mb-3">
+  <div class="col-lg-7">
+    <div class="card h-100">
+      <div class="card-header"><h3 class="card-title">HTML part</h3></div>
+      <div class="card-body">
+        <iframe class="preview-frame" sandbox="" srcdoc="{{ rendered.html }}" title="HTML preview"></iframe>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card h-100">
+      <div class="card-header"><h3 class="card-title">Plain-text part</h3></div>
+      <div class="card-body">
+        <pre class="mb-0" style="white-space:pre-wrap">{{ rendered.text }}</pre>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header"><h3 class="card-title">Values used</h3></div>
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead><tr><th>Placeholder</th><th>Value</th></tr></thead>
+      <tbody>
+        {% for key, value in context.items() %}
+          <tr>
+            <td class="mono">{{ '{{ ' ~ key ~ ' }}' }}</td>
+            <td class="cell-truncate">{{ value }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

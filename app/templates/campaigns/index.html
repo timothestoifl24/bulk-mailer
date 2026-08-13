@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Campaigns - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Every send, past and pending</div>
+        <h2 class="page-title">Campaigns</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <a class="btn btn-primary" href="/campaigns/new">{{ icon('plus', 20) }} New campaign</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  {% if campaigns %}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th>Name</th><th>Status</th><th>Subject</th>
+          <th class="text-end">Recipients</th><th class="text-end">Sent</th>
+          <th class="text-end">Failed</th><th>Created</th><th>By</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for campaign in campaigns %}
+        {% set count = stats[campaign.id] %}
+        <tr>
+          <td>
+            <a href="/campaigns/{{ campaign.id }}">{{ campaign.name }}</a>
+            {% if campaign.dry_run %}<span class="badge bg-yellow-lt ms-1">dry run</span>{% endif %}
+          </td>
+          <td>
+            <span class="badge bg-{{ status_colors.get(campaign.status, 'secondary') }}-lt">
+              {{ campaign.status }}
+            </span>
+          </td>
+          <td class="cell-truncate text-secondary">{{ campaign.subject }}</td>
+          <td class="text-end mono">{{ count.total }}</td>
+          <td class="text-end mono">{{ count.sent }}</td>
+          <td class="text-end mono">
+            {% if count.failed %}<span class="badge bg-red-lt">{{ count.failed }}</span>
+            {% else %}0{% endif %}
+          </td>
+          <td class="mono text-secondary">{{ campaign.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="text-secondary">{{ campaign.created_by.name if campaign.created_by else '-' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="card-body">
+      <div class="empty">
+        <p class="empty-title">No campaigns yet</p>
+        <p class="empty-subtitle text-secondary">
+          A campaign is one message sent to a set of recipients.
+        </p>
+        <div class="empty-action">
+          <a href="/campaigns/new" class="btn btn-primary">{{ icon('plus', 20) }} New campaign</a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

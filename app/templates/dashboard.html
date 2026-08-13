@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Dashboard - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Overview</div>
+        <h2 class="page-title">Dashboard</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <a href="/campaigns/new" class="btn btn-primary">
+          {{ icon('plus', 20) }} New campaign
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if not smtp_ready %}
+<div class="alert alert-warning" role="alert">
+  <div class="d-flex">
+    <div class="me-2">{{ icon('alert', 24) }}</div>
+    <div>
+      SMTP is not configured yet, so nothing can be sent.
+      {% if user and user.is_admin %}
+        <a href="/settings" class="alert-link">Open Settings</a> to set the mail server
+        and sender address.
+      {% else %}
+        Ask an administrator to set the mail server and sender address.
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="row row-deck row-cards mb-3">
+  {% for label, value, colour in [
+      ('Recipients', recipient_count, 'blue'),
+      ('Lists', list_count, 'azure'),
+      ('Messages sent', sent_total, 'green'),
+      ('Unsubscribed', suppressed_count, 'yellow')] %}
+  <div class="col-sm-6 col-lg-3">
+    <div class="card card-sm">
+      <div class="card-body">
+        <div class="subheader">{{ label }}</div>
+        <div class="h1 mb-0 text-{{ colour }}">{{ value }}</div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="row row-cards">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Recent campaigns</h3></div>
+      {% if recent %}
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter">
+          <thead><tr><th>Name</th><th>Status</th><th class="text-end">Progress</th></tr></thead>
+          <tbody>
+          {% for campaign in recent %}
+            {% set count = stats[campaign.id] %}
+            <tr>
+              <td><a href="/campaigns/{{ campaign.id }}">{{ campaign.name }}</a></td>
+              <td>
+                <span class="badge bg-{{ status_colors.get(campaign.status, 'secondary') }}-lt">
+                  {{ campaign.status }}
+                </span>
+              </td>
+              <td class="text-end mono">{{ count.sent }}/{{ count.total }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <div class="card-body">
+          <div class="empty">
+            <p class="empty-title">No campaigns yet</p>
+            <p class="empty-subtitle text-secondary">Create one to start sending.</p>
+            <div class="empty-action">
+              <a href="/campaigns/new" class="btn btn-primary">{{ icon('plus', 20) }} New campaign</a>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Getting started</h3></div>
+      <div class="card-body">
+        <ol class="ps-3 mb-0 text-secondary" style="line-height:1.9">
+          {% if user and user.is_admin %}
+            <li><a href="/settings">Configure SMTP</a> and send yourself a test message.</li>
+            <li>Add recipients: <a href="/recipients/import">paste or upload a CSV</a>, or
+                <a href="/ldap">import from LDAP / Active Directory</a>
+                ({{ ldap_count }} profile(s) configured).</li>
+          {% else %}
+            <li>Add recipients: <a href="/recipients/import">paste or upload a CSV</a>.</li>
+          {% endif %}
+          <li>Group them into <a href="/lists">lists</a>.</li>
+          <li>Write a <a href="/templates">template</a> with
+              <code class="var">{{ '{{ first_name }}' }}</code> placeholders.</li>
+          <li><a href="/campaigns/new">Start a campaign</a>, preview it, do a dry run, then send.</li>
+        </ol>
+      </div>
+      <div class="card-footer text-secondary">Version {{ version }}</div>
+    </div>
+  </div>
+</div>
+{% endblock %}

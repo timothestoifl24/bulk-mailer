@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Settings - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Stored in the database, applied without a restart</div>
+        <h2 class="page-title">Settings</h2>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row row-cards">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">SMTP server</h3></div>
+      <div class="card-body">
+        <form method="post" action="/settings">
+          <div class="row g-2">
+            <div class="col-md-8 mb-3">
+              <label class="form-label" for="smtp_host">Host *</label>
+              <input type="text" class="form-control" id="smtp_host" name="smtp_host"
+                     value="{{ values.smtp_host }}" placeholder="smtp.example.com">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label" for="smtp_port">Port</label>
+              <input type="number" class="form-control" id="smtp_port" name="smtp_port"
+                     value="{{ values.smtp_port }}">
+            </div>
+            <div class="col-md-8 mb-3">
+              <label class="form-label" for="smtp_security">Security</label>
+              <select class="form-select" id="smtp_security" name="smtp_security"
+                      onchange="document.getElementById('smtp_port').value = {none:25, starttls:587, ssl:465}[this.value]">
+                <option value="none" {{ 'selected' if values.smtp_security == 'none' }}>None (25)</option>
+                <option value="starttls" {{ 'selected' if values.smtp_security == 'starttls' }}>STARTTLS (587)</option>
+                <option value="ssl" {{ 'selected' if values.smtp_security == 'ssl' }}>SSL/TLS (465)</option>
+              </select>
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label" for="smtp_timeout">Timeout (s)</label>
+              <input type="number" class="form-control" id="smtp_timeout" name="smtp_timeout"
+                     value="{{ values.smtp_timeout }}">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="smtp_username">Username</label>
+              <input type="text" class="form-control" id="smtp_username" name="smtp_username"
+                     value="{{ values.smtp_username }}" autocomplete="off">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="smtp_password">Password</label>
+              <input type="password" class="form-control" id="smtp_password" name="smtp_password"
+                     value="{{ values.smtp_password }}" autocomplete="new-password">
+              <small class="form-hint">Leave the mask untouched to keep the stored password.</small>
+            </div>
+          </div>
+
+          <div class="hr-text">Sender identity</div>
+          <div class="row g-2">
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="from_email">From address *</label>
+              <input type="email" class="form-control" id="from_email" name="from_email"
+                     value="{{ values.from_email }}">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="from_name">From name</label>
+              <input type="text" class="form-control" id="from_name" name="from_name"
+                     value="{{ values.from_name }}">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="reply_to">Reply-To</label>
+              <input type="email" class="form-control" id="reply_to" name="reply_to"
+                     value="{{ values.reply_to }}">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="default_throttle_per_minute">Default throttle (msg/min)</label>
+              <input type="number" class="form-control" id="default_throttle_per_minute"
+                     name="default_throttle_per_minute" value="{{ values.default_throttle_per_minute }}" min="0">
+              <small class="form-hint">0 = as fast as the server accepts.</small>
+            </div>
+          </div>
+
+          <label class="form-check form-switch mb-3">
+            <input type="checkbox" class="form-check-input" id="add_unsubscribe_header"
+                   name="add_unsubscribe_header" value="1"
+                   {{ 'checked' if values.add_unsubscribe_header == '1' }}>
+            <span class="form-check-label">Add List-Unsubscribe headers to every message</span>
+          </label>
+
+          <button class="btn btn-primary" type="submit">Save settings</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Check the connection</h3></div>
+      <div class="card-body">
+        <form method="post" action="/settings/test-connection">
+          <p class="text-secondary">Connects and authenticates, without sending anything.</p>
+          <button class="btn" type="submit">{{ icon('check', 20) }} Test SMTP connection</button>
+        </form>
+        <div class="hr-text">or</div>
+        <form method="post" action="/settings/test-email">
+          <div class="mb-3">
+            <label class="form-label" for="to_email">Send a test message to</label>
+            <input type="email" class="form-control" id="to_email" name="to_email"
+                   placeholder="you@example.com" required>
+          </div>
+          <button class="btn btn-primary" type="submit">{{ icon('send', 20) }} Send test email</button>
+        </form>
+      </div>
+
+      <div class="card-body border-top">
+        <h3 class="card-title mb-1">Environment</h3>
+        <p class="text-secondary">
+          These come from the <span class="mono">.env</span> file and need a restart to change.
+        </p>
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">PUBLIC_BASE_URL</div>
+            <div class="datagrid-content mono">{{ public_base_url }}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Database</div>
+            <div class="datagrid-content mono">{{ database_backend }}</div>
+          </div>
+        </div>
+        <small class="form-hint mt-3 d-block">
+          The base URL is used to build the unsubscribe links inside your messages &mdash;
+          it must be reachable by recipients.
+        </small>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base_auth.html" %}
+{% block title %}Not allowed - Bulk Mailer{% endblock %}
+{% block content %}
+<div class="card card-md">
+  <div class="card-body text-center py-4">
+    <div class="display-4 fw-bold text-secondary">403</div>
+    <p class="text-secondary mt-2">{{ detail or "You do not have access to this page." }}</p>
+    <p class="text-secondary">Ask an administrator if you need it.</p>
+    <a href="/" class="btn btn-primary mt-2">Back to the dashboard</a>
+  </div>
+</div>
+{% endblock %}

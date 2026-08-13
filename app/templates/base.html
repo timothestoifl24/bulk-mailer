@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  {% include "_head.html" %}
+  <title>{% block title %}Bulk Mailer{% endblock %}</title>
+</head>
+<body>
+{% from "_icons.html" import icon %}
+{% set nav_items = [
+    ('/',            'Dashboard',  'home',     current_path == '/',                        false),
+    ('/recipients',  'Recipients', 'users',    current_path.startswith('/recipients'),     false),
+    ('/lists',       'Lists',      'list',     current_path.startswith('/lists'),          false),
+    ('/ldap',        'LDAP',       'server',   current_path.startswith('/ldap'),           true),
+    ('/templates',   'Templates',  'file',     current_path.startswith('/templates'),      false),
+    ('/campaigns',   'Campaigns',  'send',     current_path.startswith('/campaigns'),      false),
+    ('/users',       'Users',      'shield',   current_path.startswith('/users'),          true),
+    ('/settings',    'Settings',   'settings', current_path.startswith('/settings'),       true),
+] %}
+<div class="page">
+  <header class="navbar navbar-expand-md d-print-none">
+    <div class="container-xl">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+              data-bs-target="#navbar-menu" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <a class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3" href="/">
+        <span class="text-primary me-1">{{ icon('mail', 26) }}</span>
+        <span class="fw-bold">Bulk Mailer</span>
+      </a>
+
+      <div class="navbar-nav flex-row order-md-last">
+        <div class="nav-item d-none d-md-flex me-2">
+          <button class="btn btn-icon btn-ghost-secondary" id="theme-toggle"
+                  title="Switch light/dark" aria-label="Switch light/dark">
+            <span class="theme-light">{{ icon('moon', 20) }}</span>
+            <span class="theme-dark">{{ icon('sun', 20) }}</span>
+          </button>
+        </div>
+        <div class="nav-item dropdown">
+          <a href="#" class="nav-link d-flex lh-1 p-0 px-2" data-bs-toggle="dropdown"
+             aria-label="Open user menu">
+            <span class="avatar avatar-sm">{{ icon('user', 20) }}</span>
+          </a>
+          <div class="dropdown-menu dropdown-menu-end">
+            {% if user %}
+              <span class="dropdown-header">
+                {{ user.name }}
+                {% if user.auth_source == 'ldap' %}<span class="badge bg-blue-lt ms-1">LDAP</span>{% endif %}
+                {% if user.is_admin %}<span class="badge bg-purple-lt ms-1">admin</span>{% endif %}
+              </span>
+              <div class="dropdown-divider"></div>
+            {% endif %}
+            <a href="/account" class="dropdown-item">Account</a>
+            <div class="dropdown-divider"></div>
+            <form method="post" action="/logout">
+              <button class="dropdown-item" type="submit">Sign out</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <header class="navbar-expand-md">
+    <div class="collapse navbar-collapse" id="navbar-menu">
+      <div class="navbar">
+        <div class="container-xl">
+          <ul class="navbar-nav">
+            {% for href, label, icon_name, is_active, admin_only in nav_items %}
+              {% if not admin_only or (user and user.is_admin) %}
+              <li class="nav-item{{ ' active' if is_active }}">
+                <a class="nav-link" href="{{ href }}">
+                  <span class="nav-link-icon d-md-none d-lg-inline-block">{{ icon(icon_name, 20) }}</span>
+                  <span class="nav-link-title">{{ label }}</span>
+                </a>
+              </li>
+              {% endif %}
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-wrapper">
+    {% block page_header %}{% endblock %}
+    <div class="page-body">
+      <div class="container-xl">
+        {% for flash in flashes %}
+          <div class="alert alert-{{ flash_classes.get(flash.category, 'info') }} alert-dismissible" role="alert">
+            <div>{{ flash.message }}</div>
+            <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
+          </div>
+        {% endfor %}
+        {% block content %}{% endblock %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/vendor/tabler/tabler.min.js" defer></script>
+<script src="/static/app.js" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

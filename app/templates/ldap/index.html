@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}LDAP - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Directory</div>
+        <h2 class="page-title">LDAP / Active Directory</h2>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Connection profiles</h3>
+    <div class="card-actions"><span class="badge bg-secondary-lt">{{ profiles | length }}</span></div>
+  </div>
+
+  {% if profiles %}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead><tr><th>Name</th><th>Server</th><th>Security</th><th>Base DN</th><th></th></tr></thead>
+      <tbody>
+      {% for profile in profiles %}
+        <tr>
+          <td><a href="/ldap/{{ profile.id }}">{{ profile.name }}</a></td>
+          <td class="mono">{{ profile.host }}:{{ profile.port }}</td>
+          <td>
+            {% if profile.use_ssl %}<span class="badge bg-green-lt">LDAPS</span>
+            {% elif profile.start_tls %}<span class="badge bg-green-lt">StartTLS</span>
+            {% else %}<span class="badge bg-yellow-lt">plain</span>{% endif %}
+          </td>
+          <td class="mono cell-truncate">{{ profile.base_dn }}</td>
+          <td class="text-end"><a class="btn btn-sm" href="/ldap/{{ profile.id }}">Open</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="card-body">
+      <div class="empty py-3">
+        <p class="empty-title">No LDAP profile yet</p>
+        <p class="empty-subtitle text-secondary">Fill in the form below to connect your directory.</p>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="card-body border-top">
+    <h3 class="card-title mb-3">New profile</h3>
+    <form method="post" action="/ldap">
+      <div class="row g-2">
+        <div class="col-md-4 mb-3">
+          <label class="form-label" for="name">Profile name *</label>
+          <input type="text" class="form-control" id="name" name="name" placeholder="Company AD" required>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label" for="host">Host *</label>
+          <input type="text" class="form-control" id="host" name="host"
+                 placeholder="dc01.corp.example.com" required>
+        </div>
+        <div class="col-md-2 mb-3">
+          <label class="form-label" for="port">Port</label>
+          <input type="number" class="form-control" id="port" name="port" value="389">
+        </div>
+        <div class="col-md-2 mb-3">
+          <label class="form-label" for="page_size">Page size</label>
+          <input type="number" class="form-control" id="page_size" name="page_size" value="500">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label" for="security">Security</label>
+          <select class="form-select" id="security" name="security"
+                  onchange="document.getElementById('port').value = this.value === 'ldaps' ? 636 : 389">
+            <option value="none">None (plain 389)</option>
+            <option value="starttls">StartTLS (389)</option>
+            <option value="ldaps">LDAPS (636)</option>
+          </select>
+        </div>
+        <div class="col-md-8 mb-3 d-flex align-items-end">
+          <label class="form-check mb-2">
+            <input type="checkbox" class="form-check-input" id="verify_cert" name="verify_cert" value="1" checked>
+            <span class="form-check-label">Verify the TLS certificate</span>
+          </label>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label" for="bind_dn">Bind DN</label>
+          <input type="text" class="form-control mono" id="bind_dn" name="bind_dn"
+                 placeholder="CN=svc-mailer,OU=Service,DC=corp,DC=example,DC=com">
+          <small class="form-hint">
+            Leave empty for an anonymous bind. <code class="var">user@domain.tld</code>
+            also works on Active Directory.
+          </small>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label" for="bind_password">Bind password</label>
+          <input type="password" class="form-control" id="bind_password" name="bind_password"
+                 autocomplete="new-password">
+          <small class="form-hint">Stored encrypted with the app SECRET_KEY.</small>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="base_dn">Base DN *</label>
+        <input type="text" class="form-control mono" id="base_dn" name="base_dn"
+               placeholder="OU=Users,DC=corp,DC=example,DC=com">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="search_filter">Default search filter</label>
+        <input type="text" class="form-control mono" id="search_filter" name="search_filter"
+               value="(&amp;(objectClass=person)(mail=*))">
+        <small class="form-hint">
+          For Active Directory,
+          <span class="mono">(&amp;(objectCategory=person)(objectClass=user)(mail=*)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))</span>
+          excludes disabled accounts.
+        </small>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="attr_map">Attribute mapping (JSON)</label>
+        <textarea class="form-control code" id="attr_map" name="attr_map" rows="9">{{ default_attr_map }}</textarea>
+        <small class="form-hint">
+          Maps recipient fields to directory attributes. Extra keys become template variables.
+          Only <code class="var">email</code> is required &mdash; attributes your directory does
+          not define (<code class="var">company</code> and <code class="var">department</code>
+          are Active Directory ones) are skipped, and those fields stay empty.
+        </small>
+      </div>
+      <button class="btn btn-primary" type="submit">Save profile</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

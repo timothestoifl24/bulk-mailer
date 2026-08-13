@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Lists - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Recipients</div>
+        <h2 class="page-title">Lists</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <a class="btn btn-primary" href="#modal-new-list" data-bs-toggle="modal">
+          {{ icon('plus', 20) }} New list
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">All lists</h3>
+    <div class="card-actions"><span class="badge bg-secondary-lt">{{ rows | length }}</span></div>
+  </div>
+  {% if rows %}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr><th>Name</th><th>Description</th><th class="text-end">Members</th><th></th></tr>
+      </thead>
+      <tbody>
+      {% for item, member_count in rows %}
+        <tr>
+          <td><a href="/recipients?list_id={{ item.id }}">{{ item.name }}</a></td>
+          <td class="cell-truncate text-secondary">{{ item.description }}</td>
+          <td class="text-end"><span class="badge bg-blue-lt">{{ member_count }}</span></td>
+          <td class="text-end">
+            <form method="post" action="/lists/{{ item.id }}/delete"
+                  onsubmit="return confirm('Delete the list {{ item.name }}? Recipients themselves are kept.')">
+              <button class="btn btn-sm btn-ghost-danger" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="card-body">
+      <div class="empty py-3">
+        <p class="empty-title">No lists yet</p>
+        <p class="empty-subtitle text-secondary">
+          A list groups recipients so a campaign can address them all at once.
+        </p>
+        <div class="empty-action">
+          <a href="#modal-new-list" class="btn btn-primary" data-bs-toggle="modal">
+            {{ icon('plus', 20) }} New list
+          </a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+  <div class="card-footer text-secondary">
+    Deleting a list never deletes the recipients in it.
+  </div>
+</div>
+
+<div class="modal modal-blur fade" id="modal-new-list" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">New list</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="/lists">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label" for="name">Name</label>
+            <input type="text" class="form-control" id="name" name="name"
+                   placeholder="e.g. All staff" required>
+          </div>
+          <div class="mb-0">
+            <label class="form-label" for="description">Description</label>
+            <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <a href="#" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</a>
+          <button type="submit" class="btn btn-primary ms-auto">Create list</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}New campaign - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Nothing is sent until you press Send on the next page</div>
+        <h2 class="page-title">New campaign</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <a class="btn" href="/campaigns">All campaigns</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{% if not smtp.host %}
+<div class="alert alert-warning" role="alert">
+  No SMTP host configured yet. You can still write the draft, but
+  <a href="/settings" class="alert-link">set up SMTP</a> before sending.
+</div>
+{% endif %}
+
+<form method="post" action="/campaigns/new">
+  <div class="card mb-3">
+    <div class="card-header"><h3 class="card-title">Message</h3></div>
+    <div class="card-body">
+      {% if templates_list %}
+      <div class="mb-3">
+        <label class="form-label" for="template_picker">Start from a template</label>
+        <select class="form-select" id="template_picker"
+                onchange="if (this.value) window.location = '/campaigns/new?template_id=' + this.value">
+          <option value="">- blank -</option>
+          {% for item in templates_list %}
+            <option value="{{ item.id }}" {{ 'selected' if template and template.id == item.id }}>
+              {{ item.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+
+      <div class="row g-2">
+        <div class="col-md-5 mb-3">
+          <label class="form-label" for="name">Campaign name *</label>
+          <input type="text" class="form-control" id="name" name="name" required
+                 value="{{ template.name if template else '' }}" placeholder="e.g. October newsletter">
+        </div>
+        <div class="col-md-7 mb-3">
+          <label class="form-label" for="subject">Subject</label>
+          <input type="text" class="form-control" id="subject" name="subject"
+                 value="{{ template.subject if template else '' }}">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="body_html">HTML body</label>
+        <textarea class="form-control code" id="body_html" name="body_html" rows="14">{{ template.body_html if template else '' }}</textarea>
+        <small class="form-hint">
+          Placeholders: <code class="var">{{ '{{ first_name }}' }}</code>,
+          <code class="var">{{ '{{ name }}' }}</code>,
+          <code class="var">{{ '{{ company }}' }}</code>,
+          <code class="var">{{ '{{ unsubscribe_url }}' }}</code>, ...
+        </small>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="body_text">Plain-text body (optional)</label>
+        <textarea class="form-control code" id="body_text" name="body_text" rows="5">{{ template.body_text if template else '' }}</textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="row row-cards mb-3">
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header"><h3 class="card-title">Recipients</h3></div>
+        <div class="card-body">
+          <label class="form-label">Lists</label>
+          <div class="checklist border rounded p-2 mb-3">
+            {% for item in lists %}
+              <label class="form-check">
+                <input type="checkbox" class="form-check-input" name="list_ids" value="{{ item.id }}">
+                <span class="form-check-label">
+                  {{ item.name }}
+                  <span class="text-secondary">({{ item.recipients | length }})</span>
+                </span>
+              </label>
+            {% else %}
+              <span class="text-secondary">
+                No lists yet &mdash; <a href="/recipients/import">import recipients</a>
+                or <a href="/ldap">pull them from LDAP</a>.
+              </span>
+            {% endfor %}
+          </div>
+          <div class="mb-0">
+            <label class="form-label" for="extra_emails">Additional addresses</label>
+            <textarea class="form-control code" id="extra_emails" name="extra_emails" rows="4"
+                      placeholder="one per line, or comma separated"></textarea>
+            <small class="form-hint">Unsubscribed addresses are always skipped.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card h-100">
+        <div class="card-header"><h3 class="card-title">Sending</h3></div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label" for="from_name">From name</label>
+            <input type="text" class="form-control" id="from_name" name="from_name"
+                   placeholder="{{ smtp.from_name }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="from_email">From address</label>
+            <input type="email" class="form-control" id="from_email" name="from_email"
+                   placeholder="{{ smtp.from_email }}">
+            <small class="form-hint">Leave empty to use the default from Settings.</small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="reply_to">Reply-To</label>
+            <input type="email" class="form-control" id="reply_to" name="reply_to"
+                   placeholder="{{ smtp.reply_to }}">
+          </div>
+          <div class="mb-0">
+            <label class="form-label" for="throttle_per_minute">Throttle (messages per minute)</label>
+            <input type="number" class="form-control" id="throttle_per_minute"
+                   name="throttle_per_minute" value="{{ default_throttle }}" min="0">
+            <small class="form-hint">Keeps you under the server's rate limit. 0 = unlimited.</small>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-list">
+    <button class="btn btn-primary" type="submit">Create draft</button>
+    <a class="btn" href="/campaigns">Cancel</a>
+  </div>
+</form>
+{% endblock %}

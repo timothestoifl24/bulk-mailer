@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}{{ recipient.email }} - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle mono">{{ recipient.email }} &middot; source: {{ recipient.source }}</div>
+        <h2 class="page-title">{{ recipient.name }}</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <a class="btn" href="/recipients">Back to list</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row row-cards">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Details</h3></div>
+      <div class="card-body">
+        <form method="post" action="/recipients/{{ recipient.id }}">
+          <div class="mb-3">
+            <label class="form-label" for="email">Email</label>
+            <input type="email" class="form-control" id="email" name="email"
+                   value="{{ recipient.email }}" required>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="first_name">First name</label>
+              <input type="text" class="form-control" id="first_name" name="first_name"
+                     value="{{ recipient.first_name }}">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="last_name">Last name</label>
+              <input type="text" class="form-control" id="last_name" name="last_name"
+                     value="{{ recipient.last_name }}">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="display_name">Display name</label>
+            <input type="text" class="form-control" id="display_name" name="display_name"
+                   value="{{ recipient.display_name }}">
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="company">Company</label>
+              <input type="text" class="form-control" id="company" name="company"
+                     value="{{ recipient.company }}">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="department">Department</label>
+              <input type="text" class="form-control" id="department" name="department"
+                     value="{{ recipient.department }}">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="title">Job title</label>
+            <input type="text" class="form-control" id="title" name="title" value="{{ recipient.title }}">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Lists</label>
+            <div class="checklist border rounded p-2">
+              {% for item in lists %}
+                <label class="form-check">
+                  <input type="checkbox" class="form-check-input" name="member_of" value="{{ item.id }}"
+                         {{ 'checked' if item in recipient.lists }}>
+                  <span class="form-check-label">{{ item.name }}</span>
+                </label>
+              {% else %}
+                <span class="text-secondary">No lists defined yet.</span>
+              {% endfor %}
+            </div>
+          </div>
+
+          <label class="form-check form-switch mb-1">
+            <input type="checkbox" class="form-check-input" id="is_suppressed" name="is_suppressed"
+                   value="1" {{ 'checked' if recipient.is_suppressed }}>
+            <span class="form-check-label">Unsubscribed &mdash; never send to this address</span>
+          </label>
+          {% if recipient.suppressed_reason %}
+            <small class="form-hint mb-3">Reason: {{ recipient.suppressed_reason }}</small>
+          {% endif %}
+
+          <div class="mt-3">
+            <button class="btn btn-primary" type="submit">Save changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card mb-3">
+      <div class="card-header"><h3 class="card-title">Extra attributes</h3></div>
+      {% if recipient.extra %}
+        <div class="table-responsive">
+          <table class="table card-table table-vcenter">
+            <thead><tr><th>Key</th><th>Value</th></tr></thead>
+            <tbody>
+              {% for key, value in recipient.extra.items() %}
+                <tr><td class="mono">{{ key }}</td><td class="cell-truncate">{{ value }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="card-body text-secondary">
+          None. Extra CSV columns and mapped LDAP attributes show up here and can be used as
+          <code class="var">{{ '{{ key }}' }}</code> in a message.
+        </div>
+      {% endif %}
+      {% if recipient.ldap_dn %}
+        <div class="card-footer text-secondary">
+          LDAP DN: <span class="mono">{{ recipient.ldap_dn }}</span>
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="card border-danger">
+      <div class="card-header"><h3 class="card-title text-danger">Danger zone</h3></div>
+      <div class="card-body">
+        <form method="post" action="/recipients/{{ recipient.id }}/delete"
+              onsubmit="return confirm('Delete {{ recipient.email }} permanently?')">
+          <button class="btn btn-danger" type="submit">Delete recipient</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

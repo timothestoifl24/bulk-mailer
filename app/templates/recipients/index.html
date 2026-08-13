@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Recipients - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">{{ total }} matching recipient(s)</div>
+        <h2 class="page-title">Recipients</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <div class="btn-list">
+          <a class="btn" href="/recipients-export.csv{{ '?list_id=' ~ list_id if list_id }}">
+            {{ icon('download', 20) }} Export CSV
+          </a>
+          <a class="btn" href="/ldap">{{ icon('server', 20) }} From LDAP</a>
+          <a class="btn" href="/recipients/import">{{ icon('plus', 20) }} Import / paste</a>
+          <a class="btn btn-primary" href="#modal-add-recipient" data-bs-toggle="modal">
+            {{ icon('plus', 20) }} Add recipient
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+{#
+  Filtering and the bulk action are two separate submissions, and HTML forbids
+  nesting one form inside another. Declaring them empty here and pointing the
+  controls at them with `form="..."` keeps the whole screen in a single card
+  instead of splitting it into one card per form.
+#}
+<form id="filter-form" method="get" action="/recipients"></form>
+<form id="bulk-form" method="post" action="/recipients/bulk"></form>
+
+<div class="card">
+  <div class="card-body border-bottom py-3">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label" for="q">Search</label>
+        <input type="search" form="filter-form" class="form-control" id="q" name="q"
+               value="{{ q }}" placeholder="name, email, company...">
+      </div>
+      <div class="col-md-3">
+        <label class="form-label" for="list_id">List</label>
+        <select class="form-select" form="filter-form" id="list_id" name="list_id">
+          <option value="">All lists</option>
+          {% for item in lists %}
+            <option value="{{ item.id }}" {{ 'selected' if list_id == item.id|string }}>{{ item.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="source">Source</label>
+        <select class="form-select" form="filter-form" id="source" name="source">
+          <option value="">Any</option>
+          {% for value in ['manual', 'csv', 'ldap'] %}
+            <option value="{{ value }}" {{ 'selected' if source == value }}>{{ value }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="suppressed">Status</label>
+        <select class="form-select" form="filter-form" id="suppressed" name="suppressed">
+          <option value="">Any</option>
+          <option value="0" {{ 'selected' if suppressed == '0' }}>Active</option>
+          <option value="1" {{ 'selected' if suppressed == '1' }}>Unsubscribed</option>
+        </select>
+      </div>
+      <div class="col-md-1">
+        <div class="btn-list flex-nowrap">
+          <button class="btn btn-primary w-100" form="filter-form" type="submit">Filter</button>
+        </div>
+      </div>
+    </div>
+    {% if q or list_id or source or suppressed %}
+      <div class="mt-2"><a href="/recipients" class="text-secondary">Clear filters</a></div>
+    {% endif %}
+  </div>
+
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr>
+          <th class="w-1">
+            <input type="checkbox" class="form-check-input m-0 align-middle" id="check-all"
+                   title="Select all on this page">
+          </th>
+          <th>Email</th><th>Name</th><th>Company / Dept</th><th>Source</th><th>Lists</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for recipient in recipients %}
+        <tr>
+          <td>
+            <input type="checkbox" form="bulk-form" class="form-check-input m-0 align-middle row-check"
+                   name="selected" value="{{ recipient.id }}">
+          </td>
+          <td class="mono">
+            {{ recipient.email }}
+            {% if recipient.is_suppressed %}
+              <span class="badge bg-red-lt ms-1" title="{{ recipient.suppressed_reason }}">unsubscribed</span>
+            {% endif %}
+          </td>
+          <td>{{ recipient.name }}</td>
+          <td class="cell-truncate text-secondary">
+            {{ recipient.company }}{% if recipient.department %} / {{ recipient.department }}{% endif %}
+          </td>
+          <td><span class="badge bg-secondary-lt">{{ recipient.source }}</span></td>
+          <td class="cell-truncate text-secondary">
+            {{ recipient.lists | map(attribute='name') | join(', ') }}
+          </td>
+          <td class="text-end">
+            <a class="btn btn-sm" href="/recipients/{{ recipient.id }}">Edit</a>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="7">
+            <div class="empty">
+              <p class="empty-title">No recipients match</p>
+              <p class="empty-subtitle text-secondary">
+                Adjust the filter, or <a href="/recipients/import">import some</a>.
+              </p>
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if recipients %}
+  <div class="card-footer">
+    <div class="row g-2 align-items-end">
+      <div class="col-md-4">
+        <label class="form-label" for="action">With selected</label>
+        <select class="form-select" form="bulk-form" id="action" name="action">
+          <option value="add_to_list">Add to list</option>
+          <option value="remove_from_list">Remove from list</option>
+          <option value="suppress">Mark as unsubscribed</option>
+          <option value="unsuppress">Re-enable</option>
+          <option value="delete">Delete</option>
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label" for="target_list_id">Target list</label>
+        <select class="form-select" form="bulk-form" id="target_list_id" name="target_list_id">
+          <option value="">- select -</option>
+          {% for item in lists %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <button class="btn w-100" form="bulk-form" type="submit"
+                onclick="return document.getElementById('action').value !== 'delete' || confirm('Delete the selected recipients permanently?')">
+          Apply
+        </button>
+      </div>
+      {% if pages > 1 %}
+      <div class="col-md-2 text-end text-secondary">Page {{ page }} of {{ pages }}</div>
+      {% endif %}
+    </div>
+
+    {% if pages > 1 %}
+    {% set base = '/recipients?q=' ~ q ~ '&list_id=' ~ list_id ~ '&source=' ~ source ~ '&suppressed=' ~ suppressed %}
+    <ul class="pagination m-0 mt-3 justify-content-end">
+      {% if page > 1 %}
+        <li class="page-item"><a class="page-link" href="{{ base }}&page={{ page - 1 }}">Previous</a></li>
+      {% endif %}
+      {% if page < pages %}
+        <li class="page-item"><a class="page-link" href="{{ base }}&page={{ page + 1 }}">Next</a></li>
+      {% endif %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<div class="modal modal-blur fade" id="modal-add-recipient" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add a recipient</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="/recipients/add">
+        <div class="modal-body">
+          <div class="row g-2">
+            <div class="col-md-12 mb-3">
+              <label class="form-label" for="email">Email *</label>
+              <input type="email" class="form-control" id="email" name="email" required>
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="first_name">First name</label>
+              <input type="text" class="form-control" id="first_name" name="first_name">
+            </div>
+            <div class="col-md-6 mb-3">
+              <label class="form-label" for="last_name">Last name</label>
+              <input type="text" class="form-control" id="last_name" name="last_name">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label" for="company">Company</label>
+              <input type="text" class="form-control" id="company" name="company">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label" for="department">Department</label>
+              <input type="text" class="form-control" id="department" name="department">
+            </div>
+            <div class="col-md-4 mb-3">
+              <label class="form-label" for="title">Job title</label>
+              <input type="text" class="form-control" id="title" name="title">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="add_list_id">Add to list</label>
+              <select class="form-select" id="add_list_id" name="list_id">
+                <option value="">- none -</option>
+                {% for item in lists %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="new_list_name">...or a new list</label>
+              <input type="text" class="form-control" id="new_list_name" name="new_list_name">
+            </div>
+          </div>
+          <p class="form-hint mt-3 mb-0">Company, department and job title are optional.</p>
+        </div>
+        <div class="modal-footer">
+          <a href="#" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</a>
+          <button type="submit" class="btn btn-primary ms-auto">Add recipient</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

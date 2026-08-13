@@ -1,0 +1,53 @@
+{#
+  Small inline icon set (24x24, 2px stroke) so the app needs no icon webfont
+  and keeps working on an isolated network.
+#}
+{% macro icon(name, size=24) -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24"
+     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+     stroke-linejoin="round" aria-hidden="true">
+{%- if name == 'home' %}
+  <polyline points="5 12 12 5 19 12"/><path d="M6 11v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1 -1v-8"/><path d="M10 20v-5h4v5"/>
+{%- elif name == 'users' %}
+  <circle cx="9" cy="8" r="3"/><path d="M4 20v-1a5 5 0 0 1 10 0v1"/><path d="M16 5.5a3 3 0 0 1 0 5.4"/><path d="M17 20v-1a5 5 0 0 0 -1.5 -3.5"/>
+{%- elif name == 'list' %}
+  <line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/>
+  <circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/>
+{%- elif name == 'server' %}
+  <rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/>
+  <line x1="7" y1="7" x2="7.01" y2="7"/><line x1="7" y1="17" x2="7.01" y2="17"/>
+{%- elif name == 'file' %}
+  <path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
+  <line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>
+{%- elif name == 'send' %}
+  <line x1="10" y1="14" x2="21" y2="3"/><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/>
+{%- elif name == 'settings' %}
+  <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>
+  <circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/>
+{%- elif name == 'mail' %}
+  <rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/>
+{%- elif name == 'sun' %}
+  <circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4"/>
+{%- elif name == 'moon' %}
+  <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/>
+{%- elif name == 'user' %}
+  <circle cx="12" cy="8" r="3"/><path d="M5 20v-1a7 7 0 0 1 14 0v1"/>
+{%- elif name == 'shield' %}
+  <path d="M12 3l7 3v5c0 4.5 -3 8 -7 10c-4 -2 -7 -5.5 -7 -10v-5z"/>
+{%- elif name == 'key' %}
+  <circle cx="8" cy="12" r="4"/><line x1="12" y1="12" x2="21" y2="12"/><line x1="18" y1="12" x2="18" y2="15"/><line x1="21" y1="12" x2="21" y2="16"/>
+{%- elif name == 'check' %}
+  <polyline points="5 12 10 17 19 8"/>
+{%- elif name == 'alert' %}
+  <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+{%- elif name == 'search' %}
+  <circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/>
+{%- elif name == 'download' %}
+  <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/>
+{%- elif name == 'plus' %}
+  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+{%- elif name == 'eye' %}
+  <circle cx="12" cy="12" r="2"/><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7"/>
+{%- endif %}
+</svg>
+{%- endmacro %}

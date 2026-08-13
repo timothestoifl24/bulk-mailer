@@ -1,0 +1,35 @@
+{% extends "base_auth.html" %}
+{% block title %}Sign in - Bulk Mailer{% endblock %}
+{% block content %}
+<div class="card card-md">
+  <div class="card-body">
+    <h2 class="h2 text-center mb-4">Sign in</h2>
+    <form method="post" action="/login" autocomplete="off">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="mb-3">
+        <label class="form-label" for="username">
+          {{ 'Username or directory account' if ldap_enabled else 'Username' }}
+        </label>
+        <input type="text" class="form-control" id="username" name="username"
+               autocomplete="username" autofocus required>
+      </div>
+      <div class="mb-2">
+        <label class="form-label" for="password">Password</label>
+        <input type="password" class="form-control" id="password" name="password"
+               autocomplete="current-password" required>
+      </div>
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary w-100">Sign in</button>
+      </div>
+    </form>
+  </div>
+  {% if ldap_enabled %}
+  <div class="card-footer text-center text-secondary">
+    Sign in with your directory account, or a local account if you have one.
+  </div>
+  {% endif %}
+</div>
+<div class="text-secondary text-center mt-3">
+  Internal tool &mdash; do not expose to the internet without a reverse proxy.
+</div>
+{% endblock %}

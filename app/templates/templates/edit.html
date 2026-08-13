@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}{{ item.name if item else 'New template' }} - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Rendered once per recipient</div>
+        <h2 class="page-title">{{ item.name if item else 'New template' }}</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <div class="btn-list">
+          {% if item %}
+            <a class="btn btn-primary" href="/campaigns/new?template_id={{ item.id }}">Use in a campaign</a>
+          {% endif %}
+          <a class="btn" href="/templates">All templates</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ '/templates/' ~ item.id if item else '/templates/new' }}">
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="row g-2">
+        <div class="col-md-5 mb-3">
+          <label class="form-label" for="name">Template name *</label>
+          <input type="text" class="form-control" id="name" name="name"
+                 value="{{ item.name if item else '' }}" required>
+        </div>
+        <div class="col-md-7 mb-3">
+          <label class="form-label" for="subject">Subject</label>
+          <input type="text" class="form-control" id="subject" name="subject"
+                 value="{{ item.subject if item else '' }}">
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="body_html">HTML body</label>
+        <textarea class="form-control code" id="body_html" name="body_html" rows="16">{{ item.body_html if item else sample_html }}</textarea>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="body_text">Plain-text body (optional)</label>
+        <textarea class="form-control code" id="body_text" name="body_text" rows="7">{{ item.body_text if item else '' }}</textarea>
+        <small class="form-hint">Leave empty to auto-generate the plain-text part from the HTML.</small>
+      </div>
+
+      <button class="btn btn-primary" type="submit">Save template</button>
+    </div>
+  </div>
+</form>
+
+<div class="row row-cards">
+  <div class="col-lg-{{ 6 if item else 12 }}">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Available placeholders</h3></div>
+      <div class="card-body">
+        <p>
+          {% for name in ['name', 'first_name', 'last_name', 'display_name', 'email',
+                          'company', 'department', 'title', 'unsubscribe_url'] %}
+            <code class="var me-1">{{ '{{ ' ~ name ~ ' }}' }}</code>
+          {% endfor %}
+        </p>
+        <p class="text-secondary mb-0">
+          Plus any extra column from a CSV import or attribute from LDAP. Fallbacks work too:
+          <code class="var">{{ '{{ first_name or "there" }}' }}</code>. Missing values render as empty.
+        </p>
+      </div>
+    </div>
+  </div>
+  {% if item %}
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Used in this template</h3></div>
+      <div class="card-body">
+        {% for name in variables %}
+          <code class="var me-1">{{ name }}</code>
+        {% else %}
+          <span class="text-secondary">No placeholders used yet.</span>
+        {% endfor %}
+      </div>
+      <div class="card-footer">
+        <form method="post" action="/templates/{{ item.id }}/delete"
+              onsubmit="return confirm('Delete the template {{ item.name }}?')">
+          <button class="btn btn-ghost-danger btn-sm" type="submit">Delete template</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

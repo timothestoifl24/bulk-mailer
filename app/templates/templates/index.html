@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Templates - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Reusable subject and body</div>
+        <h2 class="page-title">Email templates</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <a class="btn btn-primary" href="/templates/new">{{ icon('plus', 20) }} New template</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  {% if templates_list %}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead><tr><th>Name</th><th>Subject</th><th>Updated</th><th></th></tr></thead>
+      <tbody>
+      {% for item in templates_list %}
+        <tr>
+          <td><a href="/templates/{{ item.id }}">{{ item.name }}</a></td>
+          <td class="cell-truncate text-secondary">{{ item.subject }}</td>
+          <td class="mono text-secondary">{{ item.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-primary" href="/campaigns/new?template_id={{ item.id }}">
+              Use in campaign
+            </a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="card-body">
+      <div class="empty">
+        <p class="empty-title">No templates yet</p>
+        <p class="empty-subtitle text-secondary">
+          Write the message once, reuse it for every campaign.
+        </p>
+        <div class="empty-action">
+          <a href="/templates/new" class="btn btn-primary">{{ icon('plus', 20) }} New template</a>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

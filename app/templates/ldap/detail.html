@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}{{ profile.name }} - LDAP{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle mono">
+          {{ profile.host }}:{{ profile.port }}{% if profile.use_ssl %} (LDAPS){% elif profile.start_tls %} (StartTLS){% endif %}
+        </div>
+        <h2 class="page-title">{{ profile.name }}</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <div class="btn-list">
+          <form method="post" action="/ldap/{{ profile.id }}/test">
+            <button class="btn" type="submit">{{ icon('check', 20) }} Test connection</button>
+          </form>
+          <a class="btn" href="/ldap">All profiles</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-header"><h3 class="card-title">Search the directory</h3></div>
+  <div class="card-body">
+    <form method="post" action="/ldap/{{ profile.id }}/search">
+      <div class="mb-3">
+        <label class="form-label" for="search_filter">LDAP filter</label>
+        <input type="text" class="form-control mono" id="search_filter" name="search_filter"
+               value="{{ used_filter or profile.search_filter }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="base_dn">Base DN (override)</label>
+        <input type="text" class="form-control mono" id="base_dn" name="base_dn"
+               value="{{ used_base_dn or profile.base_dn }}">
+      </div>
+
+      <div class="hr-text">or: everyone in a group</div>
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-md-8">
+          <label class="form-label" for="group_dn">Group DN</label>
+          <input type="text" class="form-control mono" id="group_dn" name="group_dn"
+                 placeholder="CN=All Staff,OU=Groups,DC=corp,DC=example,DC=com">
+        </div>
+        <div class="col-md-4">
+          <label class="form-check mb-2">
+            <input type="checkbox" class="form-check-input" id="nested_groups" name="nested_groups"
+                   value="1" checked>
+            <span class="form-check-label">Include nested groups</span>
+          </label>
+        </div>
+      </div>
+      <small class="form-hint d-block mb-3">
+        When a group DN is given it replaces the filter above (nested lookups are Active Directory only).
+      </small>
+      <button class="btn btn-primary" type="submit">{{ icon('search', 20) }} Search</button>
+    </form>
+  </div>
+</div>
+
+{% if results is not none %}
+<div class="card mb-3">
+  <div class="card-header">
+    <h3 class="card-title">Results</h3>
+    <div class="card-actions">
+      <span class="badge bg-blue-lt">{{ result_count }} mailbox(es)</span>
+      {% if result_count > preview_limit %}
+        <span class="text-secondary ms-2">showing the first {{ preview_limit }}</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="table-responsive" style="max-height:420px">
+    <table class="table card-table table-vcenter">
+      <thead><tr><th>Email</th><th>Name</th><th>Company</th><th>Department</th><th>Title</th></tr></thead>
+      <tbody>
+        {% for entry in results %}
+          <tr>
+            <td class="mono">{{ entry.email }}</td>
+            <td>{{ entry.display_name or (entry.first_name ~ ' ' ~ entry.last_name)|trim }}</td>
+            <td class="cell-truncate">{{ entry.company }}</td>
+            <td class="cell-truncate">{{ entry.department }}</td>
+            <td class="cell-truncate">{{ entry.title }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5" class="text-secondary text-center py-4">Nothing matched this filter.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if result_count %}
+  <div class="card-footer">
+    <form method="post" action="/ldap/{{ profile.id }}/import">
+      <input type="hidden" name="search_filter" value="{{ used_filter }}">
+      <input type="hidden" name="base_dn" value="{{ used_base_dn }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <label class="form-label" for="list_id">Import into list</label>
+          <select class="form-select" id="list_id" name="list_id">
+            <option value="">- no list -</option>
+            {% for item in lists %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="new_list_name">...or a new list</label>
+          <input type="text" class="form-control" id="new_list_name" name="new_list_name"
+                 placeholder="e.g. AD - All staff">
+        </div>
+        <div class="col-md-2">
+          <label class="form-check mb-2">
+            <input type="checkbox" class="form-check-input" id="overwrite" name="overwrite" value="1" checked>
+            <span class="form-check-label">Refresh existing</span>
+          </label>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-primary w-100" type="submit">Import all {{ result_count }}</button>
+        </div>
+      </div>
+      <small class="form-hint mt-2 d-block">
+        The search is re-run at import time, so all {{ result_count }} entries are imported &mdash;
+        not just the preview.
+      </small>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header"><h3 class="card-title">Profile settings</h3></div>
+  <div class="card-body">
+    <form method="post" action="/ldap/{{ profile.id }}">
+      <div class="row g-2">
+        <div class="col-md-4 mb-3">
+          <label class="form-label" for="p_name">Profile name</label>
+          <input type="text" class="form-control" id="p_name" name="name" value="{{ profile.name }}" required>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label" for="host">Host</label>
+          <input type="text" class="form-control" id="host" name="host" value="{{ profile.host }}" required>
+        </div>
+        <div class="col-md-2 mb-3">
+          <label class="form-label" for="port">Port</label>
+          <input type="number" class="form-control" id="port" name="port" value="{{ profile.port }}">
+        </div>
+        <div class="col-md-2 mb-3">
+          <label class="form-label" for="page_size">Page size</label>
+          <input type="number" class="form-control" id="page_size" name="page_size" value="{{ profile.page_size }}">
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label" for="security">Security</label>
+          <select class="form-select" id="security" name="security">
+            <option value="none" {{ 'selected' if not profile.use_ssl and not profile.start_tls }}>None</option>
+            <option value="starttls" {{ 'selected' if profile.start_tls }}>StartTLS</option>
+            <option value="ldaps" {{ 'selected' if profile.use_ssl }}>LDAPS</option>
+          </select>
+        </div>
+        <div class="col-md-8 mb-3 d-flex align-items-end">
+          <label class="form-check mb-2">
+            <input type="checkbox" class="form-check-input" id="verify_cert" name="verify_cert"
+                   value="1" {{ 'checked' if profile.verify_cert }}>
+            <span class="form-check-label">Verify TLS certificate</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="row g-2">
+        <div class="col-md-6 mb-3">
+          <label class="form-label" for="bind_dn">Bind DN</label>
+          <input type="text" class="form-control mono" id="bind_dn" name="bind_dn" value="{{ profile.bind_dn }}">
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label" for="bind_password">Bind password</label>
+          <input type="password" class="form-control" id="bind_password" name="bind_password"
+                 autocomplete="new-password" placeholder="unchanged">
+          <small class="form-hint">Leave empty to keep the stored password.</small>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="p_base_dn">Base DN</label>
+        <input type="text" class="form-control mono" id="p_base_dn" name="base_dn" value="{{ profile.base_dn }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="p_filter">Default search filter</label>
+        <input type="text" class="form-control mono" id="p_filter" name="search_filter"
+               value="{{ profile.search_filter }}">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="attr_map">Attribute mapping (JSON)</label>
+        <textarea class="form-control code" id="attr_map" name="attr_map" rows="9">{{ attr_map_json }}</textarea>
+      </div>
+      <button class="btn btn-primary" type="submit">Save profile</button>
+    </form>
+  </div>
+  <div class="card-footer">
+    <form method="post" action="/ldap/{{ profile.id }}/delete"
+          onsubmit="return confirm('Delete the profile {{ profile.name }}?')">
+      <button class="btn btn-ghost-danger btn-sm" type="submit">Delete profile</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

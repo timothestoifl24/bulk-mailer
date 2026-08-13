@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Import recipients - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Recipients</div>
+        <h2 class="page-title">Import</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none">
+        <a class="btn" href="/ldap">{{ icon('server', 20) }} Import from LDAP instead</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row row-cards">
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Upload CSV</h3></div>
+      <div class="card-body">
+        <form method="post" action="/recipients/import" enctype="multipart/form-data">
+          <div class="mb-3">
+            <label class="form-label" for="file">CSV file</label>
+            <input type="file" class="form-control" id="file" name="file"
+                   accept=".csv,.txt,text/csv" required>
+            <small class="form-hint">
+              The delimiter (comma, semicolon or tab) is detected automatically. A header row is
+              expected; recognised columns: <code class="var">email</code>,
+              <code class="var">first_name</code>, <code class="var">last_name</code>,
+              <code class="var">display_name</code>, <code class="var">company</code>,
+              <code class="var">department</code>, <code class="var">title</code>.
+              Any other column is kept as an extra template variable.
+            </small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="list_id">Add to list</label>
+            <select class="form-select" id="list_id" name="list_id">
+              <option value="">- none -</option>
+              {% for item in lists %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="new_list_name">...or create a new list</label>
+            <input type="text" class="form-control" id="new_list_name" name="new_list_name"
+                   placeholder="e.g. Newsletter 2026">
+          </div>
+          <label class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" id="overwrite" name="overwrite" value="1" checked>
+            <span class="form-check-label">Update the details of recipients that already exist</span>
+          </label>
+          <button class="btn btn-primary" type="submit">Import CSV</button>
+        </form>
+      </div>
+      <div class="card-body border-top">
+        <h3 class="card-title mb-2">Example</h3>
+        <pre class="mb-0"><code>email,first_name,last_name,company,department
+jane.doe@example.com,Jane,Doe,Contoso,Sales
+bob.smith@example.com,Bob,Smith,Contoso,IT</code></pre>
+        <small class="form-hint mt-2 d-block">
+          Only the <code class="var">email</code> column is required.
+        </small>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Paste addresses</h3></div>
+      <div class="card-body">
+        <form method="post" action="/recipients/paste">
+          <div class="mb-3">
+            <label class="form-label" for="emails">Addresses</label>
+            <textarea class="form-control code" id="emails" name="emails" rows="9" required
+                      placeholder="jane@example.com&#10;Bob Smith &lt;bob@example.com&gt;&#10;carol@example.com, dave@example.com"></textarea>
+            <small class="form-hint">
+              One per line, or separated by comma/semicolon.
+              <code class="var">Name &lt;address&gt;</code> is understood.
+            </small>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="paste_list_id">Add to list</label>
+            <select class="form-select" id="paste_list_id" name="list_id">
+              <option value="">- none -</option>
+              {% for item in lists %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="paste_new_list">...or create a new list</label>
+            <input type="text" class="form-control" id="paste_new_list" name="new_list_name">
+          </div>
+          <button class="btn btn-primary" type="submit">Add addresses</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

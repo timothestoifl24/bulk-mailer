@@ -1,0 +1,29 @@
+{% extends "base_auth.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Unsubscribe{% endblock %}
+{% block content %}
+<div class="card card-md">
+  <div class="card-body text-center">
+    {% if not valid %}
+      <h2 class="h2 mb-3">Invalid link</h2>
+      <p class="text-secondary mb-0">
+        This unsubscribe link is not valid or has expired. Please contact the sender directly.
+      </p>
+    {% elif done %}
+      <div class="text-green mb-2">{{ icon('check', 40) }}</div>
+      <h2 class="h2 mb-3">You are unsubscribed</h2>
+      <p class="text-secondary mb-0">
+        <strong>{{ email }}</strong> will no longer receive messages from this system.
+      </p>
+    {% else %}
+      <h2 class="h2 mb-3">Unsubscribe</h2>
+      <p class="text-secondary">Stop sending email to <strong>{{ email }}</strong>?</p>
+      <form method="post" action="/unsubscribe" class="mt-4">
+        <input type="hidden" name="email" value="{{ email }}">
+        <input type="hidden" name="token" value="{{ token }}">
+        <button class="btn btn-primary w-100" type="submit">Yes, unsubscribe me</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
