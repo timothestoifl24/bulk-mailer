@@ -205,9 +205,19 @@ mirror:github:
     - |
       set -e
       if [ -z "$GITHUB_TOKEN" ] || [ -z "$GITHUB_REPO" ]; then
-        echo "GITHUB_TOKEN and/or GITHUB_REPO are not set - skipping the GitHub mirror."
-        echo "See the comment at the top of this file to enable it."
-        exit 0
+        echo "GITHUB_TOKEN and/or GITHUB_REPO are empty, so this release cannot"
+        echo "reach GitHub."
+        echo
+        echo "This job only runs for a tag, so there is no 'not configured yet'"
+        echo "case to skip past here: exiting 0 would paint the pipeline green"
+        echo "while the release quietly went nowhere. Failing instead."
+        echo
+        echo "If both variables ARE set in the project settings but arrive empty"
+        echo "here, the usual cause is that they are marked Protected. A"
+        echo "protected variable is withheld from any pipeline whose ref is not"
+        echo "itself protected - so a release tag that does not match a pattern"
+        echo "under Settings -> Repository -> Protected tags gets nothing."
+        exit 1
       fi
       AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)
       TARGET="https://github.com/${GITHUB_REPO}.git"
@@ -218,7 +228,16 @@ mirror:github:
         push --force "$TARGET" "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
       git -c http.extraHeader="AUTHORIZATION: basic ${AUTH}" \
         push "$TARGET" "refs/tags/$CI_COMMIT_TAG"
-      echo "Mirrored $CI_COMMIT_TAG to https://github.com/${GITHUB_REPO}"
+      # Ask GitHub what it actually has, rather than trusting our own exit
+      # codes. The whole point of this job is that a tag lands over there and
+      # wakes the Actions workflow; "probably pushed" is not good enough to
+      # report as a release.
+      if ! git -c http.extraHeader="AUTHORIZATION: basic ${AUTH}" \
+             ls-remote --tags "$TARGET" "refs/tags/$CI_COMMIT_TAG" | grep -q .; then
+        echo "The push reported success but $CI_COMMIT_TAG is not on GitHub."
+        exit 1
+      fi
+      echo "Mirrored $CI_COMMIT_TAG to https://github.com/${GITHUB_REPO} (tag confirmed present)"
 
 # Generates a changelog entry from the commits since the previous tag and
 # commits it to the default branch. Runs independently of mirror:github -
