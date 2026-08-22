@@ -26,6 +26,13 @@
 </div>
 {% endif %}
 
+{# The template picker submits as its own plain GET form. It has to live out
+   here because HTML forbids nesting it inside the POST form below; the select
+   itself stays where it belongs in the card and attaches by `form=` id. That
+   keeps choosing a template an ordinary form submission, instead of inline
+   JavaScript assembling a URL out of a DOM value. #}
+<form method="get" action="/campaigns/new" id="template-picker-form"></form>
+
 <form method="post" action="/campaigns/new">
   <div class="card mb-3">
     <div class="card-header"><h3 class="card-title">Message</h3></div>
@@ -33,8 +40,8 @@
       {% if templates_list %}
       <div class="mb-3">
         <label class="form-label" for="template_picker">Start from a template</label>
-        <select class="form-select" id="template_picker"
-                onchange="if (this.value) window.location = '/campaigns/new?template_id=' + this.value">
+        <select class="form-select" id="template_picker" name="template_id"
+                form="template-picker-form" onchange="this.form.submit()">
           <option value="">- blank -</option>
           {% for item in templates_list %}
             <option value="{{ item.id }}" {{ 'selected' if template and template.id == item.id }}>

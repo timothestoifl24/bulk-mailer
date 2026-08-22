@@ -8,7 +8,7 @@ import time
 from sqlalchemy import select
 
 from app.db import SessionLocal
-from app.models import Recipient
+from app.models import CampaignRecipient, Recipient
 from app.security import unsubscribe_token
 
 
@@ -244,3 +244,119 @@ def test_recipient_export_returns_csv(logged_in):
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
     assert response.text.splitlines()[0].startswith("email,first_name")
+
+
+def test_campaign_template_picker_submits_as_a_form(logged_in):
+    """The picker must navigate without JavaScript assembling a URL.
+
+    It used to be an inline onchange that concatenated the selected option's
+    value into a location string - DOM text steering navigation. It is now a
+    plain GET form the select attaches to by id, which has to keep working
+    both as markup and as a round trip.
+    """
+    client = logged_in
+    client.post(
+        "/templates/new",
+        data={
+            "name": "Picker template",
+            "subject": "From a template",
+            "body_html": "<p>Body from the template</p>",
+            "body_text": "",
+        },
+        follow_redirects=True,
+    )
+
+    page = client.get("/campaigns/new")
+    assert page.status_code == 200
+
+    # The standalone GET form exists and the select is wired to it by id,
+    # carrying the parameter name the route reads.
+    assert 'id="template-picker-form"' in page.text
+    assert 'method="get" action="/campaigns/new"' in page.text
+    assert 'form="template-picker-form"' in page.text
+    assert 'name="template_id"' in page.text
+    # No DOM value is spliced into a navigation target any more.
+    assert "window.location" not in page.text
+
+    # The round trip the picker performs still loads the template.
+    template_id = re.search(r'<option value="(\d+)"', page.text).group(1)
+    loaded = client.get(f"/campaigns/new?template_id={template_id}")
+    assert loaded.status_code == 200
+    assert "Body from the template" in loaded.text
+
+    # And the "- blank -" option, which submits an empty value, is harmless.
+    blank = client.get("/campaigns/new?template_id=")
+    assert blank.status_code == 200
+    assert "Body from the template" not in blank.text
+
+
+def test_removing_an_entry_never_redirects_off_site(logged_in):
+    """The Referer decides where this POST lands, and it is caller-supplied.
+
+    The handler used to hand the raw header to the redirect helper, so an
+    absolute URL in it became the Location verbatim - a phishing hop wearing
+    this app's domain. The CSRF guard consults `origin or referer`, so a
+    trusted Origin means the Referer is never examined and sails through to
+    the sink; it is not a substitute for validating it here.
+    """
+    client = logged_in
+    created = client.post(
+        "/campaigns/new",
+        data={
+            "name": "Referer redirect check",
+            "subject": "Hi",
+            "body_html": "<p>Hi</p>",
+            "extra_emails": "entry@example.com",
+            "throttle_per_minute": "0",
+        },
+        follow_redirects=False,
+    )
+    campaign_id = int(created.headers["location"].rsplit("/", 1)[1])
+
+    with SessionLocal() as db:
+        entry_id = db.scalar(
+            select(CampaignRecipient.id).where(CampaignRecipient.campaign_id == campaign_id)
+        )
+    assert entry_id is not None
+
+    hostile = "https://evil.example/phish"
+    response = client.post(
+        f"/campaigns/{campaign_id}/entries/{entry_id}/delete",
+        headers={"Origin": "http://testserver", "Referer": hostile},
+        follow_redirects=False,
+    )
+
+    location = response.headers["location"]
+    assert not location.startswith(("http://", "https://", "//")), location
+    assert location == f"/campaigns/{campaign_id}"
+
+
+def test_removing_an_entry_returns_to_the_page_it_came_from(logged_in):
+    """Rejecting a foreign Referer must not cost the same-site convenience."""
+    client = logged_in
+    created = client.post(
+        "/campaigns/new",
+        data={
+            "name": "Referer round trip",
+            "subject": "Hi",
+            "body_html": "<p>Hi</p>",
+            "extra_emails": "roundtrip@example.com",
+            "throttle_per_minute": "0",
+        },
+        follow_redirects=False,
+    )
+    campaign_id = int(created.headers["location"].rsplit("/", 1)[1])
+    with SessionLocal() as db:
+        entry_id = db.scalar(
+            select(CampaignRecipient.id).where(CampaignRecipient.campaign_id == campaign_id)
+        )
+
+    response = client.post(
+        f"/campaigns/{campaign_id}/entries/{entry_id}/delete",
+        headers={
+            "Origin": "http://testserver",
+            "Referer": f"http://testserver/campaigns/{campaign_id}?tab=audience",
+        },
+        follow_redirects=False,
+    )
+    assert response.headers["location"] == f"/campaigns/{campaign_id}?tab=audience"

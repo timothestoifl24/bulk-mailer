@@ -12,7 +12,7 @@ from ..models import User
 from ..security import current_user, hash_password, require_user, verify_password
 from ..services.auth import authenticate
 from ..services.ldap_auth import is_enabled as ldap_login_enabled
-from ..web import flash, redirect, render
+from ..web import flash, redirect, render, safe_path
 
 logger = logging.getLogger("mailer.auth")
 router = APIRouter()
@@ -48,8 +48,7 @@ def login(
     request.session["user_id"] = user.id
     flash(request, f"Welcome back, {user.name}.", "success")
     # Only same-site paths, so this cannot be used as an open redirect.
-    destination = next if next.startswith("/") and not next.startswith("//") else "/"
-    return redirect(destination)
+    return redirect(safe_path(next, "/"))
 
 
 @router.post("/logout")

@@ -230,9 +230,17 @@ def parse_email_list(text: str) -> list[dict]:
         chunk = chunk.strip()
         if not chunk:
             continue
-        match = re.match(r"^\s*(.*?)\s*<([^>]+)>\s*$", chunk)
-        if match:
-            name, email = match.group(1).strip().strip('"'), match.group(2).strip()
+        # Split on the angle brackets by hand rather than with a regex. The
+        # natural pattern for this - r"^\s*(.*?)\s*<([^>]+)>\s*$" - backtracks
+        # quadratically over a long line that never closes its bracket, and
+        # this text arrives straight from a paste box, so its length and shape
+        # are entirely up to whoever is using the importer.
+        name, bracket, remainder = chunk.partition("<")
+        # Mirrors the old pattern exactly: one "<", a non-empty run without
+        # ">" after it, and the closing ">" as the final character.
+        if bracket and remainder.endswith(">") and len(remainder) > 1 and ">" not in remainder[:-1]:
+            email = remainder[:-1].strip()
+            name = name.strip().strip('"')
             parts = name.split()
             rows.append(
                 {

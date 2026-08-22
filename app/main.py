@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -45,15 +46,6 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 WEAK_SECRETS = ("dev-insecure-secret-key-change-me", "CHANGE-ME", "change-me")
 
 
-def _mask(value: str) -> str:
-    """Enough of a password to recognise it, not enough to leak it in a log."""
-    if not value:
-        return "<empty>"
-    if len(value) <= 4:
-        return "*" * len(value)
-    return f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}"
-
-
 def warn_about_weak_secrets() -> None:
     """A placeholder SECRET_KEY lets anyone forge a session cookie.
 
@@ -84,12 +76,16 @@ def bootstrap() -> None:
                     display_name="Administrator",
                 )
             )
+            # Deliberately says nothing about the password itself, not even a
+            # masked excerpt: application logs get shipped to aggregators and
+            # read by people who have no business holding the admin credential,
+            # and first/last characters give away more than they look like they
+            # do. Naming the source answers "which password is it?" just as well.
             logger.warning(
-                "Created the initial admin account %r. Its password is the value of "
-                "ADMIN_PASSWORD (masked: %s) - not any default you may have read "
-                "elsewhere. Change it with: python -m app.cli set-password %s",
+                "Created the initial admin account %r. Its password is whatever "
+                "ADMIN_PASSWORD held at first start - not any default you may have "
+                "read elsewhere. Change it with: python -m app.cli set-password %s",
                 settings.admin_username,
-                _mask(settings.admin_password),
                 settings.admin_username,
             )
         elif db.scalar(select(func.count()).select_from(User).where(User.is_admin.is_(True))) == 0:
@@ -142,7 +138,9 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "accept", ""
         ):
             return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
-        return redirect(f"/login?next={request.url.path}")
+        # quote() so a path holding "&" or "#" stays one parameter instead of
+        # being cut short or spilling into another.
+        return redirect(f"/login?next={quote(request.url.path)}")
     if exc.status_code == status.HTTP_404_NOT_FOUND:
         return render(request, "404.html")
     if exc.status_code == status.HTTP_403_FORBIDDEN:

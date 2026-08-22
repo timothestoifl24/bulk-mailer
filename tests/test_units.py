@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 import pytest
+from starlette.requests import Request
 
 from app.security import (
     hash_password,
@@ -13,6 +15,7 @@ from app.security import (
     verify_unsubscribe_token,
 )
 from app.services.importer import parse_csv, parse_email_list
+from app.web import local_referer, safe_path
 from app.services.mailer import OutgoingAttachment, build_message
 from app.services.rendering import find_variables, html_to_text, render_html, render_subject
 
@@ -119,6 +122,119 @@ def test_parse_email_list_handles_names_and_separators():
         "carol@example.com",
     ]
     assert rows[1]["first_name"] == "Bob" and rows[1]["last_name"] == "Smith"
+
+
+@pytest.mark.parametrize(
+    "candidate",
+    [
+        "https://evil.example/phish",
+        "http://evil.example",
+        "//evil.example/phish",
+        "/\\evil.example",  # browsers read this as //evil.example
+        "\\/evil.example",
+        "\\\\evil.example",
+        "javascript:alert(1)",
+        "evil.example",  # no leading slash: relative, resolves off the current page
+        "/ok\r\nX-Injected: yes",  # header splitting, not merely a redirect
+        "",
+        None,
+    ],
+)
+def test_safe_path_refuses_anything_that_could_leave_this_site(candidate):
+    assert safe_path(candidate) == "/"
+
+
+@pytest.mark.parametrize(
+    "candidate",
+    [
+        "/campaigns",
+        "/campaigns?list_id=3",
+        "/campaigns?list_id=3#top",
+        "/login?next=/campaigns",
+    ],
+)
+def test_safe_path_keeps_local_paths_intact(candidate):
+    """Query and fragment have to survive, or redirects lose their context."""
+    assert safe_path(candidate) == candidate
+
+
+def _request_with_referer(referer: str | None):
+    """A bare Request carrying just a Host and (optionally) a Referer."""
+    headers = [(b"host", b"testserver")]
+    if referer is not None:
+        headers.append((b"referer", referer.encode()))
+    return Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "POST",
+            "scheme": "http",
+            "path": "/campaigns/1/entries/2/delete",
+            "raw_path": b"/campaigns/1/entries/2/delete",
+            "query_string": b"",
+            "root_path": "",
+            "headers": headers,
+            "server": ("testserver", 80),
+            "client": ("test", 1),
+        }
+    )
+
+
+def test_local_referer_returns_the_user_to_a_same_site_page():
+    """The point of trusting Referer at all: land back on the exact sub-page."""
+    request = _request_with_referer("http://testserver/campaigns/1/audience?page=2")
+    assert local_referer(request, "/fallback") == "/campaigns/1/audience?page=2"
+
+
+@pytest.mark.parametrize(
+    "referer",
+    [
+        "https://evil.example/phish",
+        "http://evil.example/campaigns/1",
+        "//evil.example/phish",
+        "http://testserver.evil.example/x",  # prefix, not this host
+        None,
+        "",
+    ],
+)
+def test_local_referer_falls_back_when_the_header_points_elsewhere(referer):
+    """Referer is caller-set, so an off-site one must not become a redirect."""
+    request = _request_with_referer(referer)
+    assert local_referer(request, "/fallback") == "/fallback"
+
+
+def test_parse_email_list_stays_linear_on_a_hostile_paste():
+    """A long line with an unclosed bracket must not stall the request.
+
+    The angle-bracket parse used to be a regex whose lazy group and trailing
+    \\s* backtracked quadratically over an internal run of spaces: 80k
+    characters took ~12 seconds of CPU, on a synchronous endpoint, from
+    nothing more privileged than the paste box. Doubling the input must
+    roughly double the work, not quadruple it.
+    """
+    hostile = "a" + " " * 60_000 + "b"
+
+    started = time.perf_counter()
+    rows = parse_email_list(hostile)
+    elapsed = time.perf_counter() - started
+
+    assert rows == [{"email": hostile}]
+    # The linear implementation lands near a millisecond; the quadratic one
+    # needed several seconds. A whole second is far outside the former and
+    # comfortably inside the latter, so this survives a slow CI box.
+    assert elapsed < 1.0, f"parse took {elapsed:.2f}s - the quadratic path is back"
+
+
+def test_parse_email_list_handles_bracket_edge_cases():
+    """Shapes that decide which branch the hand-rolled split takes."""
+    assert parse_email_list("<bare@example.com>")[0]["email"] == "bare@example.com"
+    # No closing bracket, an empty pair, and a stray ">" are all "just an
+    # address", never a name/address split.
+    assert parse_email_list("unclosed <oops@example.com")[0]["email"] == "unclosed <oops@example.com"
+    assert parse_email_list("empty<>")[0]["email"] == "empty<>"
+    assert parse_email_list("trailing> junk")[0]["email"] == "trailing> junk"
+    quoted = parse_email_list('"Quoted Name" <q@example.com>')[0]
+    assert quoted["email"] == "q@example.com" and quoted["display_name"] == "Quoted Name"
 
 
 # --------------------------------------------------------------------------- #

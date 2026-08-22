@@ -28,7 +28,7 @@ from ..services.importer import is_valid_email, normalise_email, parse_email_lis
 from ..services.mailer import MailError
 from ..services.rendering import RenderError, find_variables, html_to_text, render_html, render_subject, render_text
 from ..services.sender import counts_by_status, notify_worker, send_single_email
-from ..web import flash, redirect, render
+from ..web import flash, local_referer, redirect, render
 
 router = APIRouter(prefix="/campaigns", dependencies=[Depends(require_user)])
 
@@ -372,7 +372,9 @@ def remove_entry(request: Request, campaign_id: int, entry_id: int, db: Session 
     else:
         db.delete(entry)
         db.commit()
-    return redirect(request.headers.get("referer", f"/campaigns/{campaign_id}"))
+    # Back to whichever audience page the row was removed from, but only if the
+    # Referer really points here - it is a request header, so it is caller-set.
+    return redirect(local_referer(request, f"/campaigns/{campaign_id}"))
 
 
 # --------------------------------------------------------------------------- #

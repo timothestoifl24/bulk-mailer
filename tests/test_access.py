@@ -121,13 +121,28 @@ def test_login_redirects_back_to_the_requested_page(anon_client):
 
 
 def test_login_cannot_be_used_as_an_open_redirect(anon_client):
-    for hostile in ["https://evil.example/phish", "//evil.example/phish"]:
+    hostile = [
+        "https://evil.example/phish",
+        "//evil.example/phish",
+        # Browsers resolve a backslash here like a forward slash, so a plain
+        # startswith("//") guard lets these past. Starlette's own URL quoting
+        # currently neutralises them before they reach the wire; these stay
+        # asserted so the guard keeps standing on its own feet if that changes.
+        "/\\evil.example/phish",
+        "\\/evil.example/phish",
+        "\\\\evil.example/phish",
+        "http://evil.example",
+        "javascript:alert(1)",
+        # CR/LF would split the Location header rather than just redirect.
+        "/ok\r\nX-Injected: yes",
+    ]
+    for target in hostile:
         response = anon_client.post(
             "/login",
-            data={"username": "admin", "password": "admin-test-password", "next": hostile},
+            data={"username": "admin", "password": "admin-test-password", "next": target},
             follow_redirects=False,
         )
-        assert response.headers["location"] == "/", hostile
+        assert response.headers["location"] == "/", target
 
 
 def test_an_empty_password_hash_never_authenticates(anon_client):
