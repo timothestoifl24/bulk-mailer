@@ -12,6 +12,11 @@ release before it ships.
 
 ## [Unreleased]
 
+## [v1.0.2-beta] - 2026-08-22
+
+- Bump __version__ to 1.0.2-beta for the next release tag (deed846)
+- Fail the GitHub mirror loudly instead of skipping a release silently (055a4db)
+
 - Recipients, lists, templates and campaigns, with CSV/paste import and LDAP
   / Active Directory import (paged search, configurable attribute mapping,
   group-based import).
