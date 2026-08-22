@@ -1,12 +1,19 @@
-fastapi>=0.115.0
-uvicorn[standard]>=0.30.0
-jinja2>=3.1.4
-python-multipart>=0.0.9
-SQLAlchemy>=2.0.30
-psycopg[binary]>=3.1.18          # PostgreSQL driver; unused when DATABASE_URL is SQLite
-pydantic>=2.7.0
-pydantic-settings>=2.3.0
+# Floors are set to the latest version verified clean against known
+# vulnerabilities (checked against OSV.dev) at the time of each bump, not
+# just "whatever worked once" - an open-ended >= with no lower bound near a
+# fixed CVE means the declared range never actually excludes the vulnerable
+# versions below it, even though pip always resolves to the newest release
+# in practice. Bump the floor, don't just rely on what pip happens to grab.
+fastapi>=0.141.1
+starlette>=1.6.0                 # pulled in transitively by fastapi; pinned directly since it carries most of the historical CVEs
+uvicorn[standard]>=0.52.1
+jinja2>=3.1.6                    # 3.1.6 closes a sandbox breakout (GHSA-cpwx-vrp4-4pq7) - directly relevant, we sandbox user-authored templates
+python-multipart>=0.0.32
+SQLAlchemy>=2.0.52
+psycopg[binary]>=3.3.4           # PostgreSQL driver; unused when DATABASE_URL is SQLite
+pydantic>=2.13.4
+pydantic-settings>=2.15.0
 ldap3>=2.9.1
 itsdangerous>=2.2.0
-cryptography>=42.0.0
-email-validator>=2.1.0
+cryptography>=50.0.0
+email-validator>=2.3.0
