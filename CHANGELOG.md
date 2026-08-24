@@ -16,6 +16,8 @@ pages no longer exist.
 
 ## [Unreleased]
 
+## [v1.2.0] - 2026-08-24
+
 ### Fixed
 - Release notes gave a `docker pull` command for a tag that does not exist —
   they named `ghcr.io/…:v1.1.1` while the image is published as `1.1.1`.
@@ -66,7 +68,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.2.0...HEAD
+[v1.2.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.2.0
 [v1.1.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.1.1
 [v1.1.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.1.0
 [v1.0.2-beta]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.0.2-beta
