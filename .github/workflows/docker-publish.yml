@@ -86,8 +86,16 @@ jobs:
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the full history.
 
             ```
-            docker pull ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            docker pull ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
             ```
+
+          # steps.meta.outputs.version, NOT github.ref_name: metadata-action's
+          # {{version}} strips the leading "v", so the image is published as
+          # :1.1.1 while the ref is v1.1.1. Interpolating the ref here printed
+          # a pull command for a tag that does not exist - `docker pull ...:v1.1.1`
+          # returns 404 - in every release note this workflow has ever written.
+          # Taking it from the same step that pushed the image keeps the two
+          # from drifting apart again.
 
 # First publish only: a package pushed to GHCR from a workflow inherits no
 # visibility setting and starts out **private**, even though this repository
