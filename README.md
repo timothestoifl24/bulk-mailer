@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="assets/logo.svg" alt="" width="96" height="96">
+</p>
+
+<p align="center">
   <b>Bulk Mailer</b><br>
   Send one message to many recipients — typed in, pasted, uploaded as CSV, or pulled straight from LDAP / Active Directory.
 </p>
