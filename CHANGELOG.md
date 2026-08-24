@@ -4,17 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/) (`vMAJOR.MINOR.PATCH` tags).
 
-Write anything worth calling out under `## [Unreleased]`. When a tag is
-pushed, GitLab CI adds a dated section from the commits since the previous
-tag and folds whatever you wrote under `[Unreleased]` into it
-(`.gitlab-ci.yml`, the `changelog:update` job), leaving `[Unreleased]` empty
-again for the next round.
+Write anything worth calling out under `## [Unreleased]` as you go, from the
+reader's point of view — what they can now do, or what stopped being broken.
+`tools/release.py` folds those notes into a dated section when you cut a
+release, so the entry is part of the commit the tag points at rather than a
+commit that comes after it. CI only checks the entry is there.
 
 `v1.0.0-beta` and `v1.0.1-beta` are not linked below: they were tagged
 against an earlier incarnation of the GitHub repository and their release
 pages no longer exist.
 
 ## [Unreleased]
+
+### Fixed
+- Release notes gave a `docker pull` command for a tag that does not exist —
+  they named `ghcr.io/…:v1.1.1` while the image is published as `1.1.1`.
+
+### Changed
+- Releases are prepared with `tools/release.py`, which writes the changelog
+  entry into the release commit itself. Each tag now carries its own notes,
+  so browsing a release's source no longer shows a changelog one version
+  short — and CI no longer needs write access to the repository, so the
+  deploy token it used to require can be deleted.
 
 ## [v1.1.1] - 2026-08-24
 

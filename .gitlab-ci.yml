@@ -9,11 +9,18 @@
 # The release stage (tags only) mirrors the tagged commit to the public GitHub
 # repository, which in turn runs a GitHub Action that publishes the image to
 # the GitHub Container Registry (see .github/workflows/docker-publish.yml),
-# updates CHANGELOG.md from the commits since the previous tag, and creates a
-# GitLab Release. The mirror and changelog jobs need CI/CD variables this
-# repository does not ship with secrets for; each is written to skip itself
-# with a clear explanation when its variables are unset, rather than turning
-# the pipeline red for something that was never configured. To enable them:
+# and creates a GitLab Release.
+#
+# CHANGELOG.md is *not* written here. It is part of the commit the tag points
+# at, put there by tools/release.py before tagging, so the tag describes itself
+# and the mirror carries the notes across without a second push. This pipeline
+# only checks the entry exists (changelog:verify, in the test stage). Nothing
+# in it needs write access to the repository.
+#
+# The mirror needs CI/CD variables this repository does not ship secrets for.
+# It fails loudly rather than skipping when they are missing, because on a tag
+# pipeline there is no "not configured yet" case worth tolerating - a green
+# pipeline that published nothing is worse than a red one. To enable it:
 #
 #   GITHUB_TOKEN     A GitHub personal access token with write access to the
 #                     target repository (classic PAT with the `repo` scope,
@@ -24,16 +31,12 @@
 #                     timothestoifl24/bulk-mailer. Not sensitive; a plain
 #                     variable is fine.
 #
-#   CI_DEPLOY_USER,   Push the generated changelog back to this project's own
-#   CI_DEPLOY_PASSWORD default branch. A GitLab Deploy Token (Settings >
-#                     Repository > Deploy tokens) with the write_repository
-#                     scope, masked and protected. Naming the token exactly
-#                     `gitlab-deploy-token` makes GitLab populate both of
-#                     these automatically in every pipeline - nothing further
-#                     to configure in that case. CI_JOB_TOKEN is intentionally
-#                     not used here: it cannot push to a protected default
-#                     branch unless that is separately allowed in project
-#                     settings.
+# No deploy token is needed. Earlier versions of this pipeline wrote the
+# changelog back to the default branch and required CI_DEPLOY_USER /
+# CI_DEPLOY_PASSWORD with the write_repository scope, plus a protected-branch
+# exception to go with it. Moving that work into the release commit removed the
+# only job that ever pushed here, so those variables can be deleted along with
+# whatever branch exception was added for them.
 #
 # The token is never placed in a URL: a failed push would otherwise echo the
 # credential back in git's own error message. It travels as a Basic-auth
@@ -239,160 +242,50 @@ mirror:github:
       fi
       echo "Mirrored $CI_COMMIT_TAG to https://github.com/${GITHUB_REPO} (tag confirmed present)"
 
-# Generates a changelog entry from the commits since the previous tag and
-# commits it to the default branch. Runs independently of mirror:github -
-# GitHub only ever receives what was already tagged, so this always lands
-# after the fact and is picked up by the *next* release's mirror push.
-changelog:update:
-  stage: release
-  # See the comment on mirror:github's image - alpine/git's ENTRYPOINT hijacks
-  # GitLab's script wrapper. Plain alpine with git installed avoids it.
+# The changelog is written into the release commit by tools/release.py, so
+# there is nothing to generate here - only to check that it was done.
+#
+# Inverting this from writer to checker is deliberate. The previous version
+# needed a deploy token with write_repository plus a protected-branch exception
+# to push to the default branch (which is what produced a 403), and a second
+# push to GitHub that raced the mirror for the same branch. A job that only
+# reads needs none of that, and the mirror carries the changelog for free now
+# that it is part of the tagged commit.
+#
+# In the test stage on purpose: a release missing its notes should fail before
+# an image is built and published, not after.
+changelog:verify:
+  stage: test
   image: alpine:latest
-  interruptible: false
-  # Must follow the mirror, not race it: this job pushes the changelog commit
-  # to GitHub too, and mirror:github force-pushes the tagged commit over that
-  # same branch. Running them in parallel would sometimes discard the entry
-  # depending on which finished first.
-  needs: ["mirror:github"]
+  interruptible: true
   rules:
     - if: $CI_COMMIT_TAG
-  variables:
-    GIT_DEPTH: "0"
-    GIT_STRATEGY: clone
-    # See mirror:github - same reasoning, same fix.
-    GIT_TERMINAL_PROMPT: "0"
-  before_script:
-    - apk add --no-cache git
   script:
     - |
       set -e
-      if [ -z "$CI_DEPLOY_USER" ] || [ -z "$CI_DEPLOY_PASSWORD" ]; then
-        echo "CI_DEPLOY_USER and/or CI_DEPLOY_PASSWORD are not set - skipping the changelog update."
-        echo "See the comment at the top of this file to enable it."
-        exit 0
-      fi
-      if grep -qF "## [$CI_COMMIT_TAG]" CHANGELOG.md; then
-        echo "CHANGELOG.md already has an entry for $CI_COMMIT_TAG, nothing to do."
-        exit 0
-      fi
-
-      PREV_TAG=$(git describe --tags --abbrev=0 "${CI_COMMIT_TAG}^" 2>/dev/null || true)
-      if [ -n "$PREV_TAG" ]; then
-        RANGE="$PREV_TAG..$CI_COMMIT_TAG"
-      else
-        RANGE="$CI_COMMIT_TAG"
-      fi
-
-      # Whatever a human wrote under "## [Unreleased]" describes exactly what
-      # is shipping now, so it belongs *inside* this release's section. The
-      # earlier version of this job inserted the generated section directly
-      # after the Unreleased heading and left that hand-written text sitting
-      # below it, which silently reattributed it to the release being cut -
-      # and the header of CHANGELOG.md tells people to write there.
-      awk '/^## \[Unreleased\]/ {f=1; next} f && /^## / {exit} f {print}' \
-        CHANGELOG.md > carried_over.md
-      # Trim leading and trailing blank lines so the section does not gain a
-      # stray gap when there was nothing to carry over.
-      sed -e '/./,$!d' carried_over.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > carried.md
-
-      {
-        echo "## [$CI_COMMIT_TAG] - $(date -u +%Y-%m-%d)"
+      if ! grep -qF "## [$CI_COMMIT_TAG]" CHANGELOG.md; then
+        echo "CHANGELOG.md has no '## [$CI_COMMIT_TAG]' section."
         echo
-        if [ -s carried.md ]; then
-          cat carried.md
-          echo
-        fi
-        git log "$RANGE" --no-merges --grep='^docs: changelog for' --invert-grep \
-          --pretty=format:'- %s (%h)'
+        echo "The entry belongs in the commit this tag points at, so the tag"
+        echo "describes itself and the GitHub mirror carries it across without"
+        echo "a second push. Prepare releases with:"
         echo
-      } > new_section.md
-
-      # A friendly nudge, not a hard failure: a tag/version mismatch is worth
-      # noticing but shouldn't block the release notes from being generated.
-      # sed, not grep -P: BusyBox grep has no -P (PCRE) support at all, so a
-      # lookbehind here would just error out - masked by `|| true` below into
-      # a silently-empty APP_VERSION rather than a job failure, but it meant
-      # this check never actually ran.
-      APP_VERSION=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' app/__init__.py || true)
-      TAG_VERSION="${CI_COMMIT_TAG#v}"
-      if [ -n "$APP_VERSION" ] && [ "$APP_VERSION" != "$TAG_VERSION" ]; then
-        echo "Note: app/__init__.py says __version__ = \"$APP_VERSION\", tag is $CI_COMMIT_TAG."
-      fi
-
-      # Insert right after the "## [Unreleased]" heading, ahead of whatever
-      # follows it - the most recent release always reads top-to-bottom - and
-      # drop the old Unreleased body, which is now part of the new section.
-      awk '
-        /^## \[Unreleased\]/ && state == 0 {
-          print
-          print ""
-          while ((getline line < "new_section.md") > 0) print line
-          # The blank line before the next release heading. Previously this
-          # came from the source file, but the old Unreleased body that
-          # supplied it is now swallowed below.
-          print ""
-          state = 1
-          next
-        }
-        state == 1 && /^## / { state = 2 }
-        state == 1 { next }
-        { print }
-      ' CHANGELOG.md > CHANGELOG.md.new
-      mv CHANGELOG.md.new CHANGELOG.md
-
-      # Rebuild the link definitions, so the bracketed headings are real links
-      # rather than literal brackets. Regenerated wholesale from the headings
-      # actually present: a heading written without brackets (an old tag whose
-      # release page no longer exists, say) deliberately gets no link.
-      if [ -n "$GITHUB_REPO" ]; then
-        grep -v '^\[[^]]*\]: https\?://' CHANGELOG.md \
-          | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > CHANGELOG.body
-        {
-          cat CHANGELOG.body
-          echo
-          echo "[Unreleased]: https://github.com/${GITHUB_REPO}/compare/${CI_COMMIT_TAG}...HEAD"
-          sed -n 's/^## \[\([^]]*\)\].*/\1/p' CHANGELOG.body \
-            | grep -v '^Unreleased$' \
-            | while read -r version; do
-                echo "[${version}]: https://github.com/${GITHUB_REPO}/releases/tag/${version}"
-              done
-        } > CHANGELOG.md
-        rm -f CHANGELOG.body
-      fi
-      rm -f new_section.md carried_over.md carried.md
-
-      git config user.name "GitLab CI"
-      git config user.email "gitlab-ci@$CI_SERVER_HOST"
-      git add CHANGELOG.md
-      # [skip ci]: this commit reaches the default branch and would otherwise
-      # trigger another pipeline for a docs-only change.
-      git commit -m "docs: changelog for $CI_COMMIT_TAG [skip ci]"
-      AUTH=$(printf '%s:%s' "$CI_DEPLOY_USER" "$CI_DEPLOY_PASSWORD" | base64 -w0)
-      git -c http.extraHeader="AUTHORIZATION: basic ${AUTH}" \
-        push "https://${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
-      echo "CHANGELOG.md updated for $CI_COMMIT_TAG."
-
-      # And on to GitHub. Without this the changelog never reaches the public
-      # repository for its own release: mirror:github pushes the *tagged*
-      # commit, and this entry is written afterwards, on top of it - so every
-      # release published a changelog that stopped at the previous version.
-      #
-      # This job runs after mirror:github (see `needs:`), so GitHub's default
-      # branch is the tagged commit and this commit is its direct child: an
-      # ordinary fast-forward. Deliberately not --force - a rejection here
-      # means GitHub's branch moved underneath us, which is worth failing on
-      # rather than overwriting.
-      if [ -z "$GITHUB_TOKEN" ] || [ -z "$GITHUB_REPO" ]; then
-        echo "GITHUB_TOKEN and/or GITHUB_REPO are empty, so the changelog cannot"
-        echo "reach GitHub. mirror:github runs before this job and would already"
-        echo "have failed on the same variables, so reaching here means they were"
-        echo "cleared mid-pipeline. Failing rather than leaving the two out of sync."
+        echo "    python tools/release.py ${CI_COMMIT_TAG#v}"
+        echo
+        echo "which folds the notes under [Unreleased] into a dated section,"
+        echo "bumps __version__, then commits and tags in one step."
         exit 1
       fi
-      GH_AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)
-      git -c http.extraHeader="AUTHORIZATION: basic ${GH_AUTH}" \
-        push "https://github.com/${GITHUB_REPO}.git" "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
-      echo "CHANGELOG.md pushed to https://github.com/${GITHUB_REPO} as well."
+
+      APP_VERSION=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' app/__init__.py)
+      TAG_VERSION="${CI_COMMIT_TAG#v}"
+      if [ "$APP_VERSION" != "$TAG_VERSION" ]; then
+        echo "app/__init__.py says __version__ is '$APP_VERSION', but the tag is $CI_COMMIT_TAG."
+        echo "These have to agree, or a running instance reports a version it is not."
+        exit 1
+      fi
+
+      echo "CHANGELOG.md documents $CI_COMMIT_TAG, and __version__ agrees."
 
 # GitLab's native Releases feature. Authenticates as the job itself - no
 # extra credentials needed, unlike the two jobs above. The full notes live in

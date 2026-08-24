@@ -64,11 +64,21 @@ A few conventions worth keeping:
 
 ## Commit messages
 
-The `changelog:update` CI job turns commit subjects into changelog lines
-verbatim when a tag is pushed — see the top of [`.gitlab-ci.yml`](.gitlab-ci.yml)
-for how. A clear, imperative subject line (`Add LDAP group caching`, not
-`fixed stuff`) is both a courtesy to reviewers and directly what ends up in
-the next release's notes.
+A clear, imperative subject line (`Add LDAP group caching`, not `fixed
+stuff`), with the body explaining *why* where that isn't obvious.
+
+Commit subjects are not the changelog. If a change is worth telling users
+about, add a line under `## [Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md)
+in the same commit, written for someone deciding whether to upgrade:
+
+```markdown
+## [Unreleased]
+
+### Fixed
+- Bulk actions on recipients applied to only the 50 rows on the current page.
+```
+
+Not every commit needs one — a refactor with no visible effect doesn't.
 
 ## Before opening a pull request
 
@@ -84,24 +94,45 @@ the next release's notes.
 
 ## Releasing (maintainers)
 
-Tag with `vMAJOR.MINOR.PATCH` (matching `app/__init__.py`'s `__version__`,
-though the pipeline only warns rather than blocks if you forget to bump it)
-on the default branch. Pushing the tag to GitLab makes CI:
+From a clean default branch:
 
-1. Run the full test suite again (both databases).
-2. Build the image and push it to the GitLab Container Registry.
-3. Mirror that exact commit and the tag to the public GitHub repository —
+```bash
+python tools/release.py 1.2.0
+```
+
+That folds everything under `## [Unreleased]` into a dated `## [v1.2.0]`
+section, bumps `__version__`, then commits and tags — signed, if you have
+`tag.gpgsign` set. Add `--dry-run` first to see the diff without touching
+anything. It refuses to run on a dirty tree, on a version that isn't semver,
+on a tag that already exists, and on an empty `[Unreleased]` unless you pass
+`--allow-empty`.
+
+Nothing is pushed. Publish deliberately:
+
+```bash
+git push origin main && git push origin v1.2.0
+```
+
+The changelog goes in *before* the tag on purpose: the entry then lives in
+the commit the tag points at, so the tag describes itself, the GitHub mirror
+carries the notes across for free, and CI never needs write access to this
+repository. Pushing the tag makes CI:
+
+1. Check `CHANGELOG.md` documents the tag and `__version__` agrees — this
+   runs in the test stage, so a release missing its notes fails before an
+   image is built rather than after it is published.
+2. Run the full test suite again (both databases).
+3. Build the image and push it to the GitLab Container Registry.
+4. Mirror that exact commit and the tag to the public GitHub repository —
    the *only* thing GitHub ever receives is a tagged release.
-4. Update `CHANGELOG.md` from the commits since the previous tag and commit
-   that back to the default branch.
 5. Create a GitLab Release.
 
-Steps 3 and 4 need CI/CD variables that don't ship with the repository
-(`GITHUB_TOKEN`, `GITHUB_REPO` for the mirror; `CI_DEPLOY_USER`,
-`CI_DEPLOY_PASSWORD` for the changelog commit) — until they're configured,
-those two jobs skip themselves with an explanation instead of failing the
-pipeline. Full setup instructions are in the comment block at the top of
-[`.gitlab-ci.yml`](.gitlab-ci.yml).
+Step 4 needs `GITHUB_TOKEN` and `GITHUB_REPO`, which don't ship with the
+repository; the job fails loudly if they're missing, because on a tag
+pipeline a green run that published nothing is worse than a red one. Setup
+instructions are in the comment block at the top of
+[`.gitlab-ci.yml`](.gitlab-ci.yml). No deploy token is needed — nothing in
+the pipeline writes to this repository.
 
 Once GitHub has the tag, its own Actions workflow
 (`.github/workflows/docker-publish.yml`) builds and pushes the image to the
