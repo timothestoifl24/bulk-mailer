@@ -12,6 +12,11 @@ release before it ships.
 
 ## [Unreleased]
 
+## [v1.1.0] - 2026-08-24
+
+- Release 1.1.0 as the first production version (9fa7870)
+- Add LDAP group filters and a visual template editor; fix select-all (0234722)
+
 ## [v1.0.2-beta] - 2026-08-22
 
 - Bump __version__ to 1.0.2-beta for the next release tag (deed846)
