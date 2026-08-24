@@ -34,6 +34,39 @@ def _lists(db: Session) -> list[RecipientList]:
     return list(db.scalars(select(RecipientList).order_by(RecipientList.name)))
 
 
+def _dn_lines(raw: str) -> list[str]:
+    """One group DN per line. Blank lines are how people space a list out."""
+    return [line.strip() for line in (raw or "").splitlines() if line.strip()]
+
+
+def _effective_filter(
+    profile: LdapProfile,
+    search_filter: str,
+    include_groups: str,
+    exclude_groups: str,
+    group_match: str,
+    nested: bool,
+) -> tuple[str, str, list[str]]:
+    """Resolve what to actually send: (base filter, effective filter, dubious DNs).
+
+    The base is returned alongside the effective filter so the form can be
+    repopulated with what the user *typed*. Echoing the combined filter back
+    into the editable box instead would re-apply the group conditions on the
+    next submit, compounding them every time - the search would silently get
+    narrower with each click.
+    """
+    base = search_filter.strip() or profile.search_filter
+    include, exclude = _dn_lines(include_groups), _dn_lines(exclude_groups)
+    if not include and not exclude:
+        return base, base, []
+
+    effective = ldap_client.membership_filter(
+        base, include, exclude, nested=nested, match_all=group_match != "any"
+    )
+    dubious = [dn for dn in include + exclude if not ldap_client.looks_like_dn(dn)]
+    return base, effective, dubious
+
+
 def _parse_attr_map(raw: str) -> tuple[dict, str | None]:
     if not raw.strip():
         return DEFAULT_ATTR_MAP, None
@@ -118,6 +151,14 @@ def detail(request: Request, profile_id: int, db: Session = Depends(get_db)):
             "lists": _lists(db),
             "attr_map_json": json.dumps(profile.attr_map, indent=2),
             "results": None,
+            # Supplied explicitly rather than left undefined so the form has one
+            # obvious first-load state - nested lookups on, match all groups.
+            "base_filter": profile.search_filter,
+            "used_filter": "",
+            "include_groups": "",
+            "exclude_groups": "",
+            "group_match": "all",
+            "nested_groups": True,
         },
     )
 
@@ -197,7 +238,9 @@ def search(
     profile_id: int,
     search_filter: str = Form(""),
     base_dn: str = Form(""),
-    group_dn: str = Form(""),
+    include_groups: str = Form(""),
+    exclude_groups: str = Form(""),
+    group_match: str = Form("all"),
     nested_groups: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -206,9 +249,19 @@ def search(
         flash(request, "LDAP profile not found.", "error")
         return redirect("/ldap")
 
-    effective_filter = search_filter.strip() or profile.search_filter
-    if group_dn.strip():
-        effective_filter = ldap_client.group_filter(group_dn.strip(), nested=nested_groups == "1")
+    base_filter, effective_filter, dubious = _effective_filter(
+        profile, search_filter, include_groups, exclude_groups, group_match, nested_groups == "1"
+    )
+    if dubious:
+        flash(
+            request,
+            "memberOf matches on the full distinguished name, and "
+            + ", ".join(f"'{dn}'" for dn in dubious)
+            + " does not look like one. A bare CN matches nothing and reports no "
+            "error - use the whole DN, e.g. "
+            "CN=All Staff,OU=Groups,DC=corp,DC=example,DC=com.",
+            "warning",
+        )
 
     skipped: list[str] = []
     try:
@@ -242,8 +295,15 @@ def search(
             "results": entries[:PREVIEW_LIMIT],
             "result_count": len(entries),
             "preview_limit": PREVIEW_LIMIT,
+            # base_filter goes back into the editable box, used_filter is what
+            # actually ran and what the import re-runs.
+            "base_filter": base_filter,
             "used_filter": effective_filter,
             "used_base_dn": base_dn.strip() or profile.base_dn,
+            "include_groups": include_groups,
+            "exclude_groups": exclude_groups,
+            "group_match": group_match,
+            "nested_groups": nested_groups == "1",
         },
     )
 

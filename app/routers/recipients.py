@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -19,7 +20,7 @@ from ..services.importer import (
     parse_csv,
     parse_email_list,
 )
-from ..web import flash, redirect, render
+from ..web import flash, local_referer, redirect, render
 
 router = APIRouter(dependencies=[Depends(require_user)])
 
@@ -28,6 +29,55 @@ PAGE_SIZE = 50
 
 def _all_lists(db: Session) -> list[RecipientList]:
     return list(db.scalars(select(RecipientList).order_by(RecipientList.name)))
+
+
+def _filtered_statement(q: str = "", list_id: str = "", source: str = "", suppressed: str = ""):
+    """The recipient query behind both the list page and the bulk actions.
+
+    Shared on purpose. "Apply to everything matching this filter" has to select
+    exactly the rows the page was showing, across every page - a second copy of
+    these predicates would drift out of step with this one, and the way you'd
+    find out is a bulk delete hitting the wrong people.
+    """
+    statement = select(Recipient)
+    if q:
+        pattern = f"%{q.strip().lower()}%"
+        statement = statement.where(
+            or_(
+                func.lower(Recipient.email).like(pattern),
+                func.lower(Recipient.first_name).like(pattern),
+                func.lower(Recipient.last_name).like(pattern),
+                func.lower(Recipient.display_name).like(pattern),
+                func.lower(Recipient.company).like(pattern),
+                func.lower(Recipient.department).like(pattern),
+            )
+        )
+    if list_id.isdigit():
+        statement = statement.where(Recipient.lists.any(RecipientList.id == int(list_id)))
+    if source:
+        statement = statement.where(Recipient.source == source)
+    if suppressed == "1":
+        statement = statement.where(Recipient.is_suppressed.is_(True))
+    elif suppressed == "0":
+        statement = statement.where(Recipient.is_suppressed.is_(False))
+    return statement
+
+
+def _recipients_url(q: str = "", list_id: str = "", source: str = "", suppressed: str = "") -> str:
+    """Back to the same filtered view, so a bulk action does not lose the user's place."""
+    query = urlencode(
+        {
+            key: value
+            for key, value in (
+                ("q", q),
+                ("list_id", list_id),
+                ("source", source),
+                ("suppressed", suppressed),
+            )
+            if value
+        }
+    )
+    return "/recipients" + (f"?{query}" if query else "")
 
 
 def _resolve_target_list(db: Session, list_id: str, new_list_name: str) -> RecipientList | None:
@@ -58,27 +108,9 @@ def index(
     page: int = 1,
     db: Session = Depends(get_db),
 ):
-    statement = select(Recipient).options(selectinload(Recipient.lists))
-    if q:
-        pattern = f"%{q.strip().lower()}%"
-        statement = statement.where(
-            or_(
-                func.lower(Recipient.email).like(pattern),
-                func.lower(Recipient.first_name).like(pattern),
-                func.lower(Recipient.last_name).like(pattern),
-                func.lower(Recipient.display_name).like(pattern),
-                func.lower(Recipient.company).like(pattern),
-                func.lower(Recipient.department).like(pattern),
-            )
-        )
-    if list_id.isdigit():
-        statement = statement.where(Recipient.lists.any(RecipientList.id == int(list_id)))
-    if source:
-        statement = statement.where(Recipient.source == source)
-    if suppressed == "1":
-        statement = statement.where(Recipient.is_suppressed.is_(True))
-    elif suppressed == "0":
-        statement = statement.where(Recipient.is_suppressed.is_(False))
+    statement = _filtered_statement(q, list_id, source, suppressed).options(
+        selectinload(Recipient.lists)
+    )
 
     total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
     page = max(1, page)
@@ -218,13 +250,33 @@ def bulk_action(
     action: str = Form(...),
     selected: list[int] = Form([]),
     target_list_id: str = Form(""),
+    # Set by the "select all N matching this filter" control. The filter travels
+    # with the form rather than the ids: the whole point is to act on rows that
+    # were never rendered, and posting tens of thousands of checkbox values to
+    # express that would be absurd (and would blow past body-size limits).
+    select_all_matching: str = Form(""),
+    q: str = Form(""),
+    list_id: str = Form(""),
+    source: str = Form(""),
+    suppressed: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    if not selected:
+    back = _recipients_url(q, list_id, source, suppressed)
+    # selectinload because add_to_list/remove_from_list touch .lists on every
+    # row; without it a 5,000-row selection turns into 5,000 extra queries.
+    if select_all_matching == "1":
+        statement = _filtered_statement(q, list_id, source, suppressed)
+    elif selected:
+        statement = select(Recipient).where(Recipient.id.in_(selected))
+    else:
         flash(request, "No recipients selected.", "warning")
-        return redirect("/recipients")
+        return redirect(back)
 
-    recipients = list(db.scalars(select(Recipient).where(Recipient.id.in_(selected))))
+    recipients = list(db.scalars(statement.options(selectinload(Recipient.lists))))
+    if not recipients:
+        flash(request, "No recipients matched, so nothing was changed.", "warning")
+        return redirect(back)
+
     if action == "delete":
         for recipient in recipients:
             db.delete(recipient)
@@ -243,7 +295,7 @@ def bulk_action(
         target = db.get(RecipientList, int(target_list_id))
         if target is None:
             flash(request, "List not found.", "error")
-            return redirect("/recipients")
+            return redirect(back)
         for recipient in recipients:
             if action == "add_to_list" and target not in recipient.lists:
                 recipient.lists.append(target)
@@ -253,10 +305,10 @@ def bulk_action(
         flash(request, f"{verb} '{target.name}': {len(recipients)} recipients.", "success")
     else:
         flash(request, "Unknown action or missing target list.", "error")
-        return redirect("/recipients")
+        return redirect(back)
 
     db.commit()
-    return redirect("/recipients")
+    return redirect(back)
 
 
 @router.get("/recipients/{recipient_id}")
@@ -333,7 +385,9 @@ def delete_recipient(request: Request, recipient_id: int, db: Session = Depends(
         db.delete(recipient)
         db.commit()
         flash(request, f"Deleted {recipient.email}.", "success")
-    return redirect(request.headers.get("referer", "/recipients"))
+    # Same caller-set header as in campaigns.remove_entry: only a Referer that
+    # actually points at this site may steer the redirect.
+    return redirect(local_referer(request, "/recipients"))
 
 
 @router.get("/recipients-export.csv")

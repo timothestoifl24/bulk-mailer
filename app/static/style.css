@@ -51,3 +51,62 @@ textarea.code {
   font-family: var(--tblr-font-monospace);
   font-size: 0.85rem;
 }
+
+/* Rich HTML editor (Quill), themed onto Tabler's tokens.
+   Quill's snow theme hard-codes light greys, so without this the editor stays
+   a white slab in dark mode. Everything below maps its chrome onto the same
+   variables the rest of the UI uses. */
+.rich-editor-surface .ql-editor {
+  min-height: 20rem;
+  font-family: var(--tblr-font-sans-serif);
+  font-size: 0.95rem;
+}
+
+.rich-editor-surface.ql-container.ql-snow,
+.rich-editor .ql-toolbar.ql-snow {
+  border-color: var(--tblr-border-color);
+}
+
+.rich-editor .ql-toolbar.ql-snow {
+  border-top-left-radius: var(--tblr-border-radius);
+  border-top-right-radius: var(--tblr-border-radius);
+  background: var(--tblr-bg-surface-secondary);
+}
+
+.rich-editor-surface.ql-container.ql-snow {
+  border-bottom-left-radius: var(--tblr-border-radius);
+  border-bottom-right-radius: var(--tblr-border-radius);
+  background: var(--tblr-bg-surface);
+  color: var(--tblr-body-color);
+}
+
+/* The toolbar is drawn with inline SVG whose stroke/fill are set by Quill's
+   own stylesheet; in dark mode those resolve to near-black on near-black. */
+[data-bs-theme="dark"] .rich-editor .ql-snow .ql-stroke {
+  stroke: var(--tblr-body-color);
+}
+
+[data-bs-theme="dark"] .rich-editor .ql-snow .ql-fill {
+  fill: var(--tblr-body-color);
+}
+
+[data-bs-theme="dark"] .rich-editor .ql-snow .ql-picker-label,
+[data-bs-theme="dark"] .rich-editor .ql-snow .ql-picker-options {
+  color: var(--tblr-body-color);
+  background: var(--tblr-bg-surface);
+  border-color: var(--tblr-border-color);
+}
+
+/* Quill's link tooltip is positioned absolutely inside the container. */
+[data-bs-theme="dark"] .rich-editor .ql-snow .ql-tooltip {
+  background: var(--tblr-bg-surface);
+  border-color: var(--tblr-border-color);
+  color: var(--tblr-body-color);
+  box-shadow: none;
+}
+
+[data-bs-theme="dark"] .rich-editor .ql-snow .ql-tooltip input[type="text"] {
+  background: var(--tblr-bg-surface-secondary);
+  border-color: var(--tblr-border-color);
+  color: var(--tblr-body-color);
+}

@@ -32,8 +32,11 @@
     <form method="post" action="/ldap/{{ profile.id }}/search">
       <div class="mb-3">
         <label class="form-label" for="search_filter">LDAP filter</label>
+        {# Shows what was typed, never the combined filter: echoing the combined
+           one back would re-apply the group conditions on the next submit and
+           quietly narrow the search with every click. #}
         <input type="text" class="form-control mono" id="search_filter" name="search_filter"
-               value="{{ used_filter or profile.search_filter }}">
+               value="{{ base_filter or profile.search_filter }}">
       </div>
       <div class="mb-3">
         <label class="form-label" for="base_dn">Base DN (override)</label>
@@ -41,24 +44,53 @@
                value="{{ used_base_dn or profile.base_dn }}">
       </div>
 
-      <div class="hr-text">or: everyone in a group</div>
-      <div class="row g-2 align-items-end mb-3">
-        <div class="col-md-8">
-          <label class="form-label" for="group_dn">Group DN</label>
-          <input type="text" class="form-control mono" id="group_dn" name="group_dn"
-                 placeholder="CN=All Staff,OU=Groups,DC=corp,DC=example,DC=com">
+      <div class="hr-text">narrow it down by group membership</div>
+      <div class="row g-2 mb-2">
+        <div class="col-md-6">
+          <label class="form-label" for="include_groups">Must be a member of</label>
+          <textarea class="form-control mono" id="include_groups" name="include_groups" rows="3"
+                    placeholder="CN=All Staff,OU=Groups,DC=corp,DC=example,DC=com">{{ include_groups }}</textarea>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6">
+          <label class="form-label" for="exclude_groups">...but not a member of</label>
+          <textarea class="form-control mono" id="exclude_groups" name="exclude_groups" rows="3"
+                    placeholder="CN=Contractors,OU=Groups,DC=corp,DC=example,DC=com">{{ exclude_groups }}</textarea>
+        </div>
+      </div>
+      <div class="row g-2 align-items-end mb-3">
+        <div class="col-md-5">
+          <label class="form-label" for="group_match">With several groups above, match</label>
+          <select class="form-select" id="group_match" name="group_match">
+            <option value="all" {{ 'selected' if group_match != 'any' }}>all of them (AND)</option>
+            <option value="any" {{ 'selected' if group_match == 'any' }}>any of them (OR)</option>
+          </select>
+        </div>
+        <div class="col-md-7">
           <label class="form-check mb-2">
             <input type="checkbox" class="form-check-input" id="nested_groups" name="nested_groups"
-                   value="1" checked>
-            <span class="form-check-label">Include nested groups</span>
+                   value="1" {{ 'checked' if nested_groups }}>
+            <span class="form-check-label">Include nested groups (Active Directory only)</span>
           </label>
         </div>
       </div>
       <small class="form-hint d-block mb-3">
-        When a group DN is given it replaces the filter above (nested lookups are Active Directory only).
+        One full DN per line &mdash; <code>memberOf</code> matches the whole distinguished name, so a
+        bare <code class="mono">cn=group1</code> matches nothing and reports no error. These conditions
+        refine the filter above rather than replacing it, so
+        <code class="mono">(&amp;(objectClass=person)(mail=*))</code> with one include and one exclude
+        becomes <code class="mono">(&amp;(...)(memberOf=A)(!(memberOf=B)))</code>. Exclusions always
+        mean "in none of these".
       </small>
+
+      {% if used_filter and used_filter != base_filter %}
+      <div class="mb-3">
+        <label class="form-label" for="effective_filter">Filter that ran</label>
+        <input type="text" class="form-control mono" id="effective_filter" readonly
+               value="{{ used_filter }}">
+        <small class="form-hint">Copy this into the filter box above to keep it as a plain filter.</small>
+      </div>
+      {% endif %}
+
       <button class="btn btn-primary" type="submit">{{ icon('search', 20) }} Search</button>
     </form>
   </div>

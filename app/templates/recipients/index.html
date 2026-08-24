@@ -82,13 +82,38 @@
     {% endif %}
   </div>
 
+  {#
+    The bulk form carries the active filter, not just the ticked ids, so
+    "select all matching" can reach rows on pages that were never rendered.
+    These mirror the filter-form controls above; the server re-runs the very
+    same query rather than trusting a count sent by the browser.
+  #}
+  <input type="hidden" form="bulk-form" name="q" value="{{ q }}">
+  <input type="hidden" form="bulk-form" name="list_id" value="{{ list_id }}">
+  <input type="hidden" form="bulk-form" name="source" value="{{ source }}">
+  <input type="hidden" form="bulk-form" name="suppressed" value="{{ suppressed }}">
+  <input type="hidden" form="bulk-form" name="select_all_matching" id="select-all-matching" value="">
+
+  {% if total > recipients|length %}
+  <div id="selection-banner" class="alert alert-info mb-0 rounded-0 border-start-0 border-end-0 d-none"
+       role="status" data-total="{{ total }}" data-page-count="{{ recipients|length }}">
+    <span id="selection-banner-text"></span>
+    <button type="button" class="btn btn-sm btn-primary ms-2" id="select-all-matching-btn">
+      Select all {{ total }} matching this filter
+    </button>
+    <button type="button" class="btn btn-sm ms-1 d-none" id="clear-selection-btn">
+      Clear selection
+    </button>
+  </div>
+  {% endif %}
+
   <div class="table-responsive">
     <table class="table card-table table-vcenter">
       <thead>
         <tr>
           <th class="w-1">
             <input type="checkbox" class="form-check-input m-0 align-middle" id="check-all"
-                   title="Select all on this page">
+                   title="Select every row on this page">
           </th>
           <th>Email</th><th>Name</th><th>Company / Dept</th><th>Source</th><th>Lists</th><th></th>
         </tr>
@@ -155,10 +180,10 @@
         </select>
       </div>
       <div class="col-md-2">
-        <button class="btn w-100" form="bulk-form" type="submit"
-                onclick="return document.getElementById('action').value !== 'delete' || confirm('Delete the selected recipients permanently?')">
-          Apply
-        </button>
+        {# The delete confirmation lives in app.js, where the real count is
+           known - it has to say "all 4,312", not "the selected", when the
+           selection spans pages that were never rendered. #}
+        <button class="btn w-100" form="bulk-form" type="submit">Apply</button>
       </div>
       {% if pages > 1 %}
       <div class="col-md-2 text-end text-secondary">Page {{ page }} of {{ pages }}</div>

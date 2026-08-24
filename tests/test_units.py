@@ -15,9 +15,10 @@ from app.security import (
     verify_unsubscribe_token,
 )
 from app.services.importer import parse_csv, parse_email_list
-from app.web import local_referer, safe_path
+from app.services.ldap_client import looks_like_dn, membership_filter
 from app.services.mailer import OutgoingAttachment, build_message
 from app.services.rendering import find_variables, html_to_text, render_html, render_subject
+from app.web import local_referer, safe_path
 
 
 # --------------------------------------------------------------------------- #
@@ -313,3 +314,83 @@ def test_non_ascii_subject_is_still_encoded():
         from_email="news@example.com",
     )
     assert "=?utf-8?" in message.as_string()
+
+
+# --------------------------------------------------------------------------- #
+# LDAP group membership filters
+# --------------------------------------------------------------------------- #
+BASE_FILTER = "(&(objectClass=person)(mail=*))"
+GROUP_A = "CN=Group1,OU=Groups,DC=corp,DC=example,DC=com"
+GROUP_B = "CN=Group2,OU=Groups,DC=corp,DC=example,DC=com"
+GROUP_C = "CN=Group3,OU=Groups,DC=corp,DC=example,DC=com"
+
+
+def _balanced(text: str) -> bool:
+    depth = 0
+    for char in text:
+        depth += char == "("
+        depth -= char == ")"
+        if depth < 0:
+            return False
+    return depth == 0
+
+
+def test_membership_filter_builds_in_a_but_not_in_b():
+    """The case a single group box cannot express."""
+    result = membership_filter(BASE_FILTER, [GROUP_A], [GROUP_B], nested=False)
+    assert result == f"(&{BASE_FILTER}(memberOf={GROUP_A})(!(memberOf={GROUP_B})))"
+    assert _balanced(result)
+
+
+def test_membership_filter_combines_several_groups_both_ways():
+    both = membership_filter(BASE_FILTER, [GROUP_A, GROUP_C], nested=False, match_all=True)
+    either = membership_filter(BASE_FILTER, [GROUP_A, GROUP_C], nested=False, match_all=False)
+    assert f"(&(memberOf={GROUP_A})(memberOf={GROUP_C}))" in both
+    assert f"(|(memberOf={GROUP_A})(memberOf={GROUP_C}))" in either
+    assert _balanced(both) and _balanced(either)
+
+
+def test_membership_filter_does_not_wrap_a_single_group():
+    """(&(x)) is legal but makes the filter shown back to the user noisier."""
+    single = membership_filter(BASE_FILTER, [GROUP_A], nested=False)
+    assert "(&(memberOf=" not in single and "(|(memberOf=" not in single
+
+
+def test_membership_filter_uses_the_matching_rule_only_when_nested():
+    nested = membership_filter(BASE_FILTER, [GROUP_A], nested=True)
+    flat = membership_filter(BASE_FILTER, [GROUP_A], nested=False)
+    assert "1.2.840.113556.1.4.1941" in nested
+    assert "1.2.840.113556.1.4.1941" not in flat
+
+
+def test_membership_filter_is_a_no_op_without_groups():
+    """No conditions must leave the base filter exactly as it was."""
+    assert membership_filter(BASE_FILTER, [], []) == BASE_FILTER
+    assert membership_filter(BASE_FILTER, ["  "], ["", "\t"]) == BASE_FILTER
+
+
+def test_membership_filter_escapes_filter_metacharacters():
+    """A group DN is user input and lands inside a filter expression."""
+    result = membership_filter(BASE_FILTER, ["CN=x)(uid=*"], nested=False)
+    assert "(uid=*)" not in result
+    assert r"\29\28uid=\2a" in result
+    assert _balanced(result)
+
+
+def test_membership_filter_supports_exclude_only():
+    result = membership_filter(BASE_FILTER, [], [GROUP_B], nested=False)
+    assert result == f"(&{BASE_FILTER}(!(memberOf={GROUP_B})))"
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        (GROUP_A, True),
+        ("CN=x,DC=y", True),
+        ("cn=group1", False),  # the mistake this warning exists to catch
+        ("group1", False),
+        ("", False),
+    ],
+)
+def test_looks_like_dn_flags_a_bare_common_name(value, expected):
+    assert looks_like_dn(value) is expected

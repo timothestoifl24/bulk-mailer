@@ -3,6 +3,9 @@
 <head>
   {% include "_head.html" %}
   <title>{% block title %}Bulk Mailer{% endblock %}</title>
+  {# Page-specific stylesheets. Kept a block so the editor's CSS loads only on
+     the screens that actually mount an editor, not on every page. #}
+  {% block head %}{% endblock %}
 </head>
 <body>
 {% from "_icons.html" import icon %}

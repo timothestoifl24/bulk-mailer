@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 {% block title %}{{ item.name if item else 'New template' }} - Bulk Mailer{% endblock %}
 
+{% block head %}
+<link rel="stylesheet" href="/static/vendor/quill/quill.snow.css">
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/vendor/quill/quill.js" defer></script>
+<script src="/static/editor.js" defer></script>
+{% endblock %}
+
 {% block page_header %}
 <div class="page-header d-print-none">
   <div class="container-xl">
@@ -41,7 +50,16 @@
 
       <div class="mb-3">
         <label class="form-label" for="body_html">HTML body</label>
-        <textarea class="form-control code" id="body_html" name="body_html" rows="16">{{ item.body_html if item else sample_html }}</textarea>
+        {# data-rich-editor mounts the Visual/HTML toggle from editor.js. The
+           textarea keeps its name and stays what the form posts, so with
+           JavaScript off this is exactly the plain textarea it always was. #}
+        <textarea class="form-control code" id="body_html" name="body_html" rows="16"
+                  data-rich-editor>{{ item.body_html if item else sample_html }}</textarea>
+        <small class="form-hint">
+          Visual editing supports headings, lists, links and emphasis. Tables and inline styles
+          are kept intact in the HTML view, but the visual editor cannot represent them &mdash;
+          it will say so before stripping anything.
+        </small>
       </div>
 
       <div class="mb-3">

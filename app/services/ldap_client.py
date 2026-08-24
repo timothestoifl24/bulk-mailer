@@ -199,8 +199,75 @@ def search(
     return list(unique.values())
 
 
+NESTED_RULE = "1.2.840.113556.1.4.1941"  # LDAP_MATCHING_RULE_IN_CHAIN, AD only
+
+
+def _member_clause(group_dn: str, nested: bool, attribute: str = "memberOf") -> str:
+    escaped = escape_filter_chars(group_dn.strip())
+    if nested:
+        return f"({attribute}:{NESTED_RULE}:={escaped})"
+    return f"({attribute}={escaped})"
+
+
+def looks_like_dn(value: str) -> bool:
+    """Rough check that a group was given as a DN, not just a common name.
+
+    memberOf matches on the full distinguished name, so 'cn=group1' silently
+    matches nothing at all - no error, just an empty result, which is a
+    miserable thing to debug. Worth a warning rather than a rejection: naming
+    contexts vary and this is a hint, not a grammar.
+    """
+    candidate = value.strip()
+    if "=" not in candidate:
+        return False
+    # A real DN has at least one more component after the leading RDN
+    # (dc=, ou=, o=, ...), so a bare "cn=x" is almost certainly a mistake.
+    return candidate.count("=") >= 2 and "," in candidate
+
+
+def membership_filter(
+    base_filter: str,
+    include: list[str],
+    exclude: list[str] | None = None,
+    nested: bool = True,
+    match_all: bool = True,
+    attribute: str = "memberOf",
+) -> str:
+    """Refine `base_filter` with group-membership conditions.
+
+    This is the case a single group box cannot express - "everyone in Staff who
+    is not also in Contractors" becomes
+
+        (&<base_filter>(memberOf=CN=Staff,...)(!(memberOf=CN=Contractors,...)))
+
+    `match_all` decides whether several included groups are AND-ed or OR-ed;
+    exclusions are always AND-ed, because "not in any of these" is the only
+    reading of an exclusion list that isn't a trap.
+
+    `nested` switches to LDAP_MATCHING_RULE_IN_CHAIN so that membership of a
+    group nested inside the named one still counts. That rule is Active
+    Directory only; on other directories leave it off or nothing will match.
+    """
+    includes = [dn for dn in (value.strip() for value in include) if dn]
+    excludes = [dn for dn in (value.strip() for value in (exclude or [])) if dn]
+    if not includes and not excludes:
+        return base_filter
+
+    parts = []
+    if includes:
+        clauses = "".join(_member_clause(dn, nested, attribute) for dn in includes)
+        # A single clause needs no wrapper; (|(x)) and (&(x)) are legal but
+        # they make the filter shown back to the user needlessly ugly.
+        if len(includes) == 1:
+            parts.append(clauses)
+        else:
+            parts.append(f"({'&' if match_all else '|'}{clauses})")
+    for dn in excludes:
+        parts.append(f"(!{_member_clause(dn, nested, attribute)})")
+
+    return f"(&{base_filter}{''.join(parts)})"
+
+
 def group_filter(group_dn: str, nested: bool = True) -> str:
-    """Filter for members of an AD group (LDAP_MATCHING_RULE_IN_CHAIN when nested)."""
-    escaped = escape_filter_chars(group_dn)
-    rule = f"memberOf:1.2.840.113556.1.4.1941:={escaped}" if nested else f"memberOf={escaped}"
-    return f"(&(objectClass=person)(mail=*)({rule}))"
+    """Filter for members of one AD group. Kept for the single-group shorthand."""
+    return membership_filter("(&(objectClass=person)(mail=*))", [group_dn], nested=nested)
