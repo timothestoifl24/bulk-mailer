@@ -249,6 +249,11 @@ changelog:update:
   # GitLab's script wrapper. Plain alpine with git installed avoids it.
   image: alpine:latest
   interruptible: false
+  # Must follow the mirror, not race it: this job pushes the changelog commit
+  # to GitHub too, and mirror:github force-pushes the tagged commit over that
+  # same branch. Running them in parallel would sometimes discard the entry
+  # depending on which finished first.
+  needs: ["mirror:github"]
   rules:
     - if: $CI_COMMIT_TAG
   variables:
@@ -278,9 +283,25 @@ changelog:update:
         RANGE="$CI_COMMIT_TAG"
       fi
 
+      # Whatever a human wrote under "## [Unreleased]" describes exactly what
+      # is shipping now, so it belongs *inside* this release's section. The
+      # earlier version of this job inserted the generated section directly
+      # after the Unreleased heading and left that hand-written text sitting
+      # below it, which silently reattributed it to the release being cut -
+      # and the header of CHANGELOG.md tells people to write there.
+      awk '/^## \[Unreleased\]/ {f=1; next} f && /^## / {exit} f {print}' \
+        CHANGELOG.md > carried_over.md
+      # Trim leading and trailing blank lines so the section does not gain a
+      # stray gap when there was nothing to carry over.
+      sed -e '/./,$!d' carried_over.md | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > carried.md
+
       {
         echo "## [$CI_COMMIT_TAG] - $(date -u +%Y-%m-%d)"
         echo
+        if [ -s carried.md ]; then
+          cat carried.md
+          echo
+        fi
         git log "$RANGE" --no-merges --grep='^docs: changelog for' --invert-grep \
           --pretty=format:'- %s (%h)'
         echo
@@ -299,17 +320,46 @@ changelog:update:
       fi
 
       # Insert right after the "## [Unreleased]" heading, ahead of whatever
-      # follows it - the most recent release always reads top-to-bottom.
+      # follows it - the most recent release always reads top-to-bottom - and
+      # drop the old Unreleased body, which is now part of the new section.
       awk '
-        /^## \[Unreleased\]/ {
+        /^## \[Unreleased\]/ && state == 0 {
           print
           print ""
           while ((getline line < "new_section.md") > 0) print line
+          # The blank line before the next release heading. Previously this
+          # came from the source file, but the old Unreleased body that
+          # supplied it is now swallowed below.
+          print ""
+          state = 1
           next
         }
+        state == 1 && /^## / { state = 2 }
+        state == 1 { next }
         { print }
       ' CHANGELOG.md > CHANGELOG.md.new
       mv CHANGELOG.md.new CHANGELOG.md
+
+      # Rebuild the link definitions, so the bracketed headings are real links
+      # rather than literal brackets. Regenerated wholesale from the headings
+      # actually present: a heading written without brackets (an old tag whose
+      # release page no longer exists, say) deliberately gets no link.
+      if [ -n "$GITHUB_REPO" ]; then
+        grep -v '^\[[^]]*\]: https\?://' CHANGELOG.md \
+          | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}' > CHANGELOG.body
+        {
+          cat CHANGELOG.body
+          echo
+          echo "[Unreleased]: https://github.com/${GITHUB_REPO}/compare/${CI_COMMIT_TAG}...HEAD"
+          sed -n 's/^## \[\([^]]*\)\].*/\1/p' CHANGELOG.body \
+            | grep -v '^Unreleased$' \
+            | while read -r version; do
+                echo "[${version}]: https://github.com/${GITHUB_REPO}/releases/tag/${version}"
+              done
+        } > CHANGELOG.md
+        rm -f CHANGELOG.body
+      fi
+      rm -f new_section.md carried_over.md carried.md
 
       git config user.name "GitLab CI"
       git config user.email "gitlab-ci@$CI_SERVER_HOST"
@@ -321,6 +371,28 @@ changelog:update:
       git -c http.extraHeader="AUTHORIZATION: basic ${AUTH}" \
         push "https://${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git" "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
       echo "CHANGELOG.md updated for $CI_COMMIT_TAG."
+
+      # And on to GitHub. Without this the changelog never reaches the public
+      # repository for its own release: mirror:github pushes the *tagged*
+      # commit, and this entry is written afterwards, on top of it - so every
+      # release published a changelog that stopped at the previous version.
+      #
+      # This job runs after mirror:github (see `needs:`), so GitHub's default
+      # branch is the tagged commit and this commit is its direct child: an
+      # ordinary fast-forward. Deliberately not --force - a rejection here
+      # means GitHub's branch moved underneath us, which is worth failing on
+      # rather than overwriting.
+      if [ -z "$GITHUB_TOKEN" ] || [ -z "$GITHUB_REPO" ]; then
+        echo "GITHUB_TOKEN and/or GITHUB_REPO are empty, so the changelog cannot"
+        echo "reach GitHub. mirror:github runs before this job and would already"
+        echo "have failed on the same variables, so reaching here means they were"
+        echo "cleared mid-pipeline. Failing rather than leaving the two out of sync."
+        exit 1
+      fi
+      GH_AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)
+      git -c http.extraHeader="AUTHORIZATION: basic ${GH_AUTH}" \
+        push "https://github.com/${GITHUB_REPO}.git" "HEAD:refs/heads/$CI_DEFAULT_BRANCH"
+      echo "CHANGELOG.md pushed to https://github.com/${GITHUB_REPO} as well."
 
 # GitLab's native Releases feature. Authenticates as the job itself - no
 # extra credentials needed, unlike the two jobs above. The full notes live in

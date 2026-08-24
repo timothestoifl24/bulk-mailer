@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640">
+  <!-- GitHub social preview. 1280x640 is the size GitHub renders best, and
+       everything meaningful stays inside a 40px margin because the card gets
+       cropped to different aspect ratios depending on where it is unfurled. -->
+  <defs>
+    <linearGradient id="sp-badge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a90e2"/>
+      <stop offset="1" stop-color="#206bc4"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1280" height="640" fill="#ffffff"/>
+  <!-- A thin brand bar along the bottom: reads as deliberate design at a
+       glance and survives cropping better than a full-bleed background. -->
+  <rect x="0" y="628" width="1280" height="12" fill="#206bc4"/>
+
+  <!-- The logo mark, same geometry as assets/logo.svg scaled to 132px. -->
+  <g transform="translate(574,104) scale(1.375)">
+    <rect width="96" height="96" rx="22" fill="url(#sp-badge)"/>
+    <rect x="33" y="22" width="30" height="16" rx="4" fill="#fff" opacity="0.35"/>
+    <rect x="27" y="29" width="42" height="16" rx="4" fill="#fff" opacity="0.6"/>
+    <rect x="20" y="37" width="56" height="38" rx="5" fill="#fff"/>
+    <path d="M25 42 L48 59 L71 42" fill="none" stroke="#206bc4" stroke-width="4"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <g text-anchor="middle" font-family="Liberation Sans, DejaVu Sans, Arial, Helvetica, sans-serif">
+    <text x="640" y="360" font-size="82" font-weight="bold" fill="#0d1117">Bulk Mailer</text>
+    <text x="640" y="418" font-size="31" fill="#57606a">Send one message to many recipients</text>
+    <text x="640" y="462" font-size="31" fill="#57606a">— typed, pasted, CSV, or straight from LDAP.</text>
+    <text x="640" y="546" font-size="25" fill="#8b949e">Self-hosted · Docker · PostgreSQL or SQLite</text>
+  </g>
+</svg>

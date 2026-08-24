@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from sqlalchemy import func, select
 
@@ -517,8 +518,12 @@ def test_vendored_editor_assets_load_nothing_from_the_network():
         text = (root / name).read_text(encoding="utf-8")
         # Only quilljs.com appears, and only as placeholder text inside the
         # link tooltip - never as something the browser would fetch.
+        #
+        # Compare the parsed host rather than the string prefix: startswith()
+        # on a URL also accepts https://quilljs.com.evil.example/x, since the
+        # allowed domain is only a prefix there and the real host follows it.
         for hit in re.findall(r"https?://[^\s\"')]+", text):
-            assert hit.startswith("https://quilljs.com"), f"{name} references {hit}"
+            assert urlsplit(hit).netloc == "quilljs.com", f"{name} references {hit}"
         assert "sourceMappingURL" not in text, f"{name} still points at a .map we do not ship"
 
 
