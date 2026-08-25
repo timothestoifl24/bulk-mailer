@@ -9,9 +9,16 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from . import __version__
 from .config import settings
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+# Shown in the page footer. This project's own home, not a deployment
+# detail - an operator running a fork should edit it here rather than have
+# every instance ask its admin where the source lives.
+SOURCE_URL = "https://github.com/timothestoifl24/bulk-mailer"
+
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # Tabler palette tokens, used as `badge bg-{{ colour }}-lt`.
@@ -67,6 +74,8 @@ def render(
         "flash_classes": FLASH_CLASSES,
         "app_debug": settings.debug,
         "current_path": request.url.path,
+        "version": __version__,
+        "source_url": SOURCE_URL,
         **(context or {}),
     }
     return templates.TemplateResponse(request, template_name, payload, status_code=status_code)

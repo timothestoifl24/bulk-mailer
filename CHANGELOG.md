@@ -16,6 +16,11 @@ pages no longer exist.
 
 ## [Unreleased]
 
+### Added
+- Every page now has a footer showing the running version, so a bug report can
+  quote it without digging through `/healthz`, alongside credit to Tabler for
+  the interface and a link back to the source.
+
 ### Changed
 - GitHub is now the only home of this project. The tests that used to run on
   GitLab — the full suite on both SQLite and PostgreSQL — run as a GitHub

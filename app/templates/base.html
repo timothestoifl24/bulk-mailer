@@ -98,6 +98,37 @@
         {% block content %}{% endblock %}
       </div>
     </div>
+
+    {# Last child of .page-wrapper on purpose: Tabler gives .footer margin-top:auto
+       inside that flex column, which is what pins it to the bottom of a short page
+       instead of leaving it floating under the content. #}
+    <footer class="footer footer-transparent d-print-none">
+      <div class="container-xl">
+        {# flex-row-reverse: the GitHub link comes first in the DOM so it lands on
+           the right, then wraps *above* the version line on a narrow screen. #}
+        <div class="row text-center align-items-center flex-row-reverse">
+          <div class="col-12 col-lg-auto ms-lg-auto">
+            <a href="{{ source_url }}" class="link-secondary d-inline-flex align-items-center gap-1"
+               target="_blank" rel="noopener noreferrer">
+              {{ icon('brand-github', 18) }} Fork me on GitHub
+            </a>
+          </div>
+          <div class="col-12 col-lg-auto mt-3 mt-lg-0">
+            {# text-secondary rather than the footer's inherited gray-500: that
+               default lands at 3.7:1 on the dark theme's background, under the
+               4.5:1 AA floor, and the version is the one thing here worth being
+               able to read off a screenshot in a bug report. #}
+            <ul class="list-inline list-inline-dots mb-0 text-secondary">
+              <li class="list-inline-item">
+                Theme by <a href="https://tabler.io" class="link-secondary"
+                            target="_blank" rel="noopener noreferrer">Tabler</a>
+              </li>
+              <li class="list-inline-item">Version {{ version }}</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </footer>
   </div>
 </div>
 

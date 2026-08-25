@@ -187,7 +187,6 @@ def dashboard(request: Request, user: User = Depends(require_user), db: Session 
             "recent": recent,
             "stats": {campaign.id: counts_by_status(db, campaign.id) for campaign in recent},
             "smtp_ready": bool(smtp.host and smtp.from_email),
-            "version": __version__,
         },
     )
 
