@@ -361,7 +361,7 @@ app/
 tools/
   dev_smtp.py             local SMTP sink for testing
   healthcheck.py          container health probe
-Dockerfile  compose.yaml  .gitlab-ci.yml  .github/workflows/
+Dockerfile  compose.yaml  .github/workflows/
 tests/
 ```
 </details>

@@ -1,9 +1,13 @@
 name: Publish Docker image
 
-# Fires when GitLab CI mirrors a release tag here (see the mirror:github job
-# in .gitlab-ci.yml on the GitLab side) - GitLab is the working repository,
-# this repo only ever receives tagged releases, so "on tag push" here already
-# means "on release".
+# Fires on a release tag. Tags are pushed by hand after tools/release.py has
+# written the changelog entry and bumped __version__ into the commit the tag
+# points at, so "on tag push" here already means "on release".
+#
+# Two gates run in parallel - `verify` checks the release commit describes
+# itself, `tests` runs the suite on both databases - and `build-and-push`
+# waits for both. A release that fails either should fail before an image
+# exists, not after one is public.
 on:
   push:
     tags:
@@ -21,7 +25,46 @@ permissions:
   packages: write # to push to the GitHub Container Registry
 
 jobs:
+  # The changelog is not generated here. tools/release.py folds it into the
+  # release commit before tagging, so the tag describes itself and browsing a
+  # release's source shows its own notes. This job only checks the work was
+  # done - which means nothing in CI needs write access to the repository.
+  verify:
+    name: Changelog and version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check CHANGELOG.md documents this tag, and __version__ agrees
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if ! grep -qF "## [$TAG]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## [$TAG]' section."
+            echo "The entry belongs in the commit this tag points at. Prepare"
+            echo "releases with: python tools/release.py ${TAG#v}"
+            exit 1
+          fi
+
+          app_version=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' app/__init__.py)
+          if [ "$app_version" != "${TAG#v}" ]; then
+            echo "::error::app/__init__.py says __version__ is '$app_version', but the tag is $TAG."
+            echo "These have to agree, or a running instance reports a version it is not."
+            exit 1
+          fi
+
+          echo "CHANGELOG.md documents $TAG, and __version__ agrees."
+
+  tests:
+    name: Tests
+    uses: ./.github/workflows/tests.yml
+
   build-and-push:
+    needs: [verify, tests]
     runs-on: ubuntu-latest
     steps:
       - name: Check out
@@ -36,10 +79,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           # GitHub injects this token into every workflow run automatically -
-          # nothing to create or configure. It is unrelated to any GITHUB_TOKEN
-          # variable set on the GitLab side (that one authenticates GitLab's
-          # push *into* this repository; this one authenticates this workflow's
-          # push *to the registry*, and never leaves GitHub's own systems).
+          # nothing to create or configure, and it never leaves GitHub's own
+          # systems. This repository has no configured secrets at all.
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Derive tags and labels
@@ -79,8 +120,8 @@ jobs:
           # Not inferred from the tag automatically - this action always
           # creates a regular release unless told otherwise. A tag containing
           # "-" (v1.0.0-beta, v1.0.0-rc1, ...) is this project's convention
-          # for a pre-release; matches the same rule already applied to the
-          # image's :latest tag in this same workflow and in .gitlab-ci.yml.
+          # for a pre-release; the same rule metadata-action's latest=auto
+          # already applies to the image's :latest tag above.
           prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
             See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for the full history.

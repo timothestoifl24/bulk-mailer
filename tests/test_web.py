@@ -9,9 +9,11 @@ from urllib.parse import urlsplit
 
 from sqlalchemy import func, select
 
+from app import __version__
 from app.db import SessionLocal
 from app.models import CampaignRecipient, LdapProfile, Recipient, RecipientList
 from app.security import unsubscribe_token
+from app.web import SOURCE_URL
 
 
 def _wait_for_status(client, campaign_id: int, wanted: set[str], timeout: float = 20.0) -> dict:
@@ -525,6 +527,28 @@ def test_vendored_editor_assets_load_nothing_from_the_network():
         for hit in re.findall(r"https?://[^\s\"')]+", text):
             assert urlsplit(hit).netloc == "quilljs.com", f"{name} references {hit}"
         assert "sourceMappingURL" not in text, f"{name} still points at a .map we do not ship"
+
+
+def test_footer_credits_tabler_and_reports_the_running_version(logged_in):
+    """The version in the footer is what a bug report will quote.
+
+    It comes from render() rather than each route's own context, so a page
+    added later cannot quietly ship without it - which is the failure mode
+    worth a test, since a missing Jinja variable renders as empty rather
+    than raising.
+    """
+    for path in ("/", "/recipients", "/campaigns"):
+        body = logged_in.get(path).text
+        assert f"Version {__version__}" in body, path
+        assert 'href="https://tabler.io"' in body, path
+        assert f'href="{SOURCE_URL}"' in body, path
+
+
+def test_footer_external_links_cannot_reach_back_into_this_tab(logged_in):
+    """target=_blank without rel=noopener hands window.opener to the new page."""
+    body = logged_in.get("/").text
+    for anchor in re.findall(r"<a\b[^>]*target=\"_blank\"[^>]*>", body):
+        assert "noopener" in anchor, anchor
 
 
 def test_ldap_profile_page_offers_group_include_and_exclude(logged_in):
