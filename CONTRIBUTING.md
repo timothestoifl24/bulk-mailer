@@ -36,7 +36,7 @@ TEST_DATABASE_URL=postgresql+psycopg://mailer:mailer_ci_pw@127.0.0.1:5432/mailer
 
 The suite drops and recreates that database's schema on every run — point it
 at a scratch database, never a real one. CI runs both automatically on every
-merge request.
+pull request.
 
 If you're changing the container image, rebuild and smoke-test it before
 opening a PR:
@@ -114,31 +114,20 @@ git push origin main && git push origin v1.2.0
 ```
 
 The changelog goes in *before* the tag on purpose: the entry then lives in
-the commit the tag points at, so the tag describes itself, the GitHub mirror
-carries the notes across for free, and CI never needs write access to this
-repository. Pushing the tag makes CI:
+the commit the tag points at, so the tag describes itself and CI never needs
+write access to this repository. Pushing the tag runs
+[`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml),
+which:
 
-1. Check `CHANGELOG.md` documents the tag and `__version__` agrees — this
-   runs in the test stage, so a release missing its notes fails before an
-   image is built rather than after it is published.
-2. Run the full test suite again (both databases).
-3. Build the image and push it to the GitLab Container Registry.
-4. Mirror that exact commit and the tag to the public GitHub repository —
-   the *only* thing GitHub ever receives is a tagged release.
-5. Create a GitLab Release.
+1. Checks `CHANGELOG.md` documents the tag and `__version__` agrees, and runs
+   the full suite on both databases. Both gate the next step, so a release
+   missing its notes or failing a test fails *before* an image exists rather
+   than after one is public.
+2. Builds the image and pushes it to the GitHub Container Registry.
+3. Creates a GitHub Release.
 
-Step 4 needs `GITHUB_TOKEN` and `GITHUB_REPO`, which don't ship with the
-repository; the job fails loudly if they're missing, because on a tag
-pipeline a green run that published nothing is worse than a red one. Setup
-instructions are in the comment block at the top of
-[`.gitlab-ci.yml`](.gitlab-ci.yml). No deploy token is needed — nothing in
-the pipeline writes to this repository.
-
-Once GitHub has the tag, its own Actions workflow
-(`.github/workflows/docker-publish.yml`) builds and pushes the image to the
-GitHub Container Registry and creates a GitHub Release. That side needs no
-secrets to be configured — it authenticates with the token GitHub injects
-into every workflow run automatically. The one manual step is on the *first*
-publish only: GHCR packages start out private regardless of the repository's
-own visibility, so flip it to public once from the package's own settings
-page (linked from the repo sidebar under **Packages**).
+No secrets need configuring: the workflow authenticates with the token GitHub
+injects into every run automatically. The one manual step is on the *first*
+publish only — GHCR packages start out private regardless of the repository's
+own visibility, so flip it to public once from the package's own settings page
+(linked from the repo sidebar under **Packages**).

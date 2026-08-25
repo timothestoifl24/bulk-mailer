@@ -1,0 +1,77 @@
+name: Tests
+
+# The suite, on both supported databases. Runs on its own for a branch or a
+# pull request, and is also called by the release workflow (workflow_call) so
+# a tag cannot publish an image the tests never saw.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call: {}
+
+permissions:
+  contents: read
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  sqlite:
+    name: SQLite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      # No TEST_DATABASE_URL: conftest.py falls back to SQLite.
+      - run: python -m pytest -q
+
+  postgres:
+    name: PostgreSQL
+    runs-on: ubuntu-latest
+
+    # SQLite has no row locking, so it cannot exercise the multi-instance send
+    # lock at all - that code path is only ever tested here.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: mailer_test
+          POSTGRES_USER: mailer
+          POSTGRES_PASSWORD: mailer_ci_pw
+        ports:
+          - 5432:5432
+        # A service container is started but not waited for: without a health
+        # check the first connection races Postgres' own startup, which fails
+        # intermittently rather than reproducibly.
+        options: >-
+          --health-cmd "pg_isready -U mailer -d mailer_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - run: pip install -r requirements-dev.txt
+
+      # conftest.py drops and recreates this schema on every run, so it must
+      # point at a throwaway database - which the service container above is.
+      - run: python -m pytest -q
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://mailer:mailer_ci_pw@localhost:5432/mailer_test

@@ -9,9 +9,9 @@ Why a script and not a CI job: the changelog entry belongs in the commit the
 tag points at. Generated afterwards, it lands in a *child* of the tag, so
 anyone reading the release's source sees a changelog one version short - and
 CI needs write access to the default branch to put it there, which means a
-token that can push to `main` and a job racing the GitHub mirror for the same
-branch. Doing it here instead makes each tag self-describing and leaves CI
-with nothing to write: `changelog:verify` only checks the work was done.
+token that can push to `main`. Doing it here instead makes each tag
+self-describing and leaves CI with nothing to write: the `verify` job in
+.github/workflows/docker-publish.yml only checks the work was done.
 
 Nothing is pushed. The script stops after committing and tagging locally and
 prints the two push commands, because publishing is the irreversible step and

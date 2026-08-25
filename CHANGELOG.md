@@ -16,6 +16,12 @@ pages no longer exist.
 
 ## [Unreleased]
 
+### Changed
+- GitHub is now the only home of this project. The tests that used to run on
+  GitLab — the full suite on both SQLite and PostgreSQL — run as a GitHub
+  Actions workflow on every push and pull request, and a release tag has to
+  pass them, plus the changelog and version check, before an image is built.
+
 ## [v1.2.0] - 2026-08-24
 
 ### Fixed
