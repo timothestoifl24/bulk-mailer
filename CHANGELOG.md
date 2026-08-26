@@ -16,6 +16,8 @@ pages no longer exist.
 
 ## [Unreleased]
 
+## [v1.3.0] - 2026-08-26
+
 ### Added
 - Every page now has a footer showing the running version, so a bug report can
   quote it without digging through `/healthz`, alongside credit to Tabler for
@@ -79,7 +81,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.3.0...HEAD
+[v1.3.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.3.0
 [v1.2.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.2.0
 [v1.1.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.1.1
 [v1.1.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.1.0
