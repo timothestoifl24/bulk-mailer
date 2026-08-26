@@ -6,17 +6,25 @@
 </head>
 <body class="d-flex flex-column bg-surface-secondary">
 {% from "_icons.html" import icon %}
-<div class="page page-center">
-  <div class="container container-tight py-4">
-    <div class="text-center mb-4">
-      <span class="text-primary">{{ icon('mail', 40) }}</span>
-      <div class="h1 mt-2">Bulk Mailer</div>
+{# Not .page-center, which centres by justify-content: the footer's own
+   margin-top:auto would swallow the free space that centring depends on and
+   drag the card to the top. Growing a wrapper instead keeps the two
+   independent - the wrapper centres the card in whatever height is left once
+   the footer has taken its own. #}
+<div class="page">
+  <div class="flex-fill d-flex align-items-center">
+    <div class="container container-tight py-4">
+      <div class="text-center mb-4">
+        <span class="text-primary">{{ icon('mail', 40) }}</span>
+        <div class="h1 mt-2">Bulk Mailer</div>
+      </div>
+      {% for flash in flashes %}
+        <div class="alert alert-{{ flash_classes.get(flash.category, 'info') }}" role="alert">{{ flash.message }}</div>
+      {% endfor %}
+      {% block content %}{% endblock %}
     </div>
-    {% for flash in flashes %}
-      <div class="alert alert-{{ flash_classes.get(flash.category, 'info') }}" role="alert">{{ flash.message }}</div>
-    {% endfor %}
-    {% block content %}{% endblock %}
   </div>
+  {% include "_footer.html" %}
 </div>
 <script src="/static/vendor/tabler/tabler.min.js" defer></script>
 </body>
