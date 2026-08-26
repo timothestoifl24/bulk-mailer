@@ -544,11 +544,31 @@ def test_footer_credits_tabler_and_reports_the_running_version(logged_in):
         assert f'href="{SOURCE_URL}"' in body, path
 
 
-def test_footer_external_links_cannot_reach_back_into_this_tab(logged_in):
+def test_footer_is_on_the_signed_out_layout_too(anon_client):
+    """base_auth.html is a second layout, and it is the one strangers see."""
+    body = anon_client.get("/login").text
+    assert f"Version {__version__}" in body
+    assert 'href="https://tabler.io"' in body
+    assert f'href="{SOURCE_URL}"' in body
+
+
+def test_signed_out_layout_still_centres_its_card(anon_client):
+    """The footer's margin-top:auto would eat the space .page-center needs.
+
+    Centring moved to a growing wrapper instead, so assert the two are not
+    fighting again: .page-center back on the same element as the footer would
+    silently drag the sign-in card to the top of the window.
+    """
+    body = anon_client.get("/login").text
+    assert "page-center" not in body
+    assert "flex-fill" in body
+
+
+def test_footer_external_links_cannot_reach_back_into_this_tab(logged_in, anon_client):
     """target=_blank without rel=noopener hands window.opener to the new page."""
-    body = logged_in.get("/").text
-    for anchor in re.findall(r"<a\b[^>]*target=\"_blank\"[^>]*>", body):
-        assert "noopener" in anchor, anchor
+    for body in (logged_in.get("/").text, anon_client.get("/login").text):
+        for anchor in re.findall(r"<a\b[^>]*target=\"_blank\"[^>]*>", body):
+            assert "noopener" in anchor, anchor
 
 
 def test_ldap_profile_page_offers_group_include_and_exclude(logged_in):
