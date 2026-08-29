@@ -135,9 +135,35 @@ class RecipientList(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP_TZ, default=utcnow)
 
+    # --- Directory synchronisation -------------------------------------- #
+    # Set when the list was filled from an LDAP search. The filter and base DN
+    # are stored as *used*, not as typed: the group include/exclude conditions
+    # are already folded in, so re-running this reproduces the same population
+    # without re-deriving anything.
+    #
+    # A plain Integer, not a ForeignKey: migrations.py adds columns to an
+    # existing table without constraints, so declaring one here would give a
+    # fresh database a foreign key that an upgraded database does not have.
+    # Deleting a profile clears this instead - see routers/ldap.delete_profile.
+    ldap_profile_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    ldap_search_filter: Mapped[str] = mapped_column(String(1024), default="")
+    ldap_base_dn: Mapped[str] = mapped_column(String(512), default="")
+    # Opt-in per list. Off means the query is remembered but never re-run, so
+    # an import stays the one-shot snapshot it has always been.
+    sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    last_synced_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_TZ, nullable=True)
+    # "" (never run) | ok | error
+    last_sync_status: Mapped[str] = mapped_column(String(20), default="")
+    last_sync_message: Mapped[str] = mapped_column(String(500), default="")
+
     recipients: Mapped[list[Recipient]] = relationship(
         secondary=list_members, back_populates="lists"
     )
+
+    @property
+    def is_ldap_backed(self) -> bool:
+        """Whether this list remembers a directory query it could re-run."""
+        return bool(self.ldap_profile_id and self.ldap_search_filter)
 
 
 class EmailTemplate(Base):

@@ -16,6 +16,34 @@
 {% endblock %}
 
 {% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="post" action="/ldap/sync-settings" class="row g-2 align-items-end">
+      <div class="col-md-8">
+        <h3 class="card-title mb-1">List synchronisation</h3>
+        <p class="text-secondary mb-0">
+          How often a list marked <strong>keep in sync</strong> is re-queried. Which lists
+          those are, and when each last ran, is on the <a href="/lists">Lists page</a>.
+          {% if synced_list_count %}
+            {{ synced_list_count }} list(s) currently sync.
+          {% else %}
+            No list syncs yet &mdash; turn it on when importing from a profile below.
+          {% endif %}
+        </p>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label" for="ldap_sync_interval_minutes">Every (minutes)</label>
+        <input type="number" class="form-control" id="ldap_sync_interval_minutes"
+               name="ldap_sync_interval_minutes" min="5" step="5"
+               value="{{ sync_interval_minutes }}">
+      </div>
+      <div class="col-md-2">
+        <button class="btn btn-outline-primary w-100" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="card">
   <div class="card-header">
     <h3 class="card-title">Connection profiles</h3>

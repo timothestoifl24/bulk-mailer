@@ -30,16 +30,64 @@
   <div class="table-responsive">
     <table class="table card-table table-vcenter">
       <thead>
-        <tr><th>Name</th><th>Description</th><th class="text-end">Members</th><th></th></tr>
+        <tr>
+          <th>Name</th><th>Description</th><th>Directory sync</th>
+          <th class="text-end">Members</th><th></th>
+        </tr>
       </thead>
       <tbody>
       {% for item, member_count in rows %}
         <tr>
           <td><a href="/recipients?list_id={{ item.id }}">{{ item.name }}</a></td>
           <td class="cell-truncate text-secondary">{{ item.description }}</td>
+          <td>
+            {% if item.is_ldap_backed %}
+              {% if item.sync_enabled %}
+                <span class="badge bg-green-lt">On</span>
+              {% else %}
+                <span class="badge bg-secondary-lt">Off</span>
+              {% endif %}
+              <div class="text-secondary small mt-1">
+                {{ profile_names.get(item.ldap_profile_id, 'profile removed') }}
+                {% if item.last_synced_at %}
+                  &middot;
+                  {% if item.last_sync_status == 'error' %}
+                    <span class="text-danger" title="{{ item.last_sync_message }}">last run failed</span>
+                  {% else %}
+                    last run {{ item.last_synced_at.strftime('%Y-%m-%d %H:%M') }} UTC
+                  {% endif %}
+                {% else %}
+                  &middot; never run
+                {% endif %}
+              </div>
+              {% if item.last_sync_status == 'error' and item.last_sync_message %}
+                <div class="text-danger small mt-1">{{ item.last_sync_message }}</div>
+              {% elif item.sync_enabled and item.last_sync_message %}
+                <div class="text-secondary small mt-1">{{ item.last_sync_message }}</div>
+              {% endif %}
+            {% else %}
+              <span class="text-secondary small">&mdash;</span>
+            {% endif %}
+          </td>
           <td class="text-end"><span class="badge bg-blue-lt">{{ member_count }}</span></td>
-          <td class="text-end">
-            <form method="post" action="/lists/{{ item.id }}/delete"
+          <td class="text-end text-nowrap">
+            {% if item.is_ldap_backed %}
+              <form method="post" action="/lists/{{ item.id }}/sync" class="d-inline">
+                <button class="btn btn-sm btn-ghost-secondary" type="submit"
+                        title="Re-run the directory search now">
+                  {{ icon('refresh', 16) }} Sync now
+                </button>
+              </form>
+              <form method="post" action="/lists/{{ item.id }}/sync-toggle" class="d-inline"
+                    {% if not item.sync_enabled %}
+                    onsubmit="return confirm('Keep {{ item.name }} in sync?\n\nMembers who no longer match the directory search will be REMOVED from this list on every run. The recipients themselves are kept.')"
+                    {% endif %}>
+                <button class="btn btn-sm btn-ghost-secondary" type="submit">
+                  {{ 'Turn sync off' if item.sync_enabled else 'Turn sync on' }}
+                </button>
+              </form>
+            {% endif %}
+            <form method="post" action="/lists/{{ item.id }}/delete" class="d-inline"
                   onsubmit="return confirm('Delete the list {{ item.name }}? Recipients themselves are kept.')">
               <button class="btn btn-sm btn-ghost-danger" type="submit">Delete</button>
             </form>
@@ -66,6 +114,8 @@
   {% endif %}
   <div class="card-footer text-secondary">
     Deleting a list never deletes the recipients in it.
+    A list with sync on is re-queried every {{ sync_interval_minutes }} minutes; members who
+    no longer match are removed from the list, never deleted.
   </div>
 </div>
 

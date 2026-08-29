@@ -16,6 +16,19 @@ pages no longer exist.
 
 ## [Unreleased]
 
+### Added
+- A list filled from an LDAP search can now be kept in sync with it. Tick
+  *Keep the list in sync* when importing and the search is re-run on a
+  schedule (and on demand from the Lists page): new matches are added, and
+  people who have left the group are removed from the list. Only from the
+  list — the recipient, their other lists and their history are kept, so a
+  group edited by mistake costs a re-sync rather than data. Off by default;
+  an import without it stays the snapshot it always was.
+
+  A search that returns nothing will not empty a list that has members: it is
+  indistinguishable from a broken filter, so the run fails and says so
+  instead of clearing everyone in one pass.
+
 ## [v1.3.0] - 2026-08-26
 
 ### Added

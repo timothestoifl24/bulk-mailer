@@ -30,7 +30,7 @@ from .routers import (
     users,
 )
 from .security import hash_password, origin_is_trusted, require_admin, require_user
-from .services import settings_store
+from .services import ldap_sync, settings_store
 from .services.sender import counts_by_status, start_worker, stop_worker
 from .web import redirect, render
 
@@ -104,7 +104,9 @@ def bootstrap() -> None:
 async def lifespan(app: FastAPI):
     bootstrap()
     start_worker()
+    ldap_sync.start_worker()
     yield
+    ldap_sync.stop_worker()
     stop_worker()
 
 
