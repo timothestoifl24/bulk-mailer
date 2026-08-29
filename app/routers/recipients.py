@@ -12,8 +12,9 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
-from ..models import Recipient, RecipientList
+from ..models import LdapProfile, Recipient, RecipientList
 from ..security import require_user
+from ..services import ldap_sync
 from ..services.importer import (
     import_rows,
     normalise_email,
@@ -446,7 +447,75 @@ def lists_index(request: Request, db: Session = Depends(get_db)):
         .group_by(RecipientList.id)
         .order_by(RecipientList.name)
     ).all()
-    return render(request, "lists.html", {"rows": rows})
+    # Resolved here rather than per row in the template, which would issue one
+    # query per LDAP-backed list.
+    profiles = {profile.id: profile.name for profile in db.scalars(select(LdapProfile))}
+    return render(
+        request,
+        "lists.html",
+        {
+            "rows": rows,
+            "profile_names": profiles,
+            "sync_interval_minutes": ldap_sync.interval_minutes(db),
+        },
+    )
+
+
+@router.post("/lists/{list_id}/sync")
+def sync_list_now(request: Request, list_id: int, db: Session = Depends(get_db)):
+    target = db.get(RecipientList, list_id)
+    if target is None:
+        flash(request, "List not found.", "error")
+        return redirect("/lists")
+
+    try:
+        result = ldap_sync.sync_list(db, target)
+    except ldap_sync.SyncError as exc:
+        # Stamped on the list as well as flashed: the operator who clicks is
+        # not always the one who later wonders why the list looks stale.
+        ldap_sync.record_failure(target, str(exc))
+        db.commit()
+        flash(request, f"Sync of '{target.name}' failed: {exc}", "error")
+        return redirect("/lists")
+
+    db.commit()
+    flash(request, f"Synced '{target.name}': {result.summary()}.", "success")
+    return redirect("/lists")
+
+
+@router.post("/lists/{list_id}/sync-toggle")
+def toggle_list_sync(request: Request, list_id: int, db: Session = Depends(get_db)):
+    target = db.get(RecipientList, list_id)
+    if target is None:
+        flash(request, "List not found.", "error")
+        return redirect("/lists")
+
+    if not target.is_ldap_backed:
+        flash(
+            request,
+            f"'{target.name}' was not filled from a directory search, so there is no "
+            "query to keep it in sync with. Import into it from the LDAP page first.",
+            "error",
+        )
+        return redirect("/lists")
+
+    target.sync_enabled = not target.sync_enabled
+    db.commit()
+    if target.sync_enabled:
+        flash(
+            request,
+            f"'{target.name}' is now kept in sync: members who no longer match the "
+            "directory search are removed from the list, and new matches are added. "
+            "The recipients themselves are never deleted.",
+            "success",
+        )
+    else:
+        flash(
+            request,
+            f"'{target.name}' is no longer synced. Its members stay exactly as they are.",
+            "success",
+        )
+    return redirect("/lists")
 
 
 @router.post("/lists")

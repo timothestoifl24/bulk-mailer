@@ -154,6 +154,21 @@
           <button class="btn btn-primary w-100" type="submit">Import all {{ result_count }}</button>
         </div>
       </div>
+      <div class="row g-2 mt-1">
+        <div class="col-12">
+          <label class="form-check">
+            <input type="checkbox" class="form-check-input" id="keep_in_sync" name="keep_in_sync" value="1">
+            <span class="form-check-label">Keep the list in sync with this search</span>
+            <span class="form-check-description">
+              Re-runs this exact query on a schedule and makes the list match it again:
+              new matches are added, and members who no longer match are
+              <strong>removed from the list</strong>. The recipients themselves,
+              their other lists and their history are kept. Off by default, so an
+              import stays a one-off snapshot unless you ask for more.
+            </span>
+          </label>
+        </div>
+      </div>
       <small class="form-hint mt-2 d-block">
         The search is re-run at import time, so all {{ result_count }} entries are imported &mdash;
         not just the preview.

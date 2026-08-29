@@ -52,6 +52,9 @@ network.
   Directory–specific) are skipped with a note instead of failing the import.
 - Paged search for large directories, with a preview before importing.
 - Import everyone in a group by DN, including nested groups.
+- Optionally **keep a list in sync** with the search that filled it: new
+  matches are added and people who have left are removed from the list, on a
+  schedule and on demand. Off by default, so an import stays a snapshot.
 
 **Composing**
 - Reusable templates, or write directly in the campaign.
@@ -301,6 +304,40 @@ for attributes the directory's schema actually advertises and tells you
 which it skipped. Those fields just stay empty; point the mapping at what
 your directory does have, e.g. `"department": "departmentNumber"` or
 `"company": "o"`.
+</details>
+
+<details>
+<summary><strong>Keeping a list in sync with a group</strong></summary>
+
+An import is a snapshot. Tick **Keep the list in sync with this search** on
+the import form and the list instead tracks the query that filled it: the
+search is re-run on a schedule, new matches are added, and members who no
+longer match are **removed from the list**.
+
+Removal is from the list only. The recipient record, its other lists and its
+send history are all left alone, so a group edited by mistake costs a re-sync
+rather than data.
+
+The *Lists* page shows which lists sync, which profile each came from, when
+each last ran, and why the last run failed if it did. **Sync now** re-runs one
+immediately; **Turn sync off** freezes a list exactly as it is without
+forgetting the query, so it can be turned back on later.
+
+The interval is on the *LDAP* page — default 60 minutes, floored at 5 so a
+stray `0` cannot turn the worker into a busy loop against the directory.
+
+Two things it deliberately refuses to do:
+
+- **Empty a populated list.** A search returning nothing is indistinguishable
+  from a filter that broke, a renamed group, or a directory mid-replication,
+  and acting on it would clear the list in one pass. The run fails with an
+  explanation instead. A group that really is empty can be cleared by hand.
+- **Sync a list it has no query for.** A hand-made list has nothing to re-run,
+  so the toggle refuses rather than showing "on" for something that will never
+  change.
+
+Deleting an LDAP profile turns sync off for the lists that used it and says
+so. The lists and their members are untouched.
 </details>
 
 <a id="deployment-notes"></a>

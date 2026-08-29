@@ -41,6 +41,11 @@ DEFAULTS: dict[str, str] = {
     "auth_ldap_required_group": "",
     "auth_ldap_admin_group": "",
     "auth_ldap_auto_create": "1",
+    # --- Directory list sync (see services/ldap_sync.py) ---
+    # How often a list marked "keep in sync" is re-queried. Floored at 5
+    # minutes in ldap_sync.interval_minutes, so a stray 0 here cannot turn the
+    # worker into a busy loop against the directory.
+    "ldap_sync_interval_minutes": "60",
 }
 
 # Settings shown on the SMTP page; the rest belong to other screens.

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import LdapProfile, RecipientList
 from ..security import encrypt_secret, require_user
-from ..services import ldap_client
+from ..services import ldap_client, ldap_sync, settings_store
 from ..services.importer import import_rows, ldap_entries_to_rows
 from ..web import flash, redirect, render
 
@@ -84,11 +84,42 @@ def _parse_attr_map(raw: str) -> tuple[dict, str | None]:
 @router.get("")
 def index(request: Request, db: Session = Depends(get_db)):
     profiles = list(db.scalars(select(LdapProfile).order_by(LdapProfile.name)))
+    synced = db.scalar(
+        select(func.count())
+        .select_from(RecipientList)
+        .where(RecipientList.sync_enabled.is_(True))
+    )
     return render(
         request,
         "ldap/index.html",
-        {"profiles": profiles, "default_attr_map": json.dumps(DEFAULT_ATTR_MAP, indent=2)},
+        {
+            "profiles": profiles,
+            "default_attr_map": json.dumps(DEFAULT_ATTR_MAP, indent=2),
+            "sync_interval_minutes": ldap_sync.interval_minutes(db),
+            "synced_list_count": synced or 0,
+        },
     )
+
+
+@router.post("/sync-settings")
+def update_sync_settings(
+    request: Request,
+    ldap_sync_interval_minutes: int = Form(60),
+    db: Session = Depends(get_db),
+):
+    minutes = max(5, ldap_sync_interval_minutes)
+    settings_store.set_value(db, "ldap_sync_interval_minutes", str(minutes))
+    db.commit()
+    if minutes != ldap_sync_interval_minutes:
+        flash(
+            request,
+            f"Synchronisation interval set to {minutes} minutes. Anything shorter would "
+            "have the worker querying the directory almost continuously.",
+            "warning",
+        )
+    else:
+        flash(request, f"Lists marked for sync are re-queried every {minutes} minutes.", "success")
+    return redirect("/ldap")
 
 
 @router.post("")
@@ -213,9 +244,22 @@ def update_profile(
 def delete_profile(request: Request, profile_id: int, db: Session = Depends(get_db)):
     profile = db.get(LdapProfile, profile_id)
     if profile is not None:
+        name = profile.name
+        # Before the profile goes, not after: a list left pointing at a deleted
+        # profile would keep its sync flag and fail on every pass instead of
+        # saying plainly that the thing it synced from is gone.
+        orphaned = ldap_sync.detach_profile(db, profile_id)
         db.delete(profile)
         db.commit()
-        flash(request, f"Profile '{profile.name}' deleted.", "success")
+        flash(request, f"Profile '{name}' deleted.", "success")
+        if orphaned:
+            flash(
+                request,
+                "Synchronisation was turned off for "
+                + ", ".join(f"'{item}'" for item in orphaned)
+                + ", which imported from that profile. The lists and their members are untouched.",
+                "warning",
+            )
     return redirect("/ldap")
 
 
@@ -317,6 +361,7 @@ def import_results(
     list_id: str = Form(""),
     new_list_name: str = Form(""),
     overwrite: str = Form(""),
+    keep_in_sync: str = Form(""),
     db: Session = Depends(get_db),
 ):
     profile = db.get(LdapProfile, profile_id)
@@ -324,12 +369,18 @@ def import_results(
         flash(request, "LDAP profile not found.", "error")
         return redirect("/ldap")
 
+    # Resolved once and reused for both the search and what gets stored on the
+    # list, so a synced list re-runs the query that actually produced it rather
+    # than one reconstructed from the same inputs later.
+    used_filter = search_filter.strip() or profile.search_filter
+    used_base_dn = base_dn.strip() or profile.base_dn
+
     skipped: list[str] = []
     try:
         entries = ldap_client.search(
             profile,
-            search_filter=search_filter.strip() or profile.search_filter,
-            base_dn=base_dn.strip() or None,
+            search_filter=used_filter,
+            base_dn=used_base_dn or None,
             skipped_attributes=skipped,
         )
     except ldap_client.LdapError as exc:
@@ -361,8 +412,34 @@ def import_results(
         target_list=target,
         overwrite=overwrite == "1",
     )
+
+    wants_sync = keep_in_sync == "1"
+    if target is not None:
+        # Remember the query on every import, not only when sync is asked for:
+        # it costs nothing, and it is what lets someone turn sync on later from
+        # the Lists page without going back to the LDAP screen to rebuild the
+        # filter they used.
+        target.ldap_profile_id = profile.id
+        target.ldap_search_filter = used_filter
+        target.ldap_base_dn = used_base_dn
+        target.sync_enabled = wants_sync
     db.commit()
 
     where = f" into list '{target.name}'" if target else ""
     flash(request, f"LDAP import{where}: {result.summary()}.", "success")
+    if wants_sync and target is not None:
+        flash(
+            request,
+            f"'{target.name}' will be kept in sync with this query: members who leave the "
+            "directory search are removed from the list, and new matches are added. The "
+            "recipients themselves are never deleted.",
+            "info",
+        )
+    elif wants_sync:
+        flash(
+            request,
+            "Nothing was kept in sync: that needs a list to sync into. Pick a list or "
+            "give a new one a name, then import again.",
+            "warning",
+        )
     return redirect("/recipients" + (f"?list_id={target.id}" if target else ""))
