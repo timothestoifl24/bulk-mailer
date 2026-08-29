@@ -1,0 +1,94 @@
+name: Documentation site
+
+# Publishes bulkmailer.stoifl.app from docs/ with VitePress.
+#
+# Pull requests build but do not deploy: a dead internal link should fail
+# review, not the live site. VitePress fails the build on one by default
+# (ignoreDeadLinks is false in the config), so it will.
+#
+# One-time setup, outside this file: Settings -> Pages -> Source must be set
+# to "GitHub Actions", and the custom domain needs a DNS record. See
+# docs/contributing.md.
+# The two path lists are duplicated rather than shared through a YAML anchor:
+# GitHub Actions does not resolve anchors, so &x / *x here would not fail
+# loudly - it would silently not filter.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "package-lock.json"
+      - "screenshots/**"
+      - "assets/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "package.json"
+      - "package-lock.json"
+      - "screenshots/**"
+      - "assets/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+# A second push while a deploy is in flight should supersede it rather than
+# queue behind it; cancel-in-progress stays false so a running *deploy* is
+# never torn down half-finished.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # lastUpdated in the VitePress config reads each page's git history;
+          # a shallow clone would date every page to the checkout.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      # `npm ci` needs package-lock.json and installs exactly what it pins.
+      - run: npm ci
+
+      # The prebuild script mirrors screenshots/ and assets/ into docs/public/
+      # first - they live at the repository root because README.md uses them,
+      # and VitePress only serves its own public directory.
+      - name: Build the site
+        run: npm run docs:build
+
+      - name: Confirm the custom domain survived the build
+        run: |
+          set -euo pipefail
+          test -f docs/.vitepress/dist/CNAME
+          echo "CNAME: $(cat docs/.vitepress/dist/CNAME)"
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    name: Deploy
+    # Only from main. A pull request gets the build as a check and nothing more.
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

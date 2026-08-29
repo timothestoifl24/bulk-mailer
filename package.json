@@ -1,0 +1,17 @@
+{
+  "name": "bulk-mailer-docs",
+  "private": true,
+  "type": "module",
+  "description": "Documentation site for Bulk Mailer (bulkmailer.stoifl.app). The application itself is Python and needs none of this.",
+  "scripts": {
+    "mirror": "node docs/.vitepress/mirror.mjs",
+    "predocs:dev": "npm run mirror",
+    "predocs:build": "npm run mirror",
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  }
+}

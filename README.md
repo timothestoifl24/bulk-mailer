@@ -23,6 +23,18 @@
   <img alt="Python 3.13" src="https://img.shields.io/badge/python-3.13-blue">
 </p>
 
+<p align="center">
+  <b><a href="https://bulkmailer.stoifl.app">📖 Documentation — bulkmailer.stoifl.app</a></b><br>
+  <sub>
+    <a href="https://bulkmailer.stoifl.app/guide/">Guide</a> ·
+    <a href="https://bulkmailer.stoifl.app/screenshots/">Screenshots</a> ·
+    <a href="https://bulkmailer.stoifl.app/setup/">Setup</a> ·
+    <a href="https://bulkmailer.stoifl.app/advanced-config/">Advanced config</a> ·
+    <a href="https://bulkmailer.stoifl.app/upgrading/">Upgrading</a> ·
+    <a href="https://bulkmailer.stoifl.app/faq/">FAQ</a>
+  </sub>
+</p>
+
 - [Features](#features)
 - [Quick start](#quick-start)
 - [Typical run](#typical-run)
