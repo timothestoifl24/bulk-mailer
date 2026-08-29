@@ -16,6 +16,8 @@ pages no longer exist.
 
 ## [Unreleased]
 
+## [v1.4.0] - 2026-08-29
+
 ### Added
 - A list filled from an LDAP search can now be kept in sync with it. Tick
   *Keep the list in sync* when importing and the search is re-run on a
@@ -94,7 +96,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.4.0...HEAD
+[v1.4.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.4.0
 [v1.3.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.3.0
 [v1.2.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.2.0
 [v1.1.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.1.1
