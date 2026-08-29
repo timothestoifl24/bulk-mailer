@@ -16,6 +16,12 @@ pages no longer exist.
 
 ## [Unreleased]
 
+### Added
+- A documentation site at [bulkmailer.stoifl.app](https://bulkmailer.stoifl.app):
+  a guide, every screen in screenshots, setup, advanced configuration,
+  upgrading notes, an FAQ and the contributing guide. Built from `docs/` with
+  VitePress and published by GitHub Actions on every change.
+
 ## [v1.4.0] - 2026-08-29
 
 ### Added

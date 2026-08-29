@@ -13,3 +13,11 @@ venv/
 .ruff_cache/
 .idea/
 .vscode/
+
+# Documentation site (VitePress).
+node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+# Mirrored into docs/public/ by docs/.vitepress/mirror.mjs; the tracked copies
+# live at the repository root because README.md uses them from there.
+docs/public/media/
