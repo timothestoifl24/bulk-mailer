@@ -9,6 +9,13 @@ The whole application, so you can judge it before installing anything. Light
 theme shown; there is a dark one, and it follows your system setting by
 default.
 
+::: info Everything here is made up
+These are taken against a throwaway database seeded to look like an
+installation in regular use — a fresh install shows the same screens with
+empty tables. The names, addresses, directory and mail server are all
+fictional, and nothing in it can send.
+:::
+
 ## Sign in
 
 ![The sign-in page](/media/screenshots/01-login.png)
@@ -46,7 +53,7 @@ each last ran, and why the last run failed if it did.
 
 ## Templates
 
-![The template editor with a visual and an HTML mode](/media/screenshots/05-templates.png)
+![The saved templates, each reusable in a campaign](/media/screenshots/05-templates.png)
 
 Write once, reuse. Visual editing or raw HTML, with a plain-text part
 generated automatically. Placeholders like `{{ first_name }}` are filled per
@@ -79,7 +86,7 @@ Stored passwords are encrypted with a key derived from `SECRET_KEY`.
 
 ## LDAP
 
-![An LDAP profile with search preview and group filters](/media/screenshots/09-ldap.png)
+![Connection profiles and the list synchronisation interval](/media/screenshots/09-ldap.png)
 
 Connection profiles, attribute mapping, and a search you can preview before
 importing anything. Group filters handle include and exclude by DN, nested
