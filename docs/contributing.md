@@ -147,9 +147,31 @@ A few structural things worth knowing before you move files around:
 - `ignoreDeadLinks` is `false`, so a dead internal link fails the build rather
   than shipping. CI builds the site on every pull request that touches it.
 
-`npm audit` reports advisories in the build toolchain (`vite`, `esbuild`).
-They are `devDependencies` — `npm audit --omit=dev` is clean, and the deployed
-site is static files with none of that in it.
+### The `vite` override in `package.json`
+
+```json
+"overrides": { "vite": "^6.4.3" }
+```
+
+VitePress 1.6.4 pins `vite ^5.4.14`, and four advisories against vite and
+esbuild are fixed only from vite 6.4.3 onwards — there is no patched release
+in the 5.x line at all. Neither Dependabot security updates nor version
+updates can resolve that: the first is boxed in by the range VitePress
+permits, and the second has nothing stable to offer, because the only
+VitePress built on a patched vite is a 2.0 alpha.
+
+The override forces the patched vite anyway. It was not adopted on faith —
+the site was built with and without it and the output compared: same nine
+pages, same routes, same eleven screenshots, identical visible text on every
+page, still nothing loaded off-origin. `npm audit` reports zero afterwards.
+
+::: warning Remove this when VitePress 2 ships stable
+VitePress 2 uses vite 8, which is Rolldown-based. Forcing vite 8 under
+VitePress 1 does **not** work — the build fails with
+`This plugin assigns to bundle variable ... not supported by Rolldown`. So
+this override is a bridge, not a permanent pin: once VitePress 2 is stable
+and adopted, delete it rather than raising it.
+:::
 
 ## Releasing (maintainers)
 

@@ -16,6 +16,13 @@ pages no longer exist.
 
 ## [Unreleased]
 
+### Security
+- Closed four advisories in the documentation build toolchain (three against
+  vite, one against esbuild). VitePress 1.6.4 pins a vite line that has no
+  patched release, so `package.json` now forces a fixed vite through an
+  `overrides` entry. The site builds identically with it — same pages, same
+  content, nothing loaded off-origin — and `npm audit` reports zero.
+
 ### Added
 - A documentation site at [bulkmailer.stoifl.app](https://bulkmailer.stoifl.app):
   a guide, every screen in screenshots, setup, advanced configuration,
