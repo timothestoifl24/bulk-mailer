@@ -75,3 +75,56 @@ jobs:
       - run: python -m pytest -q
         env:
           TEST_DATABASE_URL: postgresql+psycopg://mailer:mailer_ci_pw@localhost:5432/mailer_test
+
+  # Builds the Dockerfile and proves the result starts. Without this, a change
+  # to the base image is not exercised by anything on a pull request: the two
+  # jobs above pin python-version 3.13 regardless of what the Dockerfile says,
+  # and docker-publish.yml only runs on a tag. A Dependabot bump from
+  # python:3.13-slim to 3.14-slim therefore went green while nothing had built
+  # it - the first real build would have been at release time, when a failure
+  # costs a broken release rather than a red pull request.
+  #
+  # Plain docker build rather than docker/build-push-action: this job exists to
+  # test the Dockerfile, and wrapping it in another action would add a
+  # dependency whose own updates this job cannot then validate.
+  image:
+    name: Container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build --pull -t bulk-mailer:ci .
+
+      - name: Start
+        run: |
+          docker run -d --name mailer-ci -p 8000:8000 \
+            -e SECRET_KEY=ci-only-key-at-least-32-characters-long \
+            -e ADMIN_PASSWORD=ci-only-password \
+            bulk-mailer:ci
+
+      - name: Wait for it to answer
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1; then
+              echo "up"; exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::The container never answered on /healthz."
+          exit 1
+
+      - name: The version it reports is the version in the source
+        run: |
+          set -euo pipefail
+          reported=$(curl -fsS http://127.0.0.1:8000/healthz | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')
+          declared=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' app/__init__.py)
+          echo "image reports $reported, source declares $declared"
+          test "$reported" = "$declared"
+
+      - name: The CLI runs
+        run: docker exec mailer-ci python -m app.cli list-users
+
+      - name: Container log
+        if: always()
+        run: docker logs mailer-ci
