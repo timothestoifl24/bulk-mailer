@@ -12,7 +12,7 @@
 # needed at build time. The venv is built in a separate stage purely to keep
 # pip and its cache out of the final image.
 
-FROM python:3.13-slim AS builder
+FROM python:3.14-slim AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -25,7 +25,7 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 
-FROM python:3.13-slim
+FROM python:3.14-slim
 
 LABEL org.opencontainers.image.title="Bulk Mailer" \
       org.opencontainers.image.description="Send email to many recipients, with LDAP import" \
