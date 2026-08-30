@@ -6,7 +6,7 @@
 # in practice. Bump the floor, don't just rely on what pip happens to grab.
 fastapi>=0.141.1
 starlette>=1.6.0                 # pulled in transitively by fastapi; pinned directly since it carries most of the historical CVEs
-uvicorn[standard]>=0.52.1
+uvicorn[standard]>=0.52.4
 jinja2>=3.1.6                    # 3.1.6 closes a sandbox breakout (GHSA-cpwx-vrp4-4pq7) - directly relevant, we sandbox user-authored templates
 python-multipart>=0.0.32
 SQLAlchemy>=2.0.52
@@ -15,5 +15,5 @@ pydantic>=2.13.4
 pydantic-settings>=2.15.0
 ldap3>=2.9.1
 itsdangerous>=2.2.0
-cryptography>=50.0.0
+cryptography>=50.0.1
 email-validator>=2.3.0
