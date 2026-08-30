@@ -1,14 +1,12 @@
 # Dependabot version updates.
 #
-# What this does NOT do, so nobody is surprised: it does not clear the four
-# open vite/esbuild alerts. Those need vite >= 6.4.3, vitepress 1.6.4 pins
-# vite ^5.4.14, and the only vitepress that uses a patched vite is 2.0.0-alpha.
-# Dependabot does not propose pre-releases, so it will stay quiet on those
-# until VitePress 2 ships stable - and then open the PR on its own, which is
-# the actual reason to have it configured now rather than later.
-#
-# All four are `vitepress dev` server issues. CI only ever runs `docs:build`,
-# and the published site is static files that contain none of it.
+# Worth knowing what this cannot do on its own. The four vite/esbuild
+# advisories needed vite >= 6.4.3 while vitepress 1.6.4 pins vite ^5.4.14, so
+# neither security updates nor version updates could reach the fix - the first
+# is boxed in by that range, the second had only a 2.0 alpha to offer, and
+# Dependabot does not propose pre-releases. They are resolved instead by an
+# `overrides` entry in package.json, which forces the patched vite under
+# vitepress 1.x. See docs/contributing.md for why, and for when to remove it.
 #
 # Alerts and *security* updates are repository settings, not this file:
 # Settings -> Code security. This file is only the scheduled version bumps.
