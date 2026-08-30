@@ -1,0 +1,101 @@
+# Dependabot version updates.
+#
+# What this does NOT do, so nobody is surprised: it does not clear the four
+# open vite/esbuild alerts. Those need vite >= 6.4.3, vitepress 1.6.4 pins
+# vite ^5.4.14, and the only vitepress that uses a patched vite is 2.0.0-alpha.
+# Dependabot does not propose pre-releases, so it will stay quiet on those
+# until VitePress 2 ships stable - and then open the PR on its own, which is
+# the actual reason to have it configured now rather than later.
+#
+# All four are `vitepress dev` server issues. CI only ever runs `docs:build`,
+# and the published site is static files that contain none of it.
+#
+# Alerts and *security* updates are repository settings, not this file:
+# Settings -> Code security. This file is only the scheduled version bumps.
+#
+# Every ecosystem below is already gated by CI on the pull request Dependabot
+# opens: tests.yml runs the suite on SQLite and PostgreSQL for every PR, and
+# docs.yml builds the site when package.json changes. That existing coverage
+# is what makes automated dependency PRs safe to accept here.
+
+version: 2
+
+updates:
+  # The most useful of the four today. Every action in both workflows targets
+  # Node 20, which GitHub has deprecated and is already force-running on Node
+  # 24 - a warning on every run with a deadline attached. This keeps them
+  # current without anyone having to notice.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Vienna"
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: ["dependencies", "ci"]
+    commit-message:
+      prefix: "ci"
+    open-pull-requests-limit: 3
+
+  # The documentation toolchain. Dev-only: nothing here reaches the published
+  # site or the application. Grouped so a vitepress bump and the vite/esbuild
+  # it drags along arrive as one reviewable PR rather than three that conflict.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+      timezone: "Europe/Vienna"
+    versioning-strategy: increase
+    groups:
+      vitepress:
+        patterns: ["vitepress", "vite", "esbuild", "@vitejs/*"]
+    labels: ["dependencies", "docs"]
+    commit-message:
+      prefix: "docs"
+    open-pull-requests-limit: 3
+
+  # requirements.txt states its own policy: floors are raised deliberately to
+  # the latest version verified clean, because an open-ended >= never actually
+  # excludes the vulnerable versions below it. `versioning-strategy: increase`
+  # is exactly that - it raises the minimum rather than widening the range.
+  #
+  # Monthly, because this is the ecosystem that ships. A weekly PR against the
+  # thing that sends mail is noise; a monthly one gets read.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "06:00"
+      timezone: "Europe/Vienna"
+    versioning-strategy: increase
+    groups:
+      runtime:
+        patterns: ["*"]
+        exclude-patterns: ["pytest*", "httpx"]
+      testing:
+        patterns: ["pytest*", "httpx"]
+    labels: ["dependencies", "python"]
+    commit-message:
+      prefix: "deps"
+    open-pull-requests-limit: 3
+
+  # The Dockerfile tracks python:3.13-slim, a moving tag that already picks up
+  # patch releases on every rebuild. So the only thing Dependabot can offer
+  # here is the next *minor* Python - 3.14-slim - which is a deliberate
+  # decision about what the app runs on, not a routine bump. Monthly, and
+  # expect to close some of these unreviewed.
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      time: "06:00"
+      timezone: "Europe/Vienna"
+    labels: ["dependencies", "docker"]
+    commit-message:
+      prefix: "build"
+    open-pull-requests-limit: 2
