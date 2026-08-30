@@ -86,9 +86,13 @@ updates:
 
   # The Dockerfile tracks python:3.13-slim, a moving tag that already picks up
   # patch releases on every rebuild. So the only thing Dependabot can offer
-  # here is the next *minor* Python - 3.14-slim - which is a deliberate
-  # decision about what the app runs on, not a routine bump. Monthly, and
-  # expect to close some of these unreviewed.
+  # here is the next *minor* Python - which is a decision about what the app
+  # runs on, not a routine bump.
+  #
+  # It is worth having anyway now that tests.yml builds the image and starts
+  # it on every pull request. Before that job existed a base-image bump went
+  # green without anything having built it, because both test jobs pin
+  # python-version 3.13 whatever the Dockerfile says.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
