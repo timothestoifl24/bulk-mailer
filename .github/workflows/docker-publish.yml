@@ -114,7 +114,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           generate_release_notes: true
           # Not inferred from the tag automatically - this action always
