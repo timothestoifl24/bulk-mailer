@@ -16,6 +16,8 @@ pages no longer exist.
 
 ## [Unreleased]
 
+## [v1.4.1] - 2026-09-24
+
 ### Security
 - Closed four advisories in the documentation build toolchain (three against
   vite, one against esbuild). VitePress 1.6.4 pins a vite line that has no
@@ -109,7 +111,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.4.1...HEAD
+[v1.4.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.4.1
 [v1.4.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.4.0
 [v1.3.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.3.0
 [v1.2.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.2.0
