@@ -22,7 +22,7 @@ resources:
 # runs the same code as the one it replaces. Change newTag to upgrade.
 images:
   - name: ghcr.io/timothestoifl24/bulk-mailer
-    newTag: "1.4.1"
+    newTag: "1.5.0"
 
 # Generated, so each gets a content-hash suffix and editing one rolls the pods -
 # a plain ConfigMap would change underneath running pods without restarting

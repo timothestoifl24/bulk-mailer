@@ -197,7 +197,7 @@ The release is pinned in `base/kustomization.yaml`:
 ```yaml
 images:
   - name: ghcr.io/timothestoifl24/bulk-mailer
-    newTag: "1.4.1"
+    newTag: "1.5.0"
 ```
 
 Back up (below), change `newTag` to the new version — image tags carry no `v`
@@ -240,7 +240,7 @@ underneath:
    and the pod that sends a campaign is not necessarily the one that received
    the upload. That needs a storage class offering `ReadWriteMany` (NFS,
    CephFS, Azure Files, Amazon EFS, …).
-3. **An image newer than 1.4.1.** Earlier releases could send a campaign twice
+3. **Version 1.5.0 or later.** Earlier releases could send a campaign twice
    when two instances ran at once, including briefly during a rolling update.
 
 Then add patches to `overlays/postgres/kustomization.yaml` — replace the
