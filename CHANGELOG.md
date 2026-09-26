@@ -16,6 +16,8 @@ pages no longer exist.
 
 ## [Unreleased]
 
+## [v1.5.0] - 2026-09-26
+
 ### Added
 - Kubernetes manifests in `deploy/kubernetes/`, applied with `kubectl apply -k`:
   one pod on SQLite, or an overlay adding PostgreSQL that can be scaled to
@@ -137,7 +139,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.5.0...HEAD
+[v1.5.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.0
 [v1.4.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.4.1
 [v1.4.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.4.0
 [v1.3.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.3.0
