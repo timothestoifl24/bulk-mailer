@@ -1,6 +1,6 @@
 ---
 title: Setup
-description: Install Bulk Mailer with Docker, the full Compose stack, or from source - including the settings you must not leave at their defaults.
+description: Install Bulk Mailer with Docker, the full Compose stack, Kubernetes, or from source - including the settings you must not leave at their defaults.
 ---
 
 # Setup
@@ -78,6 +78,19 @@ Other commands worth knowing before you need them:
 | `python -m app.cli create-admin` | Add another administrator |
 | `python -m app.cli disable-ldap-login` | The way back in when a directory setting locks everyone out |
 
+## Kubernetes
+
+Manifests for a single pod on SQLite, or PostgreSQL with room for several
+replicas, ship in `deploy/kubernetes/`:
+
+```bash
+cp deploy/kubernetes/base/secret.env.example deploy/kubernetes/base/secret.env   # fill it in
+kubectl apply -k deploy/kubernetes/base
+```
+
+The whole walkthrough — PostgreSQL, Ingress, upgrades, backups, scaling out —
+is on its own page: [Kubernetes](/kubernetes).
+
 ## From source
 
 Python 3.13.
@@ -126,6 +139,8 @@ while you are still learning what the tool does.
   is no curl in the image) polling `/healthz`.
 - One container is one sender worker. Running more than one replica requires
   PostgreSQL — see [Deployment](/advanced-config#deployment).
+- Declares its user numerically (`1000:1000`), so Kubernetes' `runAsNonRoot`
+  can verify it.
 - Published to
   [GHCR](https://github.com/timothestoifl24/bulk-mailer/pkgs/container/bulk-mailer)
   on every tagged release.

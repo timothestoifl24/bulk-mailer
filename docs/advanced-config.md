@@ -156,13 +156,20 @@ your directory does have, for example `"department": "departmentNumber"` or
   localhost, and set `PUBLIC_BASE_URL` to the `https://` address.
 - **Running more than one instance requires PostgreSQL.** The sending worker
   lives inside the web process, and instances coordinate through the database:
-  a campaign is claimed with `SELECT … FOR UPDATE SKIP LOCKED`, so exactly one
-  worker sends it. SQLite has no row locks, so with SQLite run a single
-  instance — two would each send the whole campaign.
-- Let one instance create the schema before starting the others; `create_all`
-  is not safe to run concurrently.
+  a campaign is claimed with `SELECT … FOR UPDATE SKIP LOCKED` and then held
+  under a lease the sending instance renews before every message, so exactly
+  one worker sends it. An instance that shuts down cleanly hands its campaign
+  back at once; one that crashes loses it to another instance when the lease
+  expires, after at most five minutes. SQLite has no row locks, so with SQLite
+  run a single instance — two would each send the whole campaign.
+- Instances may start together: on PostgreSQL they take turns creating or
+  upgrading the schema, under an advisory lock.
+- LDAP list sync runs in every instance too; each list is locked while one
+  instance syncs it, and the others skip it.
 - Attachments are stored under `DATA_DIR/attachments` on local disk. With
   several instances, put that directory on shared storage — the sending
   instance is not necessarily the one that received the upload.
 
-Schema changes on upgrade are covered in [Upgrading](/upgrading).
+Schema changes on upgrade are covered in [Upgrading](/upgrading). On
+Kubernetes, the manifests and the steps to scale out are in
+[Kubernetes](/kubernetes#more-than-one-replica).

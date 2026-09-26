@@ -39,6 +39,7 @@ export default defineConfig({
       { text: "Guide", link: "/guide" },
       { text: "Screenshots", link: "/screenshots" },
       { text: "Setup", link: "/setup" },
+      { text: "Kubernetes", link: "/kubernetes" },
       {
         text: "Reference",
         items: [
@@ -64,6 +65,7 @@ export default defineConfig({
         items: [
           { text: "Overview", link: "/" },
           { text: "Setup", link: "/setup" },
+          { text: "Kubernetes", link: "/kubernetes" },
           { text: "Guide", link: "/guide" },
           { text: "Screenshots", link: "/screenshots" },
         ],

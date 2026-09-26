@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bulk-mailer
+  labels:
+    # The pod satisfies the "restricted" Pod Security Standard; enforce it.
+    pod-security.kubernetes.io/enforce: restricted

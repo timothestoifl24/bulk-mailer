@@ -1,0 +1,31 @@
+# Bulk Mailer with an in-cluster PostgreSQL - the setup to use when the data
+# matters, and the prerequisite for running more than one replica.
+#
+#   cp ../../base/secret.env.example ../../base/secret.env   # fill it in
+#   cp secret.env.example secret.env                         # fill it in
+#   kubectl apply -k deploy/kubernetes/overlays/postgres
+#
+# Already run PostgreSQL elsewhere (a managed service, an operator)? Use the
+# base instead and put DATABASE_URL in its secret.env.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - postgres.yaml
+
+patches:
+  - path: deployment-patch.yaml
+
+secretGenerator:
+  - name: bulk-mailer-postgres
+    envs:
+      # Not committed (see .gitignore). Copy secret.env.example to create it.
+      - secret.env
+    options:
+      # A fixed name: kustomize does not rewrite a hashed name inside the
+      # patched base Deployment, which would then look for a Secret that does
+      # not exist. Nothing is lost - PostgreSQL reads the password only when
+      # it first initialises its volume, so a restart on change would not
+      # apply a new one anyway.
+      disableNameSuffixHash: true

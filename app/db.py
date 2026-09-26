@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
@@ -52,6 +52,31 @@ def _set_sqlite_pragmas(dbapi_connection, connection_record):  # pragma: no cove
     cursor.execute("PRAGMA busy_timeout=10000")
     cursor.execute("PRAGMA foreign_keys=ON")
     cursor.close()
+
+
+# Arbitrary, but fixed: every instance must ask for the same advisory lock.
+STARTUP_LOCK_KEY = 0x6D61696C  # "mail"
+
+
+@contextmanager
+def startup_lock() -> Iterator[None]:
+    """Let one instance at a time create or upgrade the schema.
+
+    Replicas of a Kubernetes Deployment start together, and `create_all` plus
+    the column additions in migrations.py are not safe to run concurrently. A
+    PostgreSQL advisory lock makes the others wait their turn; by then the
+    schema exists and their pass is a no-op. SQLite runs a single instance, so
+    there is nothing to wait for.
+    """
+    if engine.dialect.name != "postgresql":
+        yield
+        return
+    with engine.connect() as connection:
+        connection.execute(text("SELECT pg_advisory_lock(:key)"), {"key": STARTUP_LOCK_KEY})
+        try:
+            yield
+        finally:
+            connection.execute(text("SELECT pg_advisory_unlock(:key)"), {"key": STARTUP_LOCK_KEY})
 
 
 def get_db() -> Iterator[Session]:

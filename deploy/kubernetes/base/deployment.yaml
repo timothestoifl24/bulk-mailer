@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bulk-mailer
+  labels:
+    app.kubernetes.io/name: bulk-mailer
+    app.kubernetes.io/component: web
+spec:
+  # One pod. SQLite allows no more: two instances would each send every
+  # campaign. overlays/postgres lifts that.
+  replicas: 1
+  # Recreate stops the old pod before starting the new one. With SQLite on a
+  # ReadWriteOnce volume a rolling update would briefly run two instances -
+  # or hang, when the new pod lands on a node the volume cannot attach to.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: bulk-mailer
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: bulk-mailer
+        app.kubernetes.io/component: web
+    spec:
+      # The app never talks to the Kubernetes API.
+      automountServiceAccountToken: false
+      # Off, because Kubernetes would otherwise inject <SERVICE>_PORT variables
+      # for every Service in the namespace - and one named "smtp" becomes
+      # SMTP_PORT=tcp://10.x.x.x:25, which the app reads as its own setting
+      # and fails to parse.
+      enableServiceLinks: false
+      # Shutdown waits up to 20 s for the message in flight, then hands the
+      # campaign back so the next pod resumes it immediately.
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        # Makes the mounted volume writable by uid 1000.
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: ghcr.io/timothestoifl24/bulk-mailer
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: bulk-mailer-config
+            - secretRef:
+                name: bulk-mailer-secrets
+          env:
+            # The image sets these too; stated here so nothing in config.env
+            # can move the port away from what the probes and Service expect.
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8000"
+            - name: DATA_DIR
+              value: /data
+          # /healthz answers once startup (schema, first admin) is done and
+          # does not touch the database, so a database outage does not get
+          # every pod restarted in a loop.
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 160Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            # The only other path anything writes to (temporary upload files).
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: bulk-mailer-data
+        - name: tmp
+          emptyDir: {}

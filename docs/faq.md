@@ -135,6 +135,11 @@ Yes. The interface is vendored locally rather than pulled from a CDN, there is
 no JavaScript build step, and nothing phones home. It runs on an isolated
 network.
 
+### Can I run it on Kubernetes?
+
+Yes — kustomize manifests ship in `deploy/kubernetes/`, for one pod on SQLite
+or for PostgreSQL with several replicas. See [Kubernetes](/kubernetes).
+
 ### Is there an API?
 
 Not a documented one. It is a server-rendered application. `/healthz` is public

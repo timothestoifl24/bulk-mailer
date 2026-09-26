@@ -20,5 +20,6 @@ README.md
 Dockerfile
 .dockerignore
 compose.yaml
+deploy/
 *.db
 *.sqlite3

@@ -4,17 +4,25 @@ A single worker thread picks up queued campaigns and delivers them one message
 at a time, honouring the per-campaign throttle and reacting to pause/cancel
 requests between messages. Progress lives in the database, so a restart resumes
 where it left off.
+
+Several app instances (Kubernetes replicas, or old and new pods overlapping in a
+rolling update) share one database, so ownership of a campaign is a lease: the
+worker that claims it renews `lease_until` between messages, and no other worker
+touches it until that lapses. A clean shutdown hands the lease back at once; a
+crashed instance's campaign is picked up by another after LEASE_SECONDS.
 """
 
 from __future__ import annotations
 
 import logging
+import os
+import socket
 import threading
-import time
-from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from ..db import IS_SQLITE, session_scope
@@ -28,6 +36,12 @@ logger = logging.getLogger("mailer.sender")
 
 POLL_INTERVAL = 2.0
 BATCH_SIZE = 25
+# How long a claim on a campaign survives without renewal. It is renewed before
+# every message, so it only has to outlast one send plus the throttle delay
+# (at most 60 s at 1 message/minute) - with room for a slow SMTP server.
+LEASE_SECONDS = 300
+# How long shutdown waits for the message in flight before giving up on it.
+STOP_TIMEOUT = 20.0
 
 
 def counts_by_status(db: Session, campaign_id: int) -> dict[str, int]:
@@ -74,11 +88,16 @@ class SenderWorker(threading.Thread):
 
     def __init__(self) -> None:
         super().__init__(name="sender-worker")
-        self._stop = threading.Event()
+        # Not "_stop": that name is a method of threading.Thread, which join()
+        # calls, and an Event there makes join() raise.
+        self._stopping = threading.Event()
         self._wake = threading.Event()
+        # Unique per process start: a pod name alone is reused by StatefulSets
+        # and by a container restarting in place.
+        self.worker_id = f"{socket.gethostname()}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
 
     def stop(self) -> None:
-        self._stop.set()
+        self._stopping.set()
         self._wake.set()
 
     def notify(self) -> None:
@@ -87,7 +106,7 @@ class SenderWorker(threading.Thread):
 
     def run(self) -> None:  # pragma: no cover - exercised manually
         logger.info("Sender worker started")
-        while not self._stop.is_set():
+        while not self._stopping.is_set():
             try:
                 worked = self._process_next()
             except Exception:  # noqa: BLE001 - the worker must never die
@@ -102,16 +121,28 @@ class SenderWorker(threading.Thread):
     def _claim_campaign(self) -> int | None:
         """Take ownership of one campaign, exactly once.
 
-        FOR UPDATE SKIP LOCKED makes the read-then-flip atomic on PostgreSQL,
-        so a second app instance moves on to the next campaign instead of
-        sending the same one twice. SQLite has no row locks and SQLAlchemy
-        omits the clause there - harmless, since a single process runs one
-        worker.
+        Claimable is a queued campaign, or a "sending" one whose lease has
+        lapsed or was handed back - its previous owner crashed or shut down.
+        One another worker is still renewing is not.
+
+        FOR UPDATE SKIP LOCKED makes the read-then-claim atomic on PostgreSQL,
+        so two instances polling at the same moment cannot both take the same
+        campaign. SQLite has no row locks and SQLAlchemy omits the clause
+        there - harmless, since a single process runs one worker.
         """
+        now = datetime.now(timezone.utc)
         with session_scope() as db:
             statement = (
                 select(Campaign)
-                .where(Campaign.status.in_(("queued", "sending")))
+                .where(
+                    or_(
+                        Campaign.status == "queued",
+                        and_(
+                            Campaign.status == "sending",
+                            or_(Campaign.lease_until.is_(None), Campaign.lease_until < now),
+                        ),
+                    )
+                )
                 .order_by(Campaign.id)
                 .limit(1)
             )
@@ -122,8 +153,16 @@ class SenderWorker(threading.Thread):
                 return None
             if campaign.status == "queued":
                 campaign.status = "sending"
-                campaign.started_at = campaign.started_at or datetime.now(timezone.utc)
+                campaign.started_at = campaign.started_at or now
                 campaign.error = ""
+            elif campaign.claimed_by:
+                logger.info(
+                    "Taking over campaign %s from %s, which released it or stopped renewing",
+                    campaign.id,
+                    campaign.claimed_by,
+                )
+            campaign.claimed_by = self.worker_id
+            campaign.lease_until = now + timedelta(seconds=LEASE_SECONDS)
             return campaign.id
 
     def _process_next(self) -> bool:
@@ -163,7 +202,7 @@ class SenderWorker(threading.Thread):
                     self._fail_campaign(campaign_id, str(exc))
                     return
 
-            while not self._stop.is_set():
+            while not self._stopping.is_set():
                 with session_scope() as db:
                     campaign = db.get(Campaign, campaign_id)
                     if campaign is None or campaign.status != "sending":
@@ -184,13 +223,13 @@ class SenderWorker(threading.Thread):
                         return
 
                     for entry in entries:
-                        if self._stop.is_set():
+                        if self._stopping.is_set():
                             return
                         # Pause and cancel must take effect between messages, not
                         # merely between batches. The commit at the end of each
                         # iteration ends the read transaction, so this sees the
                         # status another connection has just written.
-                        if not self._still_sending(db, campaign_id):
+                        if not self._renew_lease(db, campaign_id):
                             return
                         recipient = (
                             db.get(Recipient, entry.recipient_id) if entry.recipient_id else None
@@ -239,14 +278,49 @@ class SenderWorker(threading.Thread):
 
                         db.commit()
                         if delay and not dry_run:
-                            time.sleep(delay)
+                            # Not time.sleep: a shutdown should not wait out
+                            # the throttle before handing the campaign back.
+                            self._stopping.wait(delay)
         finally:
             if sender is not None:
                 sender.close()
+            if self._stopping.is_set():
+                self._release_lease(campaign_id)
 
-    @staticmethod
-    def _still_sending(db: Session, campaign_id: int) -> bool:
-        return db.scalar(select(Campaign.status).where(Campaign.id == campaign_id)) == "sending"
+    def _renew_lease(self, db: Session, campaign_id: int) -> bool:
+        """Extend our claim, or report that the campaign is no longer ours to send.
+
+        False when it was paused, cancelled or deleted - or when it was paused
+        and resumed quickly enough that another worker has since claimed it.
+        Committed straight away, so the new expiry is visible to other instances
+        while the message is being sent.
+        """
+        result = db.execute(
+            update(Campaign)
+            .where(
+                Campaign.id == campaign_id,
+                Campaign.status == "sending",
+                Campaign.claimed_by == self.worker_id,
+            )
+            .values(lease_until=datetime.now(timezone.utc) + timedelta(seconds=LEASE_SECONDS))
+            .execution_options(synchronize_session=False)
+        )
+        db.commit()
+        return result.rowcount == 1
+
+    def _release_lease(self, campaign_id: int) -> None:
+        """Hand a campaign back on shutdown, so another instance resumes it now."""
+        try:
+            with session_scope() as db:
+                db.execute(
+                    update(Campaign)
+                    .where(Campaign.id == campaign_id, Campaign.claimed_by == self.worker_id)
+                    .values(lease_until=None)
+                    .execution_options(synchronize_session=False)
+                )
+            logger.info("Released campaign %s for another instance to resume", campaign_id)
+        except Exception:  # noqa: BLE001 - the lease lapses on its own anyway
+            logger.exception("Could not release campaign %s", campaign_id)
 
     def _finish_campaign(self, db: Session, campaign: Campaign) -> None:
         counts = counts_by_status(db, campaign.id)
@@ -285,9 +359,17 @@ def start_worker() -> None:
 
 
 def stop_worker() -> None:
+    """Stop the sender thread and wait for the message in flight.
+
+    Waiting lets it record that message and hand its campaign back before the
+    process exits - on Kubernetes, within the pod's termination grace period.
+    """
     with _worker_lock:
-        if _worker is not None:
-            _worker.stop()
+        worker = _worker
+    if worker is not None:
+        worker.stop()
+        if worker.is_alive():
+            worker.join(STOP_TIMEOUT)
 
 
 def notify_worker() -> None:

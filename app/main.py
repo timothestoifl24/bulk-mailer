@@ -16,7 +16,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import __version__
 from .config import settings
-from .db import Base, engine, get_db, session_scope
+from .db import IS_SQLITE, Base, engine, get_db, session_scope, startup_lock
 from .migrations import add_missing_columns
 from .models import Campaign, CampaignRecipient, LdapProfile, Recipient, RecipientList, User
 from .routers import (
@@ -64,6 +64,11 @@ def warn_about_weak_secrets() -> None:
 def bootstrap() -> None:
     """Create the schema, the first admin account, and reset stale campaigns."""
     warn_about_weak_secrets()
+    with startup_lock():
+        _bootstrap_schema_and_data()
+
+
+def _bootstrap_schema_and_data() -> None:
     Base.metadata.create_all(bind=engine)
     add_missing_columns(engine)
     with session_scope() as db:
@@ -94,10 +99,15 @@ def bootstrap() -> None:
             if first is not None:
                 first.is_admin = True
                 logger.info("Granted admin rights to the existing account '%s'.", first.username)
-        # A campaign left mid-flight by a crash goes back to the queue.
-        for campaign in db.scalars(select(Campaign).where(Campaign.status == "sending")):
-            campaign.status = "queued"
-            logger.info("Requeued campaign %s after restart", campaign.id)
+        # A campaign left mid-flight by a crash goes back to the queue. Only on
+        # SQLite, which is always a single instance: with several instances
+        # sharing PostgreSQL, "sending" may mean another one is sending it right
+        # now, and the sender's lease already hands over a crashed instance's
+        # campaigns (services/sender.py).
+        if IS_SQLITE:
+            for campaign in db.scalars(select(Campaign).where(Campaign.status == "sending")):
+                campaign.status = "queued"
+                logger.info("Requeued campaign %s after restart", campaign.id)
 
 
 @asynccontextmanager

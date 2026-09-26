@@ -21,3 +21,7 @@ docs/.vitepress/dist/
 # Mirrored into docs/public/ by docs/.vitepress/mirror.mjs; the tracked copies
 # live at the repository root because README.md uses them from there.
 docs/public/media/
+
+# Kubernetes secrets, generated from these by kustomize. Only the .example
+# copies are tracked.
+deploy/kubernetes/**/secret.env

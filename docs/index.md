@@ -52,7 +52,8 @@ docker run -d -p 8000:8000 \
 ```
 
 Open <http://127.0.0.1:8000> and sign in as `admin`. The full walkthrough,
-including a Compose stack with PostgreSQL, is in [Setup](/setup).
+including a Compose stack with PostgreSQL, is in [Setup](/setup); for a
+cluster, see [Kubernetes](/kubernetes).
 
 ## What it is
 
@@ -81,6 +82,7 @@ The unsubscribe link is in the default template for a reason — keep it.
 | [Guide](/guide) | A first campaign, start to finish |
 | [Screenshots](/screenshots) | Every screen, before you install anything |
 | [Setup](/setup) | Docker, Compose, or from source |
+| [Kubernetes](/kubernetes) | Ready-made manifests, from one pod to several replicas |
 | [Advanced config](/advanced-config) | PostgreSQL, LDAP sign-in, list sync, deployment |
 | [Upgrading](/upgrading) | Versioning, schema changes, what to check |
 | [FAQ](/faq) | The questions that come up |

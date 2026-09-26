@@ -197,6 +197,11 @@ class Campaign(Base):
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP_TZ, default=utcnow)
     started_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_TZ, nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_TZ, nullable=True)
+    # Which sender worker owns a "sending" campaign, and until when. The owner
+    # renews the lease between messages; another instance may take the
+    # campaign over only once it has lapsed. See services/sender.py.
+    claimed_by: Mapped[str] = mapped_column(String(100), default="")
+    lease_until: Mapped[datetime | None] = mapped_column(TIMESTAMP_TZ, nullable=True)
     # Who composed it - kept for attribution when several people share the tool.
     created_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True

@@ -461,3 +461,37 @@ def test_the_import_form_offers_the_sync_choice(logged_in, monkeypatch):
     with SessionLocal() as db:
         db.delete(db.get(LdapProfile, profile_id))
         db.commit()
+
+
+# --------------------------------------------------------------------------- #
+# Several instances: each runs the worker, and each list must be synced by one.
+
+
+def test_a_due_list_is_locked_for_syncing(scenario):
+    db, target, _ = scenario
+    assert ldap_sync._lock_if_still_due(db, target) is True
+    db.commit()
+
+
+def test_a_list_another_instance_just_synced_is_skipped(scenario):
+    """It was due when this instance listed it, and synced before it got here."""
+    db, target, _ = scenario
+    with SessionLocal() as other:
+        other.get(RecipientList, target.id).last_synced_at = datetime.now(timezone.utc)
+        other.commit()
+
+    assert ldap_sync._lock_if_still_due(db, target) is False
+
+
+@pytest.mark.skipif(
+    SessionLocal.kw["bind"].dialect.name != "postgresql",
+    reason="SQLite has no row locks; it runs a single instance",
+)
+def test_a_list_another_instance_is_syncing_is_skipped(scenario):
+    db, target, _ = scenario
+    with SessionLocal() as other:
+        mine = other.get(RecipientList, target.id)
+        assert ldap_sync._lock_if_still_due(other, mine) is True  # holds the lock
+
+        assert ldap_sync._lock_if_still_due(db, target) is False
+        other.commit()

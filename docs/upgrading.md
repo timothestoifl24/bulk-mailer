@@ -17,6 +17,9 @@ Or for a specific version rather than whatever `latest` points at:
 docker pull ghcr.io/timothestoifl24/bulk-mailer:1.4.0
 ```
 
+On Kubernetes, change `newTag` in `deploy/kubernetes/base/kustomization.yaml`
+and apply again — see [Kubernetes](/kubernetes#upgrading).
+
 ::: info Image tags have no `v`
 The git tag is `v1.4.0`; the image is published as `1.4.0`. `1.4` follows
 the latest patch in that minor series, and `latest` follows the newest

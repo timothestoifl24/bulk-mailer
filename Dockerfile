@@ -62,7 +62,9 @@ COPY run.py ./
 # rewrite every file into a second ~126 MB layer.
 RUN chmod -R go-w /app
 
-USER app
+# Numeric rather than "app": Kubernetes' runAsNonRoot can only verify a numeric
+# user, and refuses to start an image whose USER is a name it cannot resolve.
+USER 1000:1000
 
 # Attachments, and the SQLite file when that backend is used.
 VOLUME ["/data"]
