@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from ..db import SessionLocal
+from ..db import IS_SQLITE, SessionLocal
 from ..models import LdapProfile, RecipientList
 from . import ldap_client, settings_store
 from .importer import ImportResult, import_rows, ldap_entries_to_rows, normalise_email
@@ -175,6 +175,28 @@ def detach_profile(db: Session, profile_id: int) -> list[str]:
     return [target.name for target in affected if target.name]
 
 
+def _lock_if_still_due(db: Session, target: RecipientList) -> bool:
+    """Take a row lock on the list, held until the caller commits.
+
+    Every instance runs this worker. Without the lock, two of them would re-run
+    the same search and apply the same changes side by side. SKIP LOCKED moves
+    past a list another instance is syncing right now; the re-check catches one
+    it finished between our due_lists() and this lock.
+    """
+    locked = db.scalar(
+        select(RecipientList.id)
+        .where(RecipientList.id == target.id)
+        .with_for_update(skip_locked=True)
+    )
+    if locked is None:
+        return False
+    db.refresh(target)
+    if is_due(target, interval_minutes(db)):
+        return True
+    db.commit()  # release the lock; nothing to do
+    return False
+
+
 # --------------------------------------------------------------------------- #
 # Background worker
 
@@ -205,6 +227,8 @@ class SyncWorker(threading.Thread):
             for target in targets:
                 if self._stop.is_set():
                     return
+                if not IS_SQLITE and not _lock_if_still_due(db, target):
+                    continue
                 try:
                     result = sync_list(db, target)
                     logger.info("Synced list '%s': %s", target.name, result.summary())

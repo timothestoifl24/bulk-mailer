@@ -29,6 +29,7 @@
     <a href="https://bulkmailer.stoifl.app/guide/">Guide</a> ·
     <a href="https://bulkmailer.stoifl.app/screenshots/">Screenshots</a> ·
     <a href="https://bulkmailer.stoifl.app/setup/">Setup</a> ·
+    <a href="https://bulkmailer.stoifl.app/kubernetes/">Kubernetes</a> ·
     <a href="https://bulkmailer.stoifl.app/advanced-config/">Advanced config</a> ·
     <a href="https://bulkmailer.stoifl.app/upgrading/">Upgrading</a> ·
     <a href="https://bulkmailer.stoifl.app/faq/">FAQ</a>
@@ -152,6 +153,27 @@ without touching a real mail server — plus every detail of the image
 (non-root user, read-only code, health check, what `/data` holds) — is in
 [Running in containers](#running-in-containers) below.
 
+### Kubernetes
+
+Ready-made [kustomize](https://kustomize.io/) manifests live in
+[`deploy/kubernetes/`](deploy/kubernetes/) — `kubectl` has kustomize built
+in, so nothing else is needed. From a checkout:
+
+```bash
+cp deploy/kubernetes/base/secret.env.example deploy/kubernetes/base/secret.env
+#   fill in SECRET_KEY (openssl rand -base64 36) and ADMIN_PASSWORD, then set
+#   PUBLIC_BASE_URL and the SMTP block in deploy/kubernetes/base/config.env
+kubectl apply -k deploy/kubernetes/base
+kubectl -n bulk-mailer port-forward service/bulk-mailer 8000:80
+```
+
+That is one pod on SQLite, in the namespace `bulk-mailer`.
+`deploy/kubernetes/overlays/postgres` adds a PostgreSQL StatefulSet and is
+the starting point for more than one replica. Ingress, upgrades, backups and
+scaling out are covered in the
+[Kubernetes guide](https://bulkmailer.stoifl.app/kubernetes/)
+([source](docs/kubernetes.md)).
+
 ### From source
 
 ```bash
@@ -242,6 +264,8 @@ Notes on the published image:
   image) that polls `/healthz`.
 - One container = one sender worker. Scaling beyond one replica requires
   PostgreSQL — see [Deployment notes](#deployment-notes).
+- Declares its user numerically (`USER 1000:1000`), so Kubernetes'
+  `runAsNonRoot` can verify it.
 - Published from [GitHub Container Registry](https://github.com/timothestoifl24/bulk-mailer/pkgs/container/bulk-mailer)
   on every tagged release (`.github/workflows/docker-publish.yml`). If
   `docker pull` reports the image doesn't exist or access is denied right
@@ -362,18 +386,24 @@ so. The lists and their members are untouched.
   `Secure` flag automatically).
 - **Running more than one instance requires PostgreSQL.** The sending
   worker lives inside the web process, and instances coordinate through the
-  database: a campaign is claimed with `SELECT … FOR UPDATE SKIP LOCKED`, so
-  exactly one worker sends it. SQLite has no row locks, so with SQLite run a
-  single instance — two would each send the whole campaign.
-- Let one instance create the schema before starting the others
-  (`create_all` isn't safe to run concurrently). On startup the app also
-  adds any columns a newer model expects (`app/migrations.py`) so an
-  upgrade doesn't need a wipe — but that only ever *adds*
-  nullable-or-defaulted columns, and adds no constraints. Anything beyond
-  that needs Alembic.
+  database: a campaign is claimed with `SELECT … FOR UPDATE SKIP LOCKED` and
+  held under a lease the sending instance renews before every message, so
+  exactly one worker sends it. A cleanly stopped instance hands its campaign
+  back at once; a crashed one loses it to another instance when the lease
+  expires (at most five minutes). SQLite has no row locks, so with SQLite
+  run a single instance — two would each send the whole campaign.
+- Instances may start together — on PostgreSQL they take turns creating or
+  upgrading the schema under an advisory lock. On startup the app adds any
+  columns a newer model expects (`app/migrations.py`) so an upgrade doesn't
+  need a wipe — but that only ever *adds* nullable-or-defaulted columns, and
+  adds no constraints. Anything beyond that needs Alembic.
+- LDAP list sync runs in every instance; each list is locked while one
+  instance syncs it, and the others skip it.
 - Attachments are stored under `DATA_DIR/attachments` on local disk. With
   several instances, put that directory on shared storage — the sending
-  instance is not necessarily the one that received the upload.
+  instance is not necessarily the one that received the upload. On
+  Kubernetes that means a `ReadWriteMany` volume; see
+  [More than one replica](https://bulkmailer.stoifl.app/kubernetes/#more-than-one-replica).
 </details>
 
 ## Sending responsibly
@@ -410,6 +440,10 @@ app/
 tools/
   dev_smtp.py             local SMTP sink for testing
   healthcheck.py          container health probe
+deploy/kubernetes/
+  base/                   one pod on SQLite (kustomize)
+  overlays/postgres/      adds a PostgreSQL StatefulSet
+docs/                     documentation site (VitePress)
 Dockerfile  compose.yaml  .github/workflows/
 tests/
 ```

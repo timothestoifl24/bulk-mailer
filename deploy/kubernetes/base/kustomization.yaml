@@ -1,0 +1,39 @@
+# Bulk Mailer on Kubernetes - the minimal install: one pod, SQLite on a
+# persistent volume. See docs/kubernetes.md (bulkmailer.stoifl.app/kubernetes).
+#
+#   cp secret.env.example secret.env     # then fill it in
+#   kubectl apply -k deploy/kubernetes/base
+#
+# For PostgreSQL and more than one replica, apply overlays/postgres instead.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: bulk-mailer
+
+resources:
+  - namespace.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  # Uncomment once ingress.yaml names your host, class and TLS secret.
+  # - ingress.yaml
+
+# Pin a release rather than following `latest`, so a pod rescheduled next week
+# runs the same code as the one it replaces. Change newTag to upgrade.
+images:
+  - name: ghcr.io/timothestoifl24/bulk-mailer
+    newTag: "1.4.1"
+
+# Generated, so each gets a content-hash suffix and editing one rolls the pods -
+# a plain ConfigMap would change underneath running pods without restarting
+# them, and the app reads its environment only at startup.
+configMapGenerator:
+  - name: bulk-mailer-config
+    envs:
+      - config.env
+
+secretGenerator:
+  - name: bulk-mailer-secrets
+    envs:
+      # Not committed (see .gitignore). Copy secret.env.example to create it.
+      - secret.env

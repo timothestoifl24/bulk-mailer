@@ -1,0 +1,33 @@
+# Not applied by default - enable it in kustomization.yaml after editing.
+# The app speaks plain HTTP; TLS terminates here. Keep the host identical to
+# PUBLIC_BASE_URL in config.env: the CSRF check accepts a form post only when
+# its Origin matches the Host header or that URL.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: bulk-mailer
+  labels:
+    app.kubernetes.io/name: bulk-mailer
+  annotations:
+    # ingress-nginx caps request bodies at 1 MiB by default, which rejects
+    # most attachments and larger CSV imports. Other controllers have their
+    # own equivalent.
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+    # cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - mailer.example.com
+      secretName: bulk-mailer-tls
+  rules:
+    - host: mailer.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: bulk-mailer
+                port:
+                  name: http

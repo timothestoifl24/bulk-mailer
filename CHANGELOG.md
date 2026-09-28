@@ -16,6 +16,32 @@ pages no longer exist.
 
 ## [Unreleased]
 
+### Added
+- Kubernetes manifests in `deploy/kubernetes/`, applied with `kubectl apply -k`:
+  one pod on SQLite, or an overlay adding PostgreSQL that can be scaled to
+  several replicas. Both run under the *restricted* Pod Security Standard.
+  The walkthrough - install, Ingress, upgrades, backups, scaling out - is at
+  [bulkmailer.stoifl.app/kubernetes](https://bulkmailer.stoifl.app/kubernetes).
+
+### Fixed
+- Two instances on the same PostgreSQL database could send the same campaign
+  side by side, so recipients got it twice. A campaign already sending stayed
+  claimable by every other instance, and an instance starting up put every
+  sending campaign back in the queue - both of which a rolling update does.
+  The sending instance now holds a lease on the campaign; another takes over
+  only when it is handed back on shutdown, or after five minutes without
+  renewal if the instance crashed.
+- Instances starting at the same moment against a fresh PostgreSQL database
+  could crash while creating the schema. They now take turns.
+- Every instance ran the LDAP list sync, so two could sync the same list at
+  once. A list is now locked while one instance syncs it.
+- Stopping the app waits for the message in flight, instead of abandoning it
+  mid-send.
+
+### Changed
+- The image declares its user as `1000:1000` rather than `app`, so Kubernetes'
+  `runAsNonRoot` can verify it. Same user, same permissions.
+
 ## [v1.4.1] - 2026-09-24
 
 ### Security

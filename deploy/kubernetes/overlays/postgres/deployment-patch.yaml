@@ -1,0 +1,21 @@
+# Point the app at the PostgreSQL defined in postgres.yaml.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bulk-mailer
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          env:
+            # Must come before DATABASE_URL: Kubernetes expands $(VAR) only
+            # from variables defined earlier in this list.
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bulk-mailer-postgres
+                  key: POSTGRES_PASSWORD
+            # Takes precedence over a DATABASE_URL in the base secret.env.
+            - name: DATABASE_URL
+              value: postgresql+psycopg://mailer:$(POSTGRES_PASSWORD)@postgres:5432/mailer

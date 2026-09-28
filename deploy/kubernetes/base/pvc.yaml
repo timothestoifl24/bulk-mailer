@@ -1,0 +1,16 @@
+# /data: attachments, and the SQLite database when no DATABASE_URL is set.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: bulk-mailer-data
+  labels:
+    app.kubernetes.io/name: bulk-mailer
+spec:
+  # ReadWriteOnce is what every storage class offers, and all a single pod
+  # needs. More than one replica needs ReadWriteMany here - see the docs.
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+  # storageClassName: standard   # omit to use the cluster default
