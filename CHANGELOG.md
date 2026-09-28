@@ -16,6 +16,13 @@ pages no longer exist.
 
 ## [Unreleased]
 
+### Fixed
+- The image is now published for `linux/arm64` as well as `linux/amd64`.
+  Pulling it on an Apple Silicon Mac (Docker Desktop, OrbStack, kind,
+  minikube) or on ARM cloud nodes failed with "no matching manifest" -
+  on Kubernetes, `ErrImagePull`. CI now builds and starts the image on a
+  native arm64 runner before any release is published.
+
 ## [v1.5.0] - 2026-09-26
 
 ### Added

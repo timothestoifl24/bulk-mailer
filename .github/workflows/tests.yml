@@ -87,9 +87,22 @@ jobs:
   # Plain docker build rather than docker/build-push-action: this job exists to
   # test the Dockerfile, and wrapping it in another action would add a
   # dependency whose own updates this job cannot then validate.
+  #
+  # Once per published architecture, each on a native runner rather than under
+  # emulation: an arm64 image that builds but cannot start (a dependency with
+  # no aarch64 wheel, say) should fail here, not on someone's Apple Silicon
+  # laptop or Graviton node after the release.
   image:
-    name: Container image
-    runs-on: ubuntu-latest
+    name: Container image (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
 
