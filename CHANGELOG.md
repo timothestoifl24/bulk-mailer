@@ -16,6 +16,8 @@ pages no longer exist.
 
 ## [Unreleased]
 
+## [v1.5.1] - 2026-09-28
+
 ### Fixed
 - The image is now published for `linux/arm64` as well as `linux/amd64`.
   Pulling it on an Apple Silicon Mac (Docker Desktop, OrbStack, kind,
@@ -146,7 +148,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.5.1...HEAD
+[v1.5.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.0
 [v1.4.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.4.1
 [v1.4.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.4.0
