@@ -70,6 +70,12 @@ jobs:
       - name: Check out
         uses: actions/checkout@v7
 
+      # The arm64 half of the build runs under emulation on this amd64 runner.
+      # That it also *starts* on arm64 is proven natively by the image job in
+      # tests.yml, which gates this one.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
@@ -102,12 +108,10 @@ jobs:
         with:
           context: .
           push: true
-          # linux/amd64 is what this project's own CI and every local test in
-          # its history actually run and verify. Cross-arch (e.g. linux/arm64)
-          # needs QEMU emulation this repository has not exercised - add it
-          # with docker/setup-qemu-action@v3 and `platforms: linux/amd64,linux/arm64`
-          # below once you have verified an arm64 image boots correctly.
-          platforms: linux/amd64
+          # arm64 for Apple Silicon (Docker Desktop, OrbStack, kind, minikube
+          # on a Mac) and ARM cloud nodes; with amd64 only, their pulls failed
+          # with ErrImagePull. Both are built and booted by tests.yml first.
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha

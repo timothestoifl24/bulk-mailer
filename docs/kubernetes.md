@@ -328,6 +328,14 @@ through the database, not with each other:
 You have not created it yet — copy `secret.env.example` to `secret.env` in the
 same directory and fill it in.
 
+**The pod is stuck in `ErrImagePull` / `ImagePullBackOff`.** Run
+`kubectl -n bulk-mailer describe pod -l app.kubernetes.io/component=web` and
+read the *Events*. `no matching manifest for linux/arm64` means an ARM node —
+an Apple Silicon Mac, or ARM cloud instances — and an image published before
+arm64 builds existed: releases up to 1.5.0 are `amd64` only. Set `newTag` to
+1.5.1 or later. `not found` means the tag does not exist; image tags carry no
+`v`.
+
 **Every form says "Cross-site request blocked".** The host in the browser's
 address bar matches neither the `Host` header the app receives nor
 `PUBLIC_BASE_URL`. Make `PUBLIC_BASE_URL` match the Ingress host exactly,

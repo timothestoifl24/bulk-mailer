@@ -143,7 +143,8 @@ while you are still learning what the tool does.
   can verify it.
 - Published to
   [GHCR](https://github.com/timothestoifl24/bulk-mailer/pkgs/container/bulk-mailer)
-  on every tagged release.
+  on every tagged release, for `linux/amd64` and `linux/arm64` (Apple Silicon,
+  ARM cloud instances) from 1.5.1 on. Earlier releases are `amd64` only.
 
 Building it yourself:
 
