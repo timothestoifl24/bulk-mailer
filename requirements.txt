@@ -5,12 +5,12 @@
 # versions below it, even though pip always resolves to the newest release
 # in practice. Bump the floor, don't just rely on what pip happens to grab.
 fastapi>=0.141.1
-starlette>=1.6.0                 # pulled in transitively by fastapi; pinned directly since it carries most of the historical CVEs
-uvicorn[standard]>=0.52.4
+starlette>=1.7.0                 # pulled in transitively by fastapi; pinned directly since it carries most of the historical CVEs
+uvicorn[standard]>=0.54.0
 jinja2>=3.1.6                    # 3.1.6 closes a sandbox breakout (GHSA-cpwx-vrp4-4pq7) - directly relevant, we sandbox user-authored templates
 python-multipart>=0.0.32
-SQLAlchemy>=2.0.52
-psycopg[binary]>=3.3.4           # PostgreSQL driver; unused when DATABASE_URL is SQLite
+SQLAlchemy>=2.1.1
+psycopg[binary]>=3.3.6           # PostgreSQL driver; unused when DATABASE_URL is SQLite
 pydantic>=2.13.5
 pydantic-settings>=2.15.0
 ldap3>=2.9.1
