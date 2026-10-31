@@ -43,7 +43,8 @@
 
 {# Where this campaign is on its way out. Derived from what exists, nothing
    extra is stored: a message, an audience, then the send itself. #}
-{% set has_message = campaign.subject and campaign.body_html %}
+{# Same rule the send route checks: a subject, plus an HTML or a plain-text body. #}
+{% set has_message = campaign.subject | trim and (campaign.body_html | trim or campaign.body_text | trim) %}
 {% set has_audience = counts.total > 0 %}
 {% set sent_phase = campaign.status in ('queued', 'sending', 'paused', 'failed') %}
 {% set finished = campaign.status in ('completed', 'cancelled') %}
