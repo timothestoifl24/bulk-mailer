@@ -380,6 +380,11 @@
 
 {% block scripts %}
 {% if running %}
+{# One ready-made pill per status the run can move into, so the poller swaps
+   in the right icon and colour rather than only changing the word. #}
+<template id="status-pills">
+  {% for status in ('queued', 'sending', 'paused', 'completed', 'cancelled', 'failed') %}{{ status_badge(status) }}{% endfor %}
+</template>
 <script>
   // Poll while the campaign is running, and reload once it settles.
   (function () {
@@ -390,7 +395,18 @@
         .then(function (data) {
           if (!data) return;
           document.getElementById('progress-bar').style.width = data.percent + '%';
-          document.querySelector('#status-badge .status-text').textContent = data.status;
+          var badge = document.getElementById('status-badge');
+          var pill = null;
+          document.getElementById('status-pills').content.querySelectorAll('.status-pill').forEach(function (candidate) {
+            if (candidate.querySelector('.status-text').textContent === data.status) pill = candidate;
+          });
+          if (pill) {
+            var fresh = pill.cloneNode(true);
+            fresh.id = 'status-badge';
+            badge.replaceWith(fresh);
+          } else {
+            badge.querySelector('.status-text').textContent = data.status;
+          }
           document.getElementById('progress-text').textContent =
             data.counts.sent + ' sent · ' + data.counts.failed + ' failed · ' +
             data.counts.skipped + ' skipped · ' + data.counts.pending + ' pending';

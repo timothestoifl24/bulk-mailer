@@ -45,7 +45,7 @@
 
 {# Headline number with a coloured icon square. #}
 {% macro stat_tile(label, value, icon_name, colour='primary', href=None) -%}
-<{{ 'a href="' ~ href ~ '"' if href else 'div' }} class="card card-sm stat-tile{{ ' card-link' if href }}">
+<{{ 'a' if href else 'div' }}{% if href %} href="{{ href }}"{% endif %} class="card card-sm stat-tile{{ ' card-link' if href }}">
   <div class="card-body d-flex align-items-center gap-3">
     <span class="stat-icon bg-{{ colour }}-lt">{{ icon(icon_name) }}</span>
     <div>
