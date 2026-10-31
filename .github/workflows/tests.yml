@@ -1,13 +1,18 @@
 name: Tests
 
-# The suite, on both supported databases. Runs on its own for a branch or a
-# pull request, and is also called by the release workflow (workflow_call) so
-# a tag cannot publish an image the tests never saw.
+# The suite, on both supported databases, and the container image booted on
+# both architectures. docker.yml calls this (workflow_call) for every pull
+# request and every push to develop and main, and only publishes an image once
+# it passed, so nothing reaches Docker Hub that the tests never saw. It has no
+# push or pull_request trigger of its own: that would run everything twice.
 on:
-  push:
-    branches: [main]
-  pull_request:
-  workflow_call: {}
+  workflow_call:
+    inputs:
+      version:
+        description: Version the image is built as (X.Y.Z-beta.N, ...); empty for __version__
+        type: string
+        default: ""
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -79,7 +84,7 @@ jobs:
   # Builds the Dockerfile and proves the result starts. Without this, a change
   # to the base image is not exercised by anything on a pull request: the two
   # jobs above pin python-version 3.13 regardless of what the Dockerfile says,
-  # and docker-publish.yml only runs on a tag. A Dependabot bump from
+  # and docker.yml only publishes after this passed. A Dependabot bump from
   # python:3.13-slim to 3.14-slim therefore went green while nothing had built
   # it - the first real build would have been at release time, when a failure
   # costs a broken release rather than a red pull request.
@@ -107,7 +112,9 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Build
-        run: docker build --pull -t bulk-mailer:ci .
+        env:
+          VERSION: ${{ inputs.version }}
+        run: docker build --pull --build-arg BULK_MAILER_BUILD_VERSION="$VERSION" -t bulk-mailer:ci .
 
       - name: Start
         run: |
@@ -127,13 +134,17 @@ jobs:
           echo "::error::The container never answered on /healthz."
           exit 1
 
-      - name: The version it reports is the version in the source
+      - name: The version it reports is the version it was built as
+        env:
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           reported=$(curl -fsS http://127.0.0.1:8000/healthz | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')
           declared=$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' app/__init__.py)
-          echo "image reports $reported, source declares $declared"
-          test "$reported" = "$declared"
+          # docker.yml builds betas and pull request images as X.Y.Z-beta.N / X.Y.Z-pr.N.
+          expected=${VERSION:-$declared}
+          echo "image reports $reported, expected $expected (source declares $declared)"
+          test "$reported" = "$expected"
 
       - name: The CLI runs
         run: docker exec mailer-ci python -m app.cli list-users

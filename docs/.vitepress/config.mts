@@ -1,12 +1,25 @@
-import { defineConfig } from "vitepress";
+import { defineConfig, type HeadConfig } from "vitepress";
 
 const repo = "https://github.com/timothestoifl24/bulk-mailer";
+const site = "https://bulkmailer.stoifl.app";
+// docs.yml builds main at / (production) and develop at /dev/ (development) into one site.
+const dev = process.env.DOCS_CHANNEL === "development";
+const base = dev ? "/dev/" : "/";
+const branch = dev ? "develop" : "main";
+// Search engines should only list the production docs; the banner needs room above the nav.
+const devHead: HeadConfig[] = dev
+  ? [
+      ["meta", { name: "robots", content: "noindex" }],
+      ["style", {}, ":root { --vp-layout-top-height: 40px; }"],
+    ]
+  : [];
 
 export default defineConfig({
   title: "Bulk Mailer",
   description:
     "Send one message to many recipients - typed in, pasted, uploaded as CSV, or pulled straight from LDAP / Active Directory. Self-hosted, no CDN, no JavaScript build step.",
   lang: "en-GB",
+  base,
 
   // The requested URL shape - /guide, /setup, /faq - rather than /guide.html.
   // GitHub Pages resolves an extensionless request to the matching .html, so
@@ -19,17 +32,18 @@ export default defineConfig({
   lastUpdated: true,
 
   head: [
-    ["link", { rel: "icon", type: "image/svg+xml", href: "/media/brand/logo.svg" }],
+    ["link", { rel: "icon", type: "image/svg+xml", href: `${base}media/brand/logo.svg` }],
     ["meta", { name: "theme-color", content: "#206bc4" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:site_name", content: "Bulk Mailer" }],
-    ["meta", { property: "og:image", content: "https://bulkmailer.stoifl.app/media/brand/social-preview.png" }],
-    ["meta", { property: "og:url", content: "https://bulkmailer.stoifl.app/" }],
+    ["meta", { property: "og:image", content: `${site}/media/brand/social-preview.png` }],
+    ["meta", { property: "og:url", content: `${site}${base}` }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    ...devHead,
   ],
 
   sitemap: {
-    hostname: "https://bulkmailer.stoifl.app/",
+    hostname: `${site}${base}`,
   },
 
   themeConfig: {
@@ -52,9 +66,9 @@ export default defineConfig({
       {
         text: "Releases",
         items: [
-          { text: "Changelog", link: `${repo}/blob/main/CHANGELOG.md` },
+          { text: "Changelog", link: `${repo}/blob/${branch}/CHANGELOG.md` },
           { text: "All releases", link: `${repo}/releases` },
-          { text: "Container image", link: `${repo}/pkgs/container/bulk-mailer` },
+          { text: "Container image", link: "https://hub.docker.com/r/timothestoifl24/bulk-mailer" },
         ],
       },
     ],
@@ -83,7 +97,7 @@ export default defineConfig({
         items: [
           { text: "Contributing", link: "/contributing" },
           { text: "Security policy", link: `${repo}/blob/main/SECURITY.md` },
-          { text: "Changelog", link: `${repo}/blob/main/CHANGELOG.md` },
+          { text: "Changelog", link: `${repo}/blob/${branch}/CHANGELOG.md` },
         ],
       },
     ],
@@ -91,7 +105,7 @@ export default defineConfig({
     socialLinks: [{ icon: "github", link: repo }],
 
     editLink: {
-      pattern: `${repo}/edit/main/docs/:path`,
+      pattern: `${repo}/edit/${branch}/docs/:path`,
       text: "Edit this page on GitHub",
     },
 

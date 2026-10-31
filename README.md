@@ -8,8 +8,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker-publish.yml">
-    <img alt="Docker publish" src="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker-publish.yml/badge.svg">
+  <a href="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker.yml">
+    <img alt="Container image" src="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker.yml/badge.svg?branch=main">
   </a>
   <a href="https://hub.docker.com/r/timothestoifl24/bulk-mailer">
     <img alt="Docker Hub" src="https://img.shields.io/docker/v/timothestoifl24/bulk-mailer?label=docker%20hub&sort=semver">
@@ -269,7 +269,9 @@ Notes on the published image:
 - Built for `linux/amd64` and `linux/arm64` (Apple Silicon, ARM cloud
   instances) from 1.5.1 on; earlier releases are `amd64` only.
 - Published to [Docker Hub](https://hub.docker.com/r/timothestoifl24/bulk-mailer)
-  on every tagged release (`.github/workflows/docker-publish.yml`).
+  by `.github/workflows/docker.yml`: `latest`, `X.Y.Z`, `X.Y` and `X` on every
+  release; `beta` and `X.Y.Z-beta.N` for every change merged into `develop`, to
+  try what is coming next (not for production).
 
 Building it yourself instead of pulling from the registry:
 

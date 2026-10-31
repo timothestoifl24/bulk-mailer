@@ -1,0 +1,25 @@
+# Groups the pull requests in GitHub's generated release notes by the labels that the
+# PR checklist workflow applies. The curated notes from CHANGELOG.md come first.
+changelog:
+  exclude:
+    authors:
+      - github-actions[bot]
+  categories:
+    - title: Breaking changes
+      labels: [breaking-change]
+    - title: Security
+      labels: [security]
+    - title: New features
+      labels: [enhancement]
+    - title: Bug fixes
+      labels: [bug]
+    - title: Performance
+      labels: [performance]
+    - title: API
+      labels: [api]
+    - title: Documentation
+      labels: [documentation]
+    - title: Maintenance
+      labels: [refactor, tests, chore, dependencies]
+    - title: Other changes
+      labels: ["*"]

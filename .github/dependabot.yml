@@ -11,8 +11,10 @@
 # Alerts and *security* updates are repository settings, not this file:
 # Settings -> Code security. This file is only the scheduled version bumps.
 #
-# Every ecosystem below is already gated by CI on the pull request Dependabot
-# opens: tests.yml runs the suite on SQLite and PostgreSQL for every PR, and
+# Every update targets develop, like any other change; it reaches main with the
+# next release. Each ecosystem below is already gated by CI on the pull request
+# Dependabot opens: docker.yml runs tests.yml (the suite on SQLite and
+# PostgreSQL, and the image booted on both architectures) for every PR, and
 # docs.yml builds the site when package.json changes. That existing coverage
 # is what makes automated dependency PRs safe to accept here.
 
@@ -25,6 +27,7 @@ updates:
   # current without anyone having to notice.
   - package-ecosystem: "github-actions"
     directory: "/"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -43,6 +46,7 @@ updates:
   # it drags along arrive as one reviewable PR rather than three that conflict.
   - package-ecosystem: "npm"
     directory: "/"
+    target-branch: "develop"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -66,6 +70,7 @@ updates:
   # thing that sends mail is noise; a monthly one gets read.
   - package-ecosystem: "pip"
     directory: "/"
+    target-branch: "develop"
     schedule:
       interval: "monthly"
       time: "06:00"
@@ -88,11 +93,12 @@ updates:
   # runs on, not a routine bump.
   #
   # It is worth having anyway now that tests.yml builds the image and starts
-  # it on every pull request. Before that job existed a base-image bump went
+  # it on every pull request (called from docker.yml). Before that job existed a base-image bump went
   # green without anything having built it, because both test jobs pin
   # python-version 3.13 whatever the Dockerfile says.
   - package-ecosystem: "docker"
     directory: "/"
+    target-branch: "develop"
     schedule:
       interval: "monthly"
       time: "06:00"

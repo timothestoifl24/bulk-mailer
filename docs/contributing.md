@@ -107,6 +107,55 @@ Not every commit needs one — a refactor with no visible effect does not.
       setting, endpoint or workflow.
 - [ ] No secrets, `.env`, or local database files are staged.
 
+## Describing your pull request
+
+Pull requests go to `develop`. The pull request template asks two short
+questions; tick every box that applies:
+
+- **Type of change** (at least one): bug fix, new feature, breaking change,
+  documentation, refactoring, API changes, performance, tests.
+- **AI usage:** whether AI was used to write or to review the change. Leave
+  both empty if it wasn't. Using AI is fine; reviews just take it into account.
+
+The pull request is **labelled automatically** from these boxes (`bug`,
+`enhancement`, `breaking-change`, …, `ai-written`, `ai-reviewed`), and the
+labels follow when you change the boxes later. They sort the change into the
+right section of the GitHub release notes, so pick **Breaking change** for
+anything that needs action when upgrading.
+
+Other labels are added for you: `area: …` and `chore` from the files you
+change, `security` from a `security/…` branch or a title that mentions
+security or a CVE, and `hotfix` / `release` from the branch.
+
+## Trying your pull request's image
+
+Every pull request into `develop` from a branch of this repository gets its
+own container image, `docker.io/timothestoifl24/bulk-mailer:develop-pr-N` (N
+is the pull request number). A comment on the pull request shows how to pull
+it. Each push rebuilds it and replaces the previous one, and it is deleted
+when the pull request is merged or closed. Pull requests from forks are
+built and tested, but get no published image.
+
+## Accepting these guidelines
+
+The pull request template ends with this checkbox:
+
+> - [x] I have read and accept the contributing guidelines, including that my contribution is licensed under the MIT License.
+
+Tick it when you open the pull request, together with at least one **Type of
+change**. The **Guidelines accepted** check stays red, and the pull request
+can't be merged, until both are done; editing the description re-runs the
+check.
+
+By ticking it, you confirm that:
+
+1. you have read these guidelines and will follow them;
+2. your contribution is your own work, or you have the right to submit it,
+   and any third-party code in it is identified together with its license;
+3. your contribution is licensed under the project's [MIT License](https://github.com/timothestoifl24/bulk-mailer/blob/develop/LICENSE), the same
+   license everyone else receives Bulk Mailer under. You keep the copyright in
+   your work.
+
 ## Working on the documentation site
 
 This site is built with [VitePress](https://vitepress.dev/) from `docs/`. It is
@@ -175,30 +224,55 @@ and adopted, delete it rather than raising it.
 
 ## Releasing (maintainers)
 
-From a clean default branch:
+`develop` is the development branch and the default one: every pull request
+goes there. `main` is production and only receives `develop` (or a hotfix)
+through a pull request. `__version__` in `app/__init__.py` decides everything;
+on `develop` it always holds the **next** version to be released.
+[`.github/workflows/docker.yml`](https://github.com/timothestoifl24/bulk-mailer/blob/develop/.github/workflows/docker.yml)
+runs the suite on both databases and boots the image on both architectures
+before anything is published.
 
-```bash
-python tools/release.py 1.5.0
-```
+| Event | Result |
+|---|---|
+| Push to a pull request into `develop` | Image `develop-pr-N`, replacing the previous one, and a comment on the pull request how to pull it (not for pull requests from forks or Dependabot) |
+| Pull request into `develop` merged or closed | Image `develop-pr-N` is deleted |
+| Merge into `develop` | Images `X.Y.Z-beta.N` and `beta`, and a GitHub pre-release `vX.Y.Z-beta.N` |
+| Merge into `main` with a new version | Images `X.Y.Z`, `X.Y`, `X` and `latest`, the GitHub release `vX.Y.Z`, the betas up to it deleted, and a pull request moving `develop` on to `X.Y.Z+1` |
+| Merge into `main` with an already released version | Nothing is published |
 
-That folds everything under `## [Unreleased]` into a dated section, bumps
-`__version__`, then commits and tags — signed, if you have `tag.gpgsign` set.
-Add `--dry-run` first to see the diff without touching anything. It refuses to
-run on a dirty tree, a version that is not semver, a tag that already exists,
-or an empty `[Unreleased]` unless you pass `--allow-empty`.
+Images go to Docker Hub (`docker.io/timothestoifl24/bulk-mailer`). The docs
+are built from both branches: `main` at
+[bulkmailer.stoifl.app](https://bulkmailer.stoifl.app/), `develop` at
+[bulkmailer.stoifl.app/dev](https://bulkmailer.stoifl.app/dev/).
 
-Nothing is pushed. Publish deliberately:
+To release:
 
-```bash
-git push origin main && git push origin v1.5.0
-```
+1. On a branch off `develop`, run
 
-The changelog goes in *before* the tag on purpose: the entry then lives in the
-commit the tag points at, so the tag describes itself and CI never needs write
-access to the repository.
+   ```bash
+   python tools/release.py 1.6.0
+   ```
 
-Pushing the tag runs the release workflow, which checks the changelog
-documents the tag and `__version__` agrees, runs the suite on both databases,
-and only then builds the image, pushes it to Docker Hub and creates a GitHub
-Release. A release missing its notes fails before an image exists rather than
-after one is public.
+   That folds everything under `## [Unreleased]` into a dated `## [v1.6.0]`
+   section and sets `__version__`, then commits. Add `--dry-run` first to see
+   the diff without touching anything. It refuses to run on a dirty tree, on a
+   version that isn't `X.Y.Z`, on a version that is already tagged, and on an
+   empty `[Unreleased]` unless you pass `--allow-empty`. Nothing is pushed.
+2. Push the branch and merge its pull request into `develop`.
+3. Open a pull request from `develop` to `main` and merge it with a **merge
+   commit** (not squash), so both branches share their history. CI checks the
+   dated changelog section, then creates the tag, the images and the release —
+   there is nothing to tag by hand.
+4. Merge the "Open X.Y.Z+1 for development" pull request CI opens against
+   `develop`. Until it is merged, beta builds on `develop` fail with a
+   reminder. Change the version on it first if the next release is a minor or
+   major one.
+
+Hotfixes branch from `main` as `hotfix/…`, bump the patch version with
+`tools/release.py`, go into `main` through a pull request, and are then merged
+back into `develop`.
+
+Publishing needs two repository secrets (Settings → Secrets and variables →
+Actions): `DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN` — a Docker Hub personal
+access token with **Read, Write, Delete** access (the cleanup jobs delete
+beta and pull request tags), not the account password.

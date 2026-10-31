@@ -1,0 +1,381 @@
+name: Container image
+
+# main (production): merging a new __version__ from app/__init__.py publishes X.Y.Z, X.Y, X,
+#   latest and creates the release vX.Y.Z, then opens a pull request moving develop on to X.Y.Z+1.
+# develop (pre-release): every push publishes X.Y.Z-beta.N and beta and creates a pre-release.
+# Pull requests into develop (from this repository): every push publishes develop-pr-N, deletes the
+#   image it replaces (also when the run is cancelled) and comments on the pull request how to
+#   pull it. pr-image-cleanup.yml deletes the image when the pull request is merged or closed.
+# Other pull requests (forks, Dependabot, into main): tests and build only.
+# See .github/scripts/release_version.py for the rules, and CONTRIBUTING.md for how to release.
+#
+# Every run goes through tests.yml first - the suite on both databases and the image booted on
+# both architectures - so an image that fails either never reaches Docker Hub.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only by default; the jobs that publish or release ask for more themselves.
+permissions:
+  contents: read
+
+env:
+  # Docker Hub namespaces are Docker Hub accounts, not GitHub repositories, so this is spelled
+  # out rather than derived from github.repository. Pushing needs the DOCKERHUB_USERNAME and
+  # DOCKERHUB_TOKEN secrets: a personal access token with Read, Write, Delete access, because the
+  # cleanup jobs delete tags.
+  DOCKERHUB_NAMESPACE: timothestoifl24
+  DOCKERHUB_REPOSITORY: bulk-mailer
+  IMAGE: docker.io/timothestoifl24/bulk-mailer
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  version:
+    name: Version
+    runs-on: ubuntu-24.04
+    outputs:
+      channel: ${{ steps.version.outputs.channel }}
+      publish: ${{ steps.version.outputs.publish }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      image_tags: ${{ steps.version.outputs.image_tags }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tags decide the next beta number and whether a version is released
+      - name: Decide version and tags
+        id: version
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: python3 .github/scripts/release_version.py
+      - name: Summary
+        env:
+          CHANNEL: ${{ steps.version.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
+          PUBLISH: ${{ steps.version.outputs.publish }}
+          IMAGE_TAGS: ${{ steps.version.outputs.image_tags }}
+        run: |
+          {
+            echo "### ${CHANNEL}: ${VERSION}"
+            echo "Publish: ${PUBLISH}"
+            echo
+            for t in $IMAGE_TAGS; do echo "- \`$t\`"; done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  tests:
+    name: Tests
+    needs: version
+    uses: ./.github/workflows/tests.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+
+  build:
+    name: Build ${{ matrix.platform }}
+    # Only images that passed the tests are published.
+    needs: [version, tests]
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # Native runners for both architectures rather than QEMU on one: faster, and the same
+          # runners tests.yml boots the image on.
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    env:
+      PUBLISH: ${{ needs.version.outputs.publish }}
+    steps:
+      - name: Platform slug
+        run: |
+          platform=${{ matrix.platform }}
+          echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v7
+
+      - name: Image labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          labels: |
+            org.opencontainers.image.title=Bulk Mailer
+            org.opencontainers.image.description=Send email to many recipients, with LDAP import
+            org.opencontainers.image.url=https://bulkmailer.stoifl.app
+            org.opencontainers.image.version=${{ needs.version.outputs.version }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        if: env.PUBLISH == 'true'
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build (and push by digest)
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          build-args: BULK_MAILER_BUILD_VERSION=${{ needs.version.outputs.version }}
+          labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          outputs: >-
+            type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=${{ env.PUBLISH }}
+          cache-from: type=gha,scope=${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,mode=max,scope=${{ env.PLATFORM_PAIR }}
+
+      - name: Export digest
+        if: env.PUBLISH == 'true'
+        run: |
+          mkdir -p "${{ runner.temp }}/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: env.PUBLISH == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish ${{ needs.version.outputs.version }}
+    needs: [version, build]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    outputs:
+      digest: ${{ steps.manifest.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v7
+        if: needs.version.outputs.channel == 'pr'
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Image the pull request tag points to now
+        id: previous
+        if: needs.version.outputs.channel == 'pr'
+        env:
+          IMAGE_TAGS: ${{ needs.version.outputs.image_tags }}
+        run: |
+          # Empty on the first build; pr_image.py deletes this image once the tag has moved on.
+          digest=$(docker buildx imagetools inspect "$IMAGE_TAGS" --format '{{json .Manifest}}' 2>/dev/null | jq -r .digest || true)
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          IMAGE_TAGS: ${{ needs.version.outputs.image_tags }}
+        run: |
+          args=()
+          for t in $IMAGE_TAGS; do args+=(-t "$t"); done
+          sources=()
+          for d in *; do sources+=("${IMAGE}@sha256:${d}"); done
+          docker buildx imagetools create "${args[@]}" "${sources[@]}"
+
+      - name: Manifest digest
+        id: manifest
+        env:
+          IMAGE_TAGS: ${{ needs.version.outputs.image_tags }}
+        run: |
+          first=${IMAGE_TAGS%% *}
+          docker buildx imagetools inspect "$first"
+          echo "digest=$(docker buildx imagetools inspect "$first" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
+
+      - name: Clean up the image this build replaces
+        # Here rather than in a later job, and also when the run is cancelled (a newer push or
+        # closing the pull request). Deletes any tags left on the old image (attestations); an
+        # image that still carries the pull request tag is kept. The old image itself is untagged
+        # by now, which Docker Hub can't delete through its API: pr_image.py reports it.
+        if: always() && needs.version.outputs.channel == 'pr' && steps.previous.outputs.digest != ''
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          DIGEST: ${{ steps.manifest.outputs.digest }}
+          OLD_DIGEST: ${{ steps.previous.outputs.digest }}
+        run: python3 .github/scripts/pr_image.py replace
+
+      - name: Attest build provenance
+        # Pull request images are short-lived; they go without provenance.
+        if: needs.version.outputs.channel != 'pr'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.manifest.outputs.digest }}
+          push-to-registry: true
+
+  pr-image:
+    name: Pull request image
+    needs: [version, publish]
+    if: needs.version.outputs.channel == 'pr'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write # comment how to pull the image
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      DIGEST: ${{ needs.publish.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Comment how to pull the image
+        env:
+          SHA: ${{ github.event.pull_request.head.sha }}
+          VERSION: ${{ needs.version.outputs.version }}
+        run: python3 .github/scripts/pr_image.py comment
+
+  release:
+    name: Release ${{ needs.version.outputs.tag }}
+    needs: [version, publish]
+    if: needs.version.outputs.publish == 'true' && needs.version.outputs.channel != 'pr'
+    runs-on: ubuntu-24.04
+    # Records a GitHub deployment per release: "production" for main, "beta" for develop.
+    environment:
+      name: ${{ needs.version.outputs.channel == 'stable' && 'production' || 'beta' }}
+      url: ${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ needs.version.outputs.tag }}
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CHANNEL: ${{ needs.version.outputs.channel }}
+      TAG: ${{ needs.version.outputs.tag }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Release notes from CHANGELOG.md
+        run: |
+          {
+            if [ "$CHANNEL" = "beta" ]; then
+              echo "> **Pre-release** built from \`develop\` for testing upcoming features. Not intended for production."
+              echo
+              echo "Container image: \`${IMAGE}:${VERSION}\` (or \`${IMAGE}:beta\` for the newest beta)."
+              echo
+              echo '```'
+              echo "docker pull ${IMAGE}:${VERSION}"
+              echo '```'
+              echo
+              echo "## Changes in the upcoming ${VERSION%%-*} so far"
+            else
+              echo "Container image: \`${IMAGE}:${VERSION}\` (also \`${IMAGE}:latest\`)."
+              echo
+              echo '```'
+              echo "docker pull ${IMAGE}:${VERSION}"
+              echo '```'
+              echo
+              echo "## What's new"
+            fi
+            echo
+            python3 .github/scripts/changelog.py section "$VERSION" || echo "_No changelog entry for this version yet._"
+          } > notes.md
+          cat notes.md
+      - name: Create tag and GitHub release
+        # The tag is created here, on the commit that was built and published. GitHub appends the list
+        # of merged pull requests after the changelog section.
+        run: |
+          if [ "$CHANNEL" = "beta" ]; then
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "Bulk Mailer $VERSION" \
+              --prerelease --latest=false --generate-notes --notes-file notes.md
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "Bulk Mailer $VERSION" \
+              --latest --generate-notes --notes-file notes.md
+          fi
+
+  cleanup-betas:
+    name: Clean up betas up to ${{ needs.version.outputs.version }}
+    needs: [version, release]
+    if: needs.version.outputs.channel == 'stable'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/cleanup-betas.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+    secrets: inherit # DOCKERHUB_USERNAME and DOCKERHUB_TOKEN, to delete the beta images
+
+  bump-develop:
+    name: Open the next version on develop
+    # A release leaves develop on the version that was just released, which blocks its betas.
+    needs: [version, release]
+    if: needs.version.outputs.channel == 'stable'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # push the branch
+      pull-requests: write # open the pull request
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: develop
+      - name: Bump __version__ (and make sure CHANGELOG.md has an Unreleased section)
+        id: bump
+        env:
+          RELEASED_VERSION: ${{ needs.version.outputs.version }}
+        run: python3 .github/scripts/open_next_version.py
+      - name: Open the pull request
+        if: steps.bump.outputs.bump == 'true'
+        env:
+          RELEASED: ${{ needs.version.outputs.version }}
+          VERSION: ${{ steps.bump.outputs.version }}
+          BRANCH: ${{ steps.bump.outputs.branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git commit -am "Open $VERSION for development"
+          # Fetch first, so --force-with-lease sees any branch a previous attempt left behind.
+          git fetch --no-tags origin "$BRANCH" || true
+          git push --force-with-lease origin "$BRANCH"
+
+          cat > body.md <<EOF
+          $RELEASED is released, so develop moves on to $VERSION and its betas become \`$VERSION-beta.N\`.
+
+          Change \`__version__\` in \`app/__init__.py\` again if the next release is a minor or major
+          one. Notes collect under \`## [Unreleased]\` in \`CHANGELOG.md\`.
+          EOF
+
+          if [ -n "$(gh pr list --head "$BRANCH" --base develop --state open --json number --jq '.[].number')" ]; then
+            echo "::notice::A pull request for $BRANCH is already open; it has the new commit."
+            exit 0
+          fi
+          if ! gh pr create --base develop --head "$BRANCH" --title "Open $VERSION for development" --body-file body.md; then
+            echo "::error::Could not open the pull request; $BRANCH is pushed. If this is a permission error, turn on Settings -> Actions -> General -> 'Allow GitHub Actions to create and approve pull requests'."
+            exit 1
+          fi
