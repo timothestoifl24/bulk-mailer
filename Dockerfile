@@ -12,7 +12,7 @@
 # needed at build time. The venv is built in a separate stage purely to keep
 # pip and its cache out of the final image.
 
-FROM python:3.14-slim AS builder
+FROM python:3.15-slim AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -25,7 +25,7 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 
-FROM python:3.14-slim
+FROM python:3.15-slim
 
 # Set by CI to the exact build (1.5.2, 1.5.2-beta.3, 1.5.2-pr.12) so /healthz
 # and the UI report it; empty means __version__ from app/__init__.py.
