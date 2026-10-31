@@ -133,7 +133,7 @@ and checking `member`, `uniqueMember` or `memberUid`. A stock OpenLDAP has no
 `memberOf` unless the overlay is enabled, so both paths matter.
 
 ::: warning Two things to do before you sign out
-Press **Test a sign-in**. It checks the settings against the directory
+Press **Test sign-in**. It checks the settings against the directory
 without touching your session.
 
 Keep at least one **local** account. It still works when the directory is

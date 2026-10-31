@@ -14,7 +14,7 @@ the app is already running — if not, start at [Setup](/setup).
 overrides the environment defaults without a restart, so you can change it
 while the app runs.
 
-Fill in the host, port and security, then press **Test SMTP connection**. It
+Fill in the host, port and security, then press **Test the connection**. It
 opens a real connection and reports what happened, which is a much shorter
 feedback loop than discovering a wrong port halfway through a campaign.
 

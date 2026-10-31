@@ -41,7 +41,7 @@
             {% if campaign.dry_run %}<span class="status-pill status-yellow ms-1">{{ icon('flask') }} dry run</span>{% endif %}
             {% if count.total %}
             <div class="progress progress-thin mt-2">
-              <div class="progress-bar {{ 'bg-red' if count.failed else ('bg-green' if campaign.status == 'completed' else '') }}"
+              <div class="progress-bar {{ 'bg-red' if campaign.status == 'failed' else ('bg-green' if campaign.status == 'completed' else '') }}"
                    style="width: {{ (100 * settled / count.total) | round(1) }}%"></div>
             </div>
             {% endif %}

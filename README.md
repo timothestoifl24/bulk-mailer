@@ -186,7 +186,7 @@ python run.py
 
 ## Typical run
 
-1. **Settings** — enter the SMTP server, press *Test SMTP connection*, then
+1. **Settings** — enter the SMTP server, press *Test the connection*, then
    send yourself a test email.
 2. **LDAP** — create a profile, *Test connection*, then search. Check the
    preview and *Import all N* into a new list. (Or **Recipients → Import**
@@ -320,7 +320,7 @@ entry and checking `member`, `uniqueMember` or `memberUid` — a stock
 OpenLDAP has no `memberOf` unless the overlay is enabled, so both paths
 matter.
 
-Press **Test a sign-in** before signing out — it checks the settings against
+Press **Test sign-in** before signing out — it checks the settings against
 the directory without touching your session. Keep at least one **local**
 account: it still works when the directory is unreachable, and
 `python -m app.cli disable-ldap-login` turns directory sign-in off from the

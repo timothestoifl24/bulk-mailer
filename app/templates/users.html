@@ -57,26 +57,37 @@
                 {{ item.last_login_at.strftime('%Y-%m-%d %H:%M') if item.last_login_at else 'never' }}
               </td>
               <td class="text-end">
-                <div class="btn-list flex-nowrap justify-content-end">
-                  {% if item.auth_source == 'local' %}
-                    <a class="btn btn-sm" href="#modal-password-{{ item.id }}" data-bs-toggle="modal">
-                      {{ icon('key') }} Password
-                    </a>
-                  {% endif %}
-                  <form method="post" action="/users/{{ item.id }}/toggle-admin">
-                    <button class="btn btn-sm" type="submit">
-                      {{ 'Revoke admin' if item.is_admin else 'Make admin' }}
-                    </button>
-                  </form>
-                  <form method="post" action="/users/{{ item.id }}/toggle-active">
-                    <button class="btn btn-sm" type="submit">
-                      {{ 'Disable' if item.is_active else 'Enable' }}
-                    </button>
-                  </form>
-                  <form method="post" action="/users/{{ item.id }}/delete"
-                        {{ confirm('Delete ' ~ item.username ~ '?', 'They can no longer sign in. Campaigns they created are kept.', 'Delete account') }}>
-                    <button class="btn btn-sm btn-ghost-danger" type="submit" title="Delete account">{{ icon('trash') }}</button>
-                  </form>
+                {# One menu instead of four buttons: the row stays narrow enough for
+                   the half-width card. Fixed positioning keeps the menu from being
+                   clipped by the scrolling table wrapper. #}
+                <div class="dropdown">
+                  <button class="btn btn-sm btn-ghost-secondary btn-icon" type="button"
+                          data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}'
+                          aria-label="Actions for {{ item.username }}" title="Actions">
+                    {{ icon('more') }}
+                  </button>
+                  <div class="dropdown-menu dropdown-menu-end">
+                    {% if item.auth_source == 'local' %}
+                      <a class="dropdown-item" href="#modal-password-{{ item.id }}" data-bs-toggle="modal">
+                        {{ icon('key') }} Reset password
+                      </a>
+                    {% endif %}
+                    <form method="post" action="/users/{{ item.id }}/toggle-admin">
+                      <button class="dropdown-item" type="submit">
+                        {{ icon('shield') }} {{ 'Revoke admin' if item.is_admin else 'Make admin' }}
+                      </button>
+                    </form>
+                    <form method="post" action="/users/{{ item.id }}/toggle-active">
+                      <button class="dropdown-item" type="submit">
+                        {{ icon('ban' if item.is_active else 'play') }} {{ 'Disable' if item.is_active else 'Enable' }}
+                      </button>
+                    </form>
+                    <div class="dropdown-divider"></div>
+                    <form method="post" action="/users/{{ item.id }}/delete"
+                          {{ confirm('Delete ' ~ item.username ~ '?', 'They can no longer sign in. Campaigns they created are kept.', 'Delete account') }}>
+                      <button class="dropdown-item text-danger" type="submit">{{ icon('trash') }} Delete account</button>
+                    </form>
+                  </div>
                 </div>
               </td>
             </tr>
