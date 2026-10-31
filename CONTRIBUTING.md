@@ -123,11 +123,10 @@ which:
    the full suite on both databases. Both gate the next step, so a release
    missing its notes or failing a test fails *before* an image exists rather
    than after one is public.
-2. Builds the image and pushes it to the GitHub Container Registry.
+2. Builds the image and pushes it to Docker Hub
+   (`docker.io/timothestoifl24/bulk-mailer`).
 3. Creates a GitHub Release.
 
-No secrets need configuring: the workflow authenticates with the token GitHub
-injects into every run automatically. The one manual step is on the *first*
-publish only — GHCR packages start out private regardless of the repository's
-own visibility, so flip it to public once from the package's own settings page
-(linked from the repo sidebar under **Packages**).
+Pushing needs two repository secrets (Settings → Secrets and variables →
+Actions): `DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN` — a Docker Hub personal
+access token with Read & Write scope, not the account password.

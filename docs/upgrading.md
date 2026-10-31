@@ -14,7 +14,7 @@ docker compose pull && docker compose up -d
 Or for a specific version rather than whatever `latest` points at:
 
 ```bash
-docker pull ghcr.io/timothestoifl24/bulk-mailer:1.4.0
+docker pull docker.io/timothestoifl24/bulk-mailer:1.4.0
 ```
 
 On Kubernetes, change `newTag` in `deploy/kubernetes/base/kustomization.yaml`
@@ -24,6 +24,18 @@ and apply again — see [Kubernetes](/kubernetes#upgrading).
 The git tag is `v1.4.0`; the image is published as `1.4.0`. `1.4` follows
 the latest patch in that minor series, and `latest` follows the newest
 non-prerelease.
+:::
+
+::: warning The image moved to Docker Hub
+Images used to be published as `ghcr.io/timothestoifl24/bulk-mailer`. New
+releases go only to `docker.io/timothestoifl24/bulk-mailer` — every earlier
+tag was copied there too — so change the `image:` line in your
+`compose.yaml` once, or `pull` keeps fetching the last GHCR release.
+
+On Kubernetes, change the image name in **both** `base/deployment.yaml` and
+`images[].name` in `base/kustomization.yaml`. Kustomize only applies
+`newTag` to an image whose name matches, so changing just one leaves the
+deployment on the untagged GHCR image.
 :::
 
 ## What happens to your database

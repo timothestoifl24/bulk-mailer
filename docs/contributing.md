@@ -199,6 +199,6 @@ access to the repository.
 
 Pushing the tag runs the release workflow, which checks the changelog
 documents the tag and `__version__` agrees, runs the suite on both databases,
-and only then builds the image, pushes it to GHCR and creates a GitHub
+and only then builds the image, pushes it to Docker Hub and creates a GitHub
 Release. A release missing its notes fails before an image exists rather than
 after one is public.
