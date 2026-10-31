@@ -14,7 +14,7 @@ docker run -d -p 8000:8000 \
   -e SECRET_KEY=$(openssl rand -base64 36) \
   -e ADMIN_PASSWORD=choose-one \
   -v mailer-data:/data \
-  ghcr.io/timothestoifl24/bulk-mailer:latest
+  docker.io/timothestoifl24/bulk-mailer:latest
 ```
 
 Open <http://127.0.0.1:8000> and sign in as `admin` with whatever
@@ -37,7 +37,7 @@ your data disappears with the container.
 # compose.yaml
 services:
   app:
-    image: ghcr.io/timothestoifl24/bulk-mailer:latest
+    image: docker.io/timothestoifl24/bulk-mailer:latest
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -142,7 +142,7 @@ while you are still learning what the tool does.
 - Declares its user numerically (`1000:1000`), so Kubernetes' `runAsNonRoot`
   can verify it.
 - Published to
-  [GHCR](https://github.com/timothestoifl24/bulk-mailer/pkgs/container/bulk-mailer)
+  [Docker Hub](https://hub.docker.com/r/timothestoifl24/bulk-mailer)
   on every tagged release, for `linux/amd64` and `linux/arm64` (Apple Silicon,
   ARM cloud instances) from 1.5.1 on. Earlier releases are `amd64` only.
 

@@ -11,8 +11,8 @@
   <a href="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker-publish.yml">
     <img alt="Docker publish" src="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker-publish.yml/badge.svg">
   </a>
-  <a href="https://github.com/timothestoifl24/bulk-mailer/pkgs/container/bulk-mailer">
-    <img alt="Container image" src="https://img.shields.io/badge/ghcr.io-bulk--mailer-blue">
+  <a href="https://hub.docker.com/r/timothestoifl24/bulk-mailer">
+    <img alt="Docker Hub" src="https://img.shields.io/docker/v/timothestoifl24/bulk-mailer?label=docker%20hub&sort=semver">
   </a>
   <a href="https://github.com/timothestoifl24/bulk-mailer/releases">
     <img alt="Latest release" src="https://img.shields.io/github/v/release/timothestoifl24/bulk-mailer">
@@ -107,7 +107,7 @@ network.
 # compose.yaml
 services:
   app:
-    image: ghcr.io/timothestoifl24/bulk-mailer:latest
+    image: docker.io/timothestoifl24/bulk-mailer:latest
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -132,7 +132,7 @@ docker run -d -p 8000:8000 \
   -e SECRET_KEY=$(openssl rand -base64 36) \
   -e ADMIN_PASSWORD=choose-one \
   -v mailer-data:/data \
-  ghcr.io/timothestoifl24/bulk-mailer:latest
+  docker.io/timothestoifl24/bulk-mailer:latest
 ```
 
 Open <http://127.0.0.1:8000> and sign in with `admin` / whatever

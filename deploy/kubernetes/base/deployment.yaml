@@ -45,7 +45,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: app
-          image: ghcr.io/timothestoifl24/bulk-mailer
+          image: docker.io/timothestoifl24/bulk-mailer
           ports:
             - name: http
               containerPort: 8000

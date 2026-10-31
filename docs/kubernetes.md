@@ -196,7 +196,7 @@ The release is pinned in `base/kustomization.yaml`:
 
 ```yaml
 images:
-  - name: ghcr.io/timothestoifl24/bulk-mailer
+  - name: docker.io/timothestoifl24/bulk-mailer
     newTag: "1.5.0"
 ```
 

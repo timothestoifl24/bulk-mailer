@@ -48,7 +48,7 @@ docker run -d -p 8000:8000 \
   -e SECRET_KEY=$(openssl rand -base64 36) \
   -e ADMIN_PASSWORD=choose-one \
   -v mailer-data:/data \
-  ghcr.io/timothestoifl24/bulk-mailer:latest
+  docker.io/timothestoifl24/bulk-mailer:latest
 ```
 
 Open <http://127.0.0.1:8000> and sign in as `admin`. The full walkthrough,

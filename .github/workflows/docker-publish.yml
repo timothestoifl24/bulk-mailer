@@ -15,14 +15,12 @@ on:
   workflow_dispatch: {} # manual re-run from the Actions tab, same trigger shape
 
 env:
-  # Always correct, no assumption needed: a GHCR image is namespaced under the
-  # GitHub repository itself, unlike Docker Hub which would need a separate
-  # username.
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  # Docker Hub namespaces are Docker Hub accounts, not GitHub repositories, so
+  # this is spelled out rather than derived from github.repository.
+  IMAGE_NAME: docker.io/timothestoifl24/bulk-mailer
 
 permissions:
   contents: write # to attach release notes with softprops/action-gh-release
-  packages: write # to push to the GitHub Container Registry
 
 jobs:
   # The changelog is not generated here. tools/release.py folds it into the
@@ -79,15 +77,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Log in to the GitHub Container Registry
+      - name: Log in to Docker Hub
         uses: docker/login-action@v4
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          # GitHub injects this token into every workflow run automatically -
-          # nothing to create or configure, and it never leaves GitHub's own
-          # systems. This repository has no configured secrets at all.
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: docker.io
+          # Repository secrets (Settings -> Secrets and variables -> Actions).
+          # The token is a Docker Hub personal access token with Read & Write
+          # scope (hub.docker.com -> Account settings -> Personal access
+          # tokens), not the account password.
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Derive tags and labels
         id: meta
@@ -141,11 +140,3 @@ jobs:
           # returns 404 - in every release note this workflow has ever written.
           # Taking it from the same step that pushed the image keeps the two
           # from drifting apart again.
-
-# First publish only: a package pushed to GHCR from a workflow inherits no
-# visibility setting and starts out **private**, even though this repository
-# is public - GitHub does not expose a way to set it public from the
-# workflow itself. After the first successful run, go to the package page
-# (repo sidebar -> Packages, or https://github.com/users/<you>/packages) ->
-# Package settings -> Change visibility -> Public. One-time; later pushes to
-# the same package keep whatever visibility you set.
