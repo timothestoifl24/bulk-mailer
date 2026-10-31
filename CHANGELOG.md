@@ -6,15 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 Write anything worth calling out under `## [Unreleased]` as you go, from the
 reader's point of view — what they can now do, or what stopped being broken.
-`tools/release.py` folds those notes into a dated section when you cut a
-release, so the entry is part of the commit the tag points at rather than a
-commit that comes after it. CI only checks the entry is there.
+Every beta built from `develop` shows these notes. `tools/release.py` folds
+them into a dated section when you prepare a release, so the entry is part of
+the commit the release tag points at; CI refuses to release from `main`
+without it.
 
 `v1.0.0-beta` and `v1.0.1-beta` are not linked below: they were tagged
 against an earlier incarnation of the GitHub repository and their release
 pages no longer exist.
 
 ## [Unreleased]
+
+### Added
+- Pre-release images for trying what is coming next: every change merged into
+  `develop` is published as `timothestoifl24/bulk-mailer:X.Y.Z-beta.N` (and
+  `:beta` for the newest), with a GitHub pre-release. `latest` and the
+  `X.Y.Z` / `X.Y` / `X` tags still only move on a stable release.
+- Development documentation for the upcoming release at
+  [bulkmailer.stoifl.app/dev](https://bulkmailer.stoifl.app/dev/), next to the
+  docs for the current release.
 
 ## [v1.5.1] - 2026-09-28
 

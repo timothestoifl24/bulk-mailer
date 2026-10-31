@@ -175,30 +175,55 @@ and adopted, delete it rather than raising it.
 
 ## Releasing (maintainers)
 
-From a clean default branch:
+`develop` is the development branch and the default one: every pull request
+goes there. `main` is production and only receives `develop` (or a hotfix)
+through a pull request. `__version__` in `app/__init__.py` decides everything;
+on `develop` it always holds the **next** version to be released.
+[`.github/workflows/docker.yml`](https://github.com/timothestoifl24/bulk-mailer/blob/develop/.github/workflows/docker.yml)
+runs the suite on both databases and boots the image on both architectures
+before anything is published.
 
-```bash
-python tools/release.py 1.5.0
-```
+| Event | Result |
+|---|---|
+| Push to a pull request into `develop` | Image `develop-pr-N`, replacing the previous one, and a comment on the pull request how to pull it (not for pull requests from forks or Dependabot) |
+| Pull request into `develop` merged or closed | Image `develop-pr-N` is deleted |
+| Merge into `develop` | Images `X.Y.Z-beta.N` and `beta`, and a GitHub pre-release `vX.Y.Z-beta.N` |
+| Merge into `main` with a new version | Images `X.Y.Z`, `X.Y`, `X` and `latest`, the GitHub release `vX.Y.Z`, the betas up to it deleted, and a pull request moving `develop` on to `X.Y.Z+1` |
+| Merge into `main` with an already released version | Nothing is published |
 
-That folds everything under `## [Unreleased]` into a dated section, bumps
-`__version__`, then commits and tags — signed, if you have `tag.gpgsign` set.
-Add `--dry-run` first to see the diff without touching anything. It refuses to
-run on a dirty tree, a version that is not semver, a tag that already exists,
-or an empty `[Unreleased]` unless you pass `--allow-empty`.
+Images go to Docker Hub (`docker.io/timothestoifl24/bulk-mailer`). The docs
+are built from both branches: `main` at
+[bulkmailer.stoifl.app](https://bulkmailer.stoifl.app/), `develop` at
+[bulkmailer.stoifl.app/dev](https://bulkmailer.stoifl.app/dev/).
 
-Nothing is pushed. Publish deliberately:
+To release:
 
-```bash
-git push origin main && git push origin v1.5.0
-```
+1. On a branch off `develop`, run
 
-The changelog goes in *before* the tag on purpose: the entry then lives in the
-commit the tag points at, so the tag describes itself and CI never needs write
-access to the repository.
+   ```bash
+   python tools/release.py 1.6.0
+   ```
 
-Pushing the tag runs the release workflow, which checks the changelog
-documents the tag and `__version__` agrees, runs the suite on both databases,
-and only then builds the image, pushes it to Docker Hub and creates a GitHub
-Release. A release missing its notes fails before an image exists rather than
-after one is public.
+   That folds everything under `## [Unreleased]` into a dated `## [v1.6.0]`
+   section and sets `__version__`, then commits. Add `--dry-run` first to see
+   the diff without touching anything. It refuses to run on a dirty tree, on a
+   version that isn't `X.Y.Z`, on a version that is already tagged, and on an
+   empty `[Unreleased]` unless you pass `--allow-empty`. Nothing is pushed.
+2. Push the branch and merge its pull request into `develop`.
+3. Open a pull request from `develop` to `main` and merge it with a **merge
+   commit** (not squash), so both branches share their history. CI checks the
+   dated changelog section, then creates the tag, the images and the release —
+   there is nothing to tag by hand.
+4. Merge the "Open X.Y.Z+1 for development" pull request CI opens against
+   `develop`. Until it is merged, beta builds on `develop` fail with a
+   reminder. Change the version on it first if the next release is a minor or
+   major one.
+
+Hotfixes branch from `main` as `hotfix/…`, bump the patch version with
+`tools/release.py`, go into `main` through a pull request, and are then merged
+back into `develop`.
+
+Publishing needs two repository secrets (Settings → Secrets and variables →
+Actions): `DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN` — a Docker Hub personal
+access token with **Read, Write, Delete** access (the cleanup jobs delete
+beta and pull request tags), not the account password.

@@ -1,0 +1,59 @@
+name: Clean up betas
+
+# After a stable release X.Y.Z, deletes every beta up to and including X.Y.Z (e.g. 1.2.1 removes
+# 1.1.2-beta.*, 1.2.0-beta.* and 1.2.1-beta.*): container images, pre-releases and git tags.
+# Betas of newer versions stay.
+# See .github/scripts/cleanup_betas.py for the rules (and dockerhub.py for the shared Docker Hub helpers).
+#
+# docker.yml calls this after it releases: releases it creates with GITHUB_TOKEN don't trigger
+# other workflows, so the release event below only covers releases published by hand.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Stable version that was released (X.Y.Z)
+        required: true
+        type: string
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version that was released (X.Y.Z)
+        required: true
+        type: string
+      dry-run:
+        description: Only list what would be deleted
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cleanup-betas
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Delete superseded betas
+    if: github.event_name != 'release' || !github.event.release.prerelease
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write # delete pre-releases and tags
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Delete betas
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          DOCKERHUB_NAMESPACE: timothestoifl24
+          DOCKERHUB_REPOSITORY: bulk-mailer
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version || github.event.release.tag_name }}
+          DRY_RUN: ${{ inputs.dry-run && 'true' || 'false' }}
+        run: python3 .github/scripts/cleanup_betas.py

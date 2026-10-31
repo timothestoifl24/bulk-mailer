@@ -1,20 +1,25 @@
 name: Documentation site
 
-# Publishes bulkmailer.stoifl.app from docs/ with VitePress.
+# Publishes bulkmailer.stoifl.app from docs/ with VitePress. GitHub Pages hosts
+# one site per repository, so every deployment builds both branches:
+#   main    -> bulkmailer.stoifl.app/      (production)
+#   develop -> bulkmailer.stoifl.app/dev/  (development, see DOCS_CHANNEL in docs/.vitepress/config.mts)
+# A push to either branch deploys both.
 #
-# Pull requests build but do not deploy: a dead internal link should fail
-# review, not the live site. VitePress fails the build on one by default
-# (ignoreDeadLinks is false in the config), so it will.
+# Pull requests build their own docs but do not deploy: a dead internal link
+# should fail review, not the live site. VitePress fails the build on one by
+# default (ignoreDeadLinks is false in the config), so it will.
 #
 # One-time setup, outside this file: Settings -> Pages -> Source must be set
-# to "GitHub Actions", and the custom domain needs a DNS record. See
+# to "GitHub Actions", the github-pages environment must allow deployments
+# from both main and develop, and the custom domain needs a DNS record. See
 # docs/contributing.md.
 # The two path lists are duplicated rather than shared through a YAML anchor:
 # GitHub Actions does not resolve anchors, so &x / *x here would not fail
 # loudly - it would silently not filter.
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - "docs/**"
       - "package.json"
@@ -35,16 +40,16 @@ on:
 permissions:
   contents: read
 
-# A second push while a deploy is in flight should supersede it rather than
-# queue behind it; cancel-in-progress stays false so a running *deploy* is
-# never torn down half-finished.
+# One group for all deployments: a newer run builds both branches anyway.
+# Pull requests get a group of their own, so they never cancel a deployment.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: pages-${{ github.event_name == 'pull_request' && github.ref || 'site' }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  check:
     name: Build
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -66,21 +71,65 @@ jobs:
       # and VitePress only serves its own public directory.
       - name: Build the site
         run: npm run docs:build
+        env:
+          DOCS_CHANNEL: ${{ github.base_ref == 'develop' && 'development' || 'production' }}
 
-      - name: Confirm the custom domain survived the build
+  build:
+    name: Build main and develop
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          path: production
+          fetch-depth: 0
+      - uses: actions/checkout@v7
+        with:
+          ref: develop
+          path: development
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            production/package-lock.json
+            development/package-lock.json
+
+      - name: Build production (main)
+        working-directory: production
+        env:
+          DOCS_CHANNEL: production
+        run: |
+          npm ci
+          npm run docs:build
+
+      - name: Build development (develop)
+        working-directory: development
+        env:
+          DOCS_CHANNEL: development
+        run: |
+          npm ci
+          npm run docs:build
+
+      - name: Combine into one site
         run: |
           set -euo pipefail
-          test -f docs/.vitepress/dist/CNAME
-          echo "CNAME: $(cat docs/.vitepress/dist/CNAME)"
+          site=production/docs/.vitepress/dist
+          cp -R development/docs/.vitepress/dist "$site/dev"
+          rm -f "$site/dev/CNAME" # the custom domain belongs to the site root
+          test -f "$site/CNAME"
+          echo "CNAME: $(cat "$site/CNAME")"
 
+      - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: docs/.vitepress/dist
+          path: production/docs/.vitepress/dist
 
   deploy:
     name: Deploy
-    # Only from main. A pull request gets the build as a check and nothing more.
-    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     permissions:
