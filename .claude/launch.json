@@ -6,6 +6,20 @@
       "runtimeExecutable": ".venv\\Scripts\\python.exe",
       "runtimeArgs": ["run.py"],
       "port": 8000
+    },
+    {
+      "name": "mailer-mac",
+      "runtimeExecutable": ".venv/bin/python",
+      "runtimeArgs": ["run.py", "--reload"],
+      "port": 8000,
+      "env": {
+        "DATABASE_URL": "sqlite:///./data/dev.db",
+        "SECRET_KEY": "dev-only-not-secret",
+        "ADMIN_USERNAME": "admin",
+        "ADMIN_PASSWORD": "admin-dev-pass",
+        "SMTP_HOST": "",
+        "SMTP_FROM_EMAIL": ""
+      }
     }
   ]
 }

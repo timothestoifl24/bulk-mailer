@@ -1,0 +1,27 @@
+/* Self-hosted so the UI looks the same on an isolated network as it does on
+   the internet: no Google Fonts, no CDN. Both faces are SIL OFL, licences
+   next to the files in vendor/fonts/. */
+
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/static/vendor/fonts/InterVariable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/static/vendor/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/static/vendor/fonts/JetBrainsMono-Medium.woff2") format("woff2");
+}

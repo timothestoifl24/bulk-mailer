@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
+{% from "_ui.html" import confirm, empty_state, help %}
 {% block title %}Lists - Bulk Mailer{% endblock %}
 
 {% block page_header %}
@@ -7,12 +8,12 @@
   <div class="container-xl">
     <div class="row g-2 align-items-center">
       <div class="col">
-        <div class="page-pretitle">Recipients</div>
-        <h2 class="page-title">Lists</h2>
+        <div class="page-pretitle">Groups of people you send to together</div>
+        <h2 class="page-title"><span class="page-title-icon">{{ icon('list') }}</span> Lists</h2>
       </div>
       <div class="col-auto ms-auto d-print-none">
         <a class="btn btn-primary" href="#modal-new-list" data-bs-toggle="modal">
-          {{ icon('plus', 20) }} New list
+          {{ icon('plus') }} New list
         </a>
       </div>
     </div>
@@ -23,7 +24,7 @@
 {% block content %}
 <div class="card">
   <div class="card-header">
-    <h3 class="card-title">All lists</h3>
+    <h3 class="card-title">{{ icon('list') }} All lists</h3>
     <div class="card-actions"><span class="badge bg-secondary-lt">{{ rows | length }}</span></div>
   </div>
   {% if rows %}
@@ -31,21 +32,21 @@
     <table class="table card-table table-vcenter">
       <thead>
         <tr>
-          <th>Name</th><th>Description</th><th>Directory sync</th>
+          <th>Name</th><th>Description</th><th>Directory sync {{ help("A list filled from LDAP can re-run its directory search automatically, so it stays up to date.") }}</th>
           <th class="text-end">Members</th><th></th>
         </tr>
       </thead>
       <tbody>
       {% for item, member_count in rows %}
         <tr>
-          <td><a href="/recipients?list_id={{ item.id }}">{{ item.name }}</a></td>
+          <td class="fw-semibold">{{ icon('server' if item.is_ldap_backed else 'list', cls='text-secondary me-1') }}<a href="/recipients?list_id={{ item.id }}">{{ item.name }}</a></td>
           <td class="cell-truncate text-secondary">{{ item.description }}</td>
           <td>
             {% if item.is_ldap_backed %}
               {% if item.sync_enabled %}
-                <span class="badge bg-green-lt">On</span>
+                <span class="status-pill status-green">{{ icon('sync') }} On</span>
               {% else %}
-                <span class="badge bg-secondary-lt">Off</span>
+                <span class="status-pill">{{ icon('pause') }} Off</span>
               {% endif %}
               <div class="text-secondary small mt-1">
                 {{ profile_names.get(item.ldap_profile_id, 'profile removed') }}
@@ -69,27 +70,27 @@
               <span class="text-secondary small">&mdash;</span>
             {% endif %}
           </td>
-          <td class="text-end"><span class="badge bg-blue-lt">{{ member_count }}</span></td>
+          <td class="text-end mono">{{ "{:,}".format(member_count) }}</td>
           <td class="text-end text-nowrap">
             {% if item.is_ldap_backed %}
               <form method="post" action="/lists/{{ item.id }}/sync" class="d-inline">
                 <button class="btn btn-sm btn-ghost-secondary" type="submit"
                         title="Re-run the directory search now">
-                  {{ icon('refresh', 16) }} Sync now
+                  {{ icon('refresh') }} Sync now
                 </button>
               </form>
               <form method="post" action="/lists/{{ item.id }}/sync-toggle" class="d-inline"
                     {% if not item.sync_enabled %}
-                    onsubmit="return confirm('Keep {{ item.name }} in sync?\n\nMembers who no longer match the directory search will be REMOVED from this list on every run. The recipients themselves are kept.')"
+                    {{ confirm('Keep ' ~ item.name ~ ' in sync?', 'On every run, members who no longer match the directory search are removed from this list. The recipients themselves are kept.', 'Turn sync on', 'primary') }}
                     {% endif %}>
                 <button class="btn btn-sm btn-ghost-secondary" type="submit">
-                  {{ 'Turn sync off' if item.sync_enabled else 'Turn sync on' }}
+                  {{ icon('pause' if item.sync_enabled else 'play') }} {{ 'Turn sync off' if item.sync_enabled else 'Turn sync on' }}
                 </button>
               </form>
             {% endif %}
             <form method="post" action="/lists/{{ item.id }}/delete" class="d-inline"
-                  onsubmit="return confirm('Delete the list {{ item.name }}? Recipients themselves are kept.')">
-              <button class="btn btn-sm btn-ghost-danger" type="submit">Delete</button>
+                  {{ confirm('Delete the list ' ~ item.name ~ '?', 'Only the list goes. Everyone on it stays in your recipients.', 'Delete list') }}>
+              <button class="btn btn-sm btn-ghost-danger" type="submit">{{ icon('trash') }} Delete</button>
             </form>
           </td>
         </tr>
@@ -100,20 +101,21 @@
   {% else %}
     <div class="card-body">
       <div class="empty py-3">
-        <p class="empty-title">No lists yet</p>
+        <div class="empty-icon-badge">{{ icon('list') }}</div>
+        <p class="empty-title">Create your first list</p>
         <p class="empty-subtitle text-secondary">
-          A list groups recipients so a campaign can address them all at once.
+          A list groups people so a campaign can reach them all at once &mdash; "All staff", "Customers", "Newsletter".
         </p>
         <div class="empty-action">
           <a href="#modal-new-list" class="btn btn-primary" data-bs-toggle="modal">
-            {{ icon('plus', 20) }} New list
+            {{ icon('plus') }} New list
           </a>
         </div>
       </div>
     </div>
   {% endif %}
   <div class="card-footer text-secondary">
-    Deleting a list never deletes the recipients in it.
+    {{ icon('info') }} Deleting a list never deletes the people in it.
     A list with sync on is re-queried every {{ sync_interval_minutes }} minutes; members who
     no longer match are removed from the list, never deleted.
   </div>
@@ -123,7 +125,7 @@
   <div class="modal-dialog modal-dialog-centered" role="document">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">New list</h5>
+        <h5 class="modal-title">{{ icon('list') }} New list</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form method="post" action="/lists">
@@ -131,16 +133,16 @@
           <div class="mb-3">
             <label class="form-label" for="name">Name</label>
             <input type="text" class="form-control" id="name" name="name"
-                   placeholder="e.g. All staff" required>
+                   placeholder="All staff" required>
           </div>
           <div class="mb-0">
-            <label class="form-label" for="description">Description</label>
+            <label class="form-label" for="description">Description <span class="text-secondary fw-normal">(optional)</span></label>
             <textarea class="form-control" id="description" name="description" rows="3"></textarea>
           </div>
         </div>
         <div class="modal-footer">
           <a href="#" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</a>
-          <button type="submit" class="btn btn-primary ms-auto">Create list</button>
+          <button type="submit" class="btn btn-primary ms-auto">{{ icon('plus') }} Create list</button>
         </div>
       </form>
     </div>

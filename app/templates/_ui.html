@@ -1,0 +1,87 @@
+{#
+  Small building blocks shared by every page, so the same thing looks the
+  same everywhere. Import what you need:
+      {% from "_ui.html" import page_header, status_badge, help %}
+#}
+{% from "_icons.html" import icon %}
+
+{# Docs site, for the "Learn more" links next to help tips. #}
+{% set docs_url = "https://bulkmailer.stoifl.app" %}
+
+{#
+  The heading block at the top of a page. Actions go in the caller body:
+      {% call page_header('Audience', 'Recipients', 'users') %}
+        <a class="btn btn-primary" href="...">...</a>
+      {% endcall %}
+#}
+{% macro page_header(pretitle, title, icon_name=None) -%}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col">
+        {% if pretitle %}<div class="page-pretitle">{{ pretitle }}</div>{% endif %}
+        <h2 class="page-title">
+          {% if icon_name %}<span class="page-title-icon">{{ icon(icon_name) }}</span>{% endif %}
+          {{ title }}
+        </h2>
+      </div>
+      {% if caller %}
+      <div class="col-auto ms-auto d-print-none">
+        <div class="btn-list">{{ caller() }}</div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{%- endmacro %}
+
+{# A status as an icon + word pill. `id` lets live-updating pages swap the text. #}
+{% macro status_badge(status, id=None) -%}
+<span class="status-pill status-{{ status_colors.get(status, 'secondary') }}"{% if id %} id="{{ id }}"{% endif %}>
+  {{- icon(status_icons.get(status, 'circle')) -}}
+  <span class="status-text">{{ status }}</span>
+</span>
+{%- endmacro %}
+
+{# Headline number with a coloured icon square. #}
+{% macro stat_tile(label, value, icon_name, colour='primary', href=None) -%}
+<{{ 'a' if href else 'div' }}{% if href %} href="{{ href }}"{% endif %} class="card card-sm stat-tile{{ ' card-link' if href }}">
+  <div class="card-body d-flex align-items-center gap-3">
+    <span class="stat-icon bg-{{ colour }}-lt">{{ icon(icon_name) }}</span>
+    <div>
+      <div class="stat-label">{{ label }}</div>
+      <div class="stat-value">{{ value }}</div>
+    </div>
+  </div>
+</{{ 'a' if href else 'div' }}>
+{%- endmacro %}
+
+{# Friendly "nothing here yet" block with one clear next step. #}
+{% macro empty_state(icon_name, title, text, action_href=None, action_label=None, action_icon='plus') -%}
+<div class="empty">
+  <div class="empty-icon-badge">{{ icon(icon_name) }}</div>
+  <p class="empty-title">{{ title }}</p>
+  <p class="empty-subtitle text-secondary">{{ text }}</p>
+  {% if action_href %}
+  <div class="empty-action">
+    <a href="{{ action_href }}" class="btn btn-primary">{{ icon(action_icon) }} {{ action_label }}</a>
+  </div>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+{# A small (?) next to a label. Hover or focus shows the tip. #}
+{% macro help(text, docs_path=None) -%}
+<span class="help-tip" tabindex="0" role="note" aria-label="{{ text }}"
+      data-bs-toggle="tooltip" data-bs-placement="top" title="{{ text }}">{{ icon('help') }}</span>
+{%- if docs_path %} <a class="help-link" href="{{ docs_url }}{{ docs_path }}" target="_blank" rel="noopener noreferrer">Learn more</a>{% endif %}
+{%- endmacro %}
+
+{#
+  Attributes that route a form's submit through the confirm modal in
+  base.html. Put on the <form>:
+      <form method="post" action="..." {{ confirm('Delete list?', 'Recipients are kept.', 'Delete list') }}>
+#}
+{% macro confirm(title, body='', action='Confirm', variant='danger') -%}
+data-confirm-title="{{ title }}" data-confirm-body="{{ body }}" data-confirm-action="{{ action }}" data-confirm-variant="{{ variant }}"
+{%- endmacro %}

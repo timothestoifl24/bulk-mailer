@@ -1,10 +1,400 @@
-/* Overrides on top of Tabler. Keep this file small - prefer Tabler utilities. */
+/* Overrides on top of Tabler. Prefer Tabler utilities; what lives here is the
+   Bulk Mailer brand (indigo, Inter) and a handful of components Tabler lacks. */
+
+/* ---------------------------------------------------------------- Brand */
+
+/* Indigo 600 as primary. Tabler derives buttons, links, focus rings and the
+   -lt tints from these, so setting them here re-brands the whole UI. */
+:root,
+[data-bs-theme="light"] {
+  --bm-indigo-50: #EEF2FF;
+  --bm-indigo-100: #E0E7FF;
+  --bm-indigo-400: #818CF8;
+  --bm-indigo-600: #4F46E5;
+  --bm-indigo-700: #4338CA;
+  --bm-indigo-800: #3730A3;
+  --bm-amber: #F59E0B;
+
+  --tblr-primary: var(--bm-indigo-600);
+  --tblr-primary-rgb: 79, 70, 229;
+  --tblr-primary-darken: var(--bm-indigo-700);
+  --tblr-primary-lt: var(--bm-indigo-50);
+  --tblr-primary-lt-rgb: 238, 242, 255;
+  --tblr-primary-text-emphasis: var(--bm-indigo-800);
+  --tblr-primary-bg-subtle: var(--bm-indigo-100);
+  --tblr-primary-border-subtle: #C7D2FE;
+  --tblr-link-color: var(--bm-indigo-600);
+  --tblr-link-color-rgb: 79, 70, 229;
+  --tblr-link-hover-color: var(--bm-indigo-800);
+  --tblr-link-hover-color-rgb: 55, 48, 163;
+
+  --tblr-font-sans-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --tblr-font-monospace: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --tblr-border-radius-scale: 1.25;
+}
+
+/* On a dark page indigo 600 is too dim for text and links, so text uses
+   indigo 400 while filled buttons keep the deeper brand colour. */
+[data-bs-theme="dark"] {
+  --tblr-primary: var(--bm-indigo-600);
+  --tblr-primary-rgb: 79, 70, 229;
+  --tblr-primary-darken: var(--bm-indigo-700);
+  --tblr-primary-lt: rgba(129, 140, 248, 0.16);
+  --tblr-primary-lt-rgb: 49, 46, 129;
+  --tblr-primary-text-emphasis: var(--bm-indigo-400);
+  --tblr-link-color: var(--bm-indigo-400);
+  --tblr-link-color-rgb: 129, 140, 248;
+  --tblr-link-hover-color: #A5B4FC;
+  --tblr-link-hover-color-rgb: 165, 180, 252;
+}
+
+body {
+  font-feature-settings: "cv11", "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Counts line up in columns. */
+.mono,
+.stat-value,
+.table td.text-end {
+  font-variant-numeric: tabular-nums;
+}
+
+.text-primary,
+.page-title-icon,
+[data-bs-theme="dark"] .text-primary {
+  color: var(--tblr-link-color) !important;
+}
+
+/* ---------------------------------------------------------------- Shell */
+
+.navbar-vertical .navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 650;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+}
+
+.brand-mark {
+  flex-shrink: 0;
+}
+
+.nav-group-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tblr-secondary);
+  padding: 1.1rem 0.75rem 0.35rem;
+}
+
+.navbar-vertical .navbar-nav .nav-link {
+  border-radius: var(--tblr-border-radius);
+  margin: 1px 0.5rem;
+  padding: 0.5rem 0.75rem;
+  gap: 0.25rem;
+}
+
+.navbar-vertical .navbar-nav .nav-item.active > .nav-link,
+.navbar-vertical .navbar-nav .nav-link.active {
+  background: var(--tblr-primary-lt);
+  color: var(--tblr-primary-text-emphasis);
+  font-weight: 600;
+}
+
+.navbar-vertical .nav-link-icon {
+  width: 1.4rem;
+  opacity: 0.85;
+}
+
+.sidebar-user {
+  border-top: 1px solid var(--tblr-border-color);
+  padding: 0.75rem;
+  margin-top: auto;
+}
+
+.avatar-initials {
+  background: var(--tblr-primary-lt);
+  color: var(--tblr-primary-text-emphasis);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* Pretitles read as a friendly line of context, not a shouted label. */
+.page-pretitle {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.page-title-icon {
+  margin-right: 0.35rem;
+  font-size: 0.9em;
+}
+
+.alert .alert-icon {
+  font-size: 1.1rem;
+  margin-right: 0.6rem;
+  line-height: 1.4;
+}
 
 /* Show the moon in light mode and the sun in dark mode, never both. */
 [data-bs-theme="dark"] .theme-light,
 [data-bs-theme="light"] .theme-dark,
 :root:not([data-bs-theme="dark"]) .theme-dark {
   display: none;
+}
+
+/* ------------------------------------------------------------ Components */
+
+.card {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.card-title .fa-fw,
+.card-title > i {
+  color: var(--tblr-secondary);
+  margin-right: 0.4rem;
+}
+
+.btn .fa-fw {
+  margin-right: 0.15rem;
+}
+
+.btn-icon .fa-fw {
+  margin: 0;
+}
+
+/* Statuses: icon + word, tinted. Colour names match STATUS_COLORS in web.py. */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 100rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  background: var(--tblr-bg-surface-secondary);
+  color: var(--tblr-secondary);
+}
+
+.status-pill .fa-fw {
+  font-size: 0.7rem;
+}
+
+.status-blue { background: var(--tblr-primary-lt); color: var(--tblr-primary-text-emphasis); }
+.status-green { background: rgba(var(--tblr-green-rgb), 0.12); color: var(--tblr-green); }
+.status-yellow { background: rgba(var(--tblr-yellow-rgb), 0.16); color: var(--tblr-yellow-darken, #a16207); }
+.status-red { background: rgba(var(--tblr-red-rgb), 0.12); color: var(--tblr-red); }
+
+[data-bs-theme="dark"] .status-yellow { color: var(--tblr-yellow); }
+
+.stat-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--tblr-border-radius-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.stat-label {
+  color: var(--tblr-secondary);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.progress-thin {
+  height: 0.35rem;
+  border-radius: 100rem;
+}
+
+/* Campaign lifecycle: Draft -> Tested -> Sending -> Done. */
+.stepper {
+  display: flex;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.stepper li {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--tblr-secondary);
+  text-align: center;
+}
+
+.stepper li:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 1rem;
+  left: calc(50% + 1.25rem);
+  right: calc(-50% + 1.25rem);
+  height: 2px;
+  background: var(--tblr-border-color);
+}
+
+.stepper li.done:not(:last-child)::after {
+  background: var(--tblr-green);
+}
+
+.stepper .step-dot {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--tblr-bg-surface-secondary);
+  border: 1px solid var(--tblr-border-color);
+  font-size: 0.8rem;
+}
+
+.stepper li.done .step-dot {
+  background: rgba(var(--tblr-green-rgb), 0.12);
+  border-color: transparent;
+  color: var(--tblr-green);
+}
+
+.stepper li.current {
+  color: var(--tblr-body-color);
+  font-weight: 600;
+}
+
+.stepper li.current .step-dot {
+  background: var(--tblr-primary);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--tblr-primary-lt);
+}
+
+/* Large icon at the top of an empty state. */
+.empty-icon-badge {
+  width: 4rem;
+  height: 4rem;
+  margin: 0 auto 1rem;
+  border-radius: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  background: var(--tblr-primary-lt);
+  color: var(--tblr-primary-text-emphasis);
+}
+
+/* (?) next to labels. */
+.help-tip {
+  color: var(--tblr-secondary);
+  cursor: help;
+  font-size: 0.85em;
+  margin-left: 0.2rem;
+}
+
+.help-tip:hover,
+.help-tip:focus {
+  color: var(--tblr-link-color);
+}
+
+.help-link {
+  font-size: 0.8em;
+  font-weight: 500;
+}
+
+.card-subtitle-help {
+  color: var(--tblr-secondary);
+  font-size: 0.85rem;
+  margin: 0.15rem 0 0;
+}
+
+/* Dashboard setup checklist. */
+.setup-step {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.65rem 0;
+}
+
+.setup-step + .setup-step {
+  border-top: 1px dashed var(--tblr-border-color);
+}
+
+.setup-step .step-check {
+  font-size: 1.15rem;
+  color: var(--tblr-border-color-dark, #c9cfd8);
+  line-height: 1.35;
+}
+
+.setup-step.done .step-check {
+  color: var(--tblr-green);
+}
+
+.setup-step.done .step-title {
+  color: var(--tblr-secondary);
+  text-decoration: line-through;
+}
+
+.step-title {
+  font-weight: 600;
+}
+
+/* CSV import drop zone. */
+.drop-zone {
+  border: 2px dashed var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius-lg);
+  padding: 1.5rem;
+  text-align: center;
+  background: var(--tblr-bg-surface-secondary);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.drop-zone:hover,
+.drop-zone:focus-within {
+  border-color: var(--tblr-primary);
+  background: var(--tblr-primary-lt);
+}
+
+.drop-zone .drop-icon {
+  font-size: 2rem;
+  color: var(--tblr-link-color);
+}
+
+/* Big icon on error and one-off public pages. */
+.hero-icon {
+  font-size: 2.5rem;
+  color: var(--tblr-link-color);
+  margin-bottom: 1rem;
+}
+
+/* Auth pages: a soft brand wash behind the card. */
+.auth-page {
+  background:
+    radial-gradient(60rem 30rem at 50% -10%, rgba(79, 70, 229, 0.12), transparent 70%),
+    var(--tblr-bg-surface-secondary);
+}
+
+.auth-brand {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 /* Long values (DNs, subjects, error strings) inside table cells. */

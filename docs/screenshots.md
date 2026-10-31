@@ -29,8 +29,10 @@ reverse proxy.
 
 ![The dashboard, showing counts and recent campaigns](/media/screenshots/02-dashboard.png)
 
-Recipient, list and send counts, recent campaigns with their status, and a
-getting-started checklist that stays until you have actually done the steps.
+Recipient, list and send counts, recent campaigns with their status and
+progress, and a getting-started checklist that ticks itself off as you connect
+a mail server, add recipients, make a list, write a template and send. Once
+everything is done it shrinks to a single "You're all set up" line, as here.
 
 ## Recipients
 
@@ -38,7 +40,7 @@ getting-started checklist that stays until you have actually done the steps.
 
 Search and filter, then act on the results. Bulk actions apply to
 **everything matching the filter**, not only the rows on screen — the
-confirmation tells you the real number before it happens.
+confirmation dialog tells you the real number before it happens.
 
 Suppressed addresses are marked and are skipped by every campaign.
 
@@ -63,24 +65,27 @@ recipient by a sandboxed renderer.
 
 ![The campaign list with per-campaign status](/media/screenshots/06-campaigns.png)
 
-Every campaign with its status: draft, queued, sending, paused, completed,
-cancelled or failed — and who created it.
+Every campaign with its status — draft, queued, sending, paused, completed,
+cancelled or failed — a progress bar, failures at a glance, and who created it.
 
 ## New campaign
 
 ![Composing a campaign, with lists, template and dry run](/media/screenshots/07-campaign-new.png)
 
-Pick the lists, load a template, attach files, preview against a real
-recipient. **Dry run** is right there next to send, which is where it should
-be.
+Three steps: write the message (or start from a template), choose who gets
+it, and check the sender details. Nothing is sent from here. The next page
+tracks the campaign from draft to done, and has preview, attachments, a test
+message to yourself, and **Dry run** right next to **Send now**, which is
+where it should be. Sending asks once more, saying how many people it will
+reach.
 
 ## Settings
 
 ![SMTP settings with a connection test](/media/screenshots/08-settings.png)
 
-The mail server, sender identity and default throttle. Stored in the database
-and editable without a restart. **Test SMTP connection** opens a real
-connection and tells you what happened.
+The mail server, sender identity and default sending speed, each with a
+short (?) tip. Stored in the database and editable without a restart. **Test
+the connection** opens a real connection and tells you what happened.
 
 Stored passwords are encrypted with a key derived from `SECRET_KEY`.
 
@@ -98,9 +103,10 @@ The sync interval for lists that track a directory search lives here too.
 
 ![User administration and directory sign-in settings](/media/screenshots/10-users.png)
 
-Local and directory-backed accounts, admin rights, and the LDAP sign-in
-settings. **Test a sign-in** checks the configuration against the directory
-without touching your own session — worth doing before you sign out.
+Local and directory-backed accounts, with password reset, admin rights,
+disabling and deleting in each row's menu, and the LDAP sign-in settings.
+**Try a sign-in** checks the configuration against the directory without
+touching your own session — worth doing before you sign out.
 
 ## Account
 

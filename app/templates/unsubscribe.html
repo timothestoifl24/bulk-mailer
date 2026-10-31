@@ -5,17 +5,19 @@
 <div class="card card-md">
   <div class="card-body text-center">
     {% if not valid %}
+      <div class="hero-icon text-warning">{{ icon('alert') }}</div>
       <h2 class="h2 mb-3">Invalid link</h2>
       <p class="text-secondary mb-0">
-        This unsubscribe link is not valid or has expired. Please contact the sender directly.
+        This unsubscribe link is not valid or has expired. Contact the sender directly to stop their messages.
       </p>
     {% elif done %}
-      <div class="text-green mb-2">{{ icon('check', 40) }}</div>
+      <div class="hero-icon text-green">{{ icon('check-circle') }}</div>
       <h2 class="h2 mb-3">You are unsubscribed</h2>
       <p class="text-secondary mb-0">
         <strong>{{ email }}</strong> will no longer receive messages from this system.
       </p>
     {% else %}
+      <div class="hero-icon">{{ icon('mail-open') }}</div>
       <h2 class="h2 mb-3">Unsubscribe</h2>
       <p class="text-secondary">Stop sending email to <strong>{{ email }}</strong>?</p>
       <form method="post" action="/unsubscribe" class="mt-4">

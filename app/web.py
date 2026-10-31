@@ -35,6 +35,25 @@ STATUS_COLORS = {
     "skipped": "yellow",
 }
 
+# Icon names from _icons.html, shown in front of the status text so a status
+# reads at a glance and does not depend on colour alone.
+STATUS_ICONS = {
+    "draft": "pen",
+    "queued": "clock",
+    "sending": "spinner",
+    "paused": "pause",
+    "completed": "check-circle",
+    "cancelled": "ban",
+    "failed": "error",
+    "sent": "check",
+    "pending": "hourglass",
+    "skipped": "forward",
+}
+
+# Also globals, so macros imported from _ui.html can read them without the
+# importing template having to pass its context along.
+templates.env.globals.update(status_colors=STATUS_COLORS, status_icons=STATUS_ICONS)
+
 # Flash categories -> Bootstrap/Tabler alert modifiers.
 FLASH_CLASSES = {
     "success": "success",
@@ -71,6 +90,7 @@ def render(
         "user": getattr(request.state, "user", None),
         "flashes": pop_flashes(request),
         "status_colors": STATUS_COLORS,
+        "status_icons": STATUS_ICONS,
         "flash_classes": FLASH_CLASSES,
         "app_debug": settings.debug,
         "current_path": request.url.path,

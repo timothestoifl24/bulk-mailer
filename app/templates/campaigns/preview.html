@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Preview - {{ campaign.name }}{% endblock %}
 
 {% block page_header %}
@@ -7,12 +8,12 @@
     <div class="row g-2 align-items-center">
       <div class="col">
         <div class="page-pretitle">
-          Rendered with the data of <span class="mono">{{ context.email }}</span>
+          Exactly what <span class="mono">{{ context.email }}</span> will see
         </div>
-        <h2 class="page-title">Preview</h2>
+        <h2 class="page-title"><span class="page-title-icon">{{ icon('eye') }}</span> Preview: {{ campaign.name }}</h2>
       </div>
       <div class="col-auto ms-auto d-print-none">
-        <a class="btn" href="/campaigns/{{ campaign.id }}">Back to the campaign</a>
+        <a class="btn" href="/campaigns/{{ campaign.id }}">{{ icon('arrow-left') }} Back to the campaign</a>
       </div>
     </div>
   </div>
@@ -21,7 +22,7 @@
 
 {% block content %}
 {% if rendered.error %}
-  <div class="alert alert-danger" role="alert">Template error: {{ rendered.error }}</div>
+  <div class="alert alert-danger" role="alert"><div class="d-flex"><span class="alert-icon">{{ icon('error') }}</span><div><strong>The message has a placeholder problem.</strong> Fix it in the campaign and preview again.<div class="mono mt-1">{{ rendered.error }}</div></div></div></div>
 {% else %}
 <div class="card mb-3">
   <div class="card-body">
@@ -45,7 +46,7 @@
 <div class="row row-cards mb-3">
   <div class="col-lg-7">
     <div class="card h-100">
-      <div class="card-header"><h3 class="card-title">HTML part</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('mail-open') }} How it looks</h3></div>
       <div class="card-body">
         <iframe class="preview-frame" sandbox="" srcdoc="{{ rendered.html }}" title="HTML preview"></iframe>
       </div>
@@ -53,7 +54,7 @@
   </div>
   <div class="col-lg-5">
     <div class="card h-100">
-      <div class="card-header"><h3 class="card-title">Plain-text part</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('file') }} Plain-text version</h3></div>
       <div class="card-body">
         <pre class="mb-0" style="white-space:pre-wrap">{{ rendered.text }}</pre>
       </div>
@@ -63,7 +64,7 @@
 {% endif %}
 
 <div class="card">
-  <div class="card-header"><h3 class="card-title">Values used</h3></div>
+  <div class="card-header"><h3 class="card-title">{{ icon('code') }} Values filled in</h3></div>
   <div class="table-responsive">
     <table class="table card-table table-vcenter">
       <thead><tr><th>Placeholder</th><th>Value</th></tr></thead>

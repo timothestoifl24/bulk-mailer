@@ -297,7 +297,7 @@ def update(
     campaign.reply_to = normalise_email(reply_to)
     campaign.throttle_per_minute = max(0, throttle_per_minute)
     db.commit()
-    flash(request, "Campaign saved.", "success")
+    flash(request, "Draft saved.", "success")
     return redirect(f"/campaigns/{campaign_id}")
 
 
@@ -341,7 +341,7 @@ def update_audience(
         flash(request, "Campaign not found.", "error")
         return redirect("/campaigns")
     if not campaign.is_editable:
-        flash(request, "The audience is locked once sending has started.", "error")
+        flash(request, "You can't change who gets it once sending has started. Pause it first.", "error")
         return redirect(f"/campaigns/{campaign_id}")
 
     if mode == "replace":
@@ -582,7 +582,7 @@ def pause(request: Request, campaign_id: int, db: Session = Depends(get_db)):
     if campaign is not None and campaign.status in ACTIVE_STATUSES:
         campaign.status = "paused"
         db.commit()
-        flash(request, "Paused. In-flight messages finish first.", "success")
+        flash(request, "Paused. Messages already on their way will still arrive.", "success")
     return redirect(f"/campaigns/{campaign_id}")
 
 
@@ -594,7 +594,7 @@ def resume(request: Request, campaign_id: int, db: Session = Depends(get_db)):
         campaign.error = ""
         db.commit()
         notify_worker()
-        flash(request, "Resumed.", "success")
+        flash(request, "Sending again.", "success")
     return redirect(f"/campaigns/{campaign_id}")
 
 
@@ -616,7 +616,7 @@ def retry_failed(request: Request, campaign_id: int, db: Session = Depends(get_d
         flash(request, "Campaign not found.", "error")
         return redirect("/campaigns")
     if campaign.status in ACTIVE_STATUSES:
-        flash(request, "Wait until the current run finishes.", "warning")
+        flash(request, "Wait until the current run finishes, then try again.", "warning")
         return redirect(f"/campaigns/{campaign_id}")
 
     updated = (
@@ -661,7 +661,7 @@ def duplicate(request: Request, campaign_id: int, db: Session = Depends(get_db))
             )
         )
     db.commit()
-    flash(request, "Campaign duplicated as a new draft.", "success")
+    flash(request, "Copied into a new draft. Make your changes and send when ready.", "success")
     return redirect(f"/campaigns/{copy.id}")
 
 
@@ -671,7 +671,7 @@ def delete(request: Request, campaign_id: int, db: Session = Depends(get_db)):
     if campaign is None:
         return redirect("/campaigns")
     if campaign.status in ACTIVE_STATUSES:
-        flash(request, "Stop the campaign before deleting it.", "error")
+        flash(request, "Stop the campaign first, then delete it.", "error")
         return redirect(f"/campaigns/{campaign_id}")
     for attachment in campaign.attachments:
         Path(attachment.stored_path).unlink(missing_ok=True)

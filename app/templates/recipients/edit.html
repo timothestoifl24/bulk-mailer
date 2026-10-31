@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import confirm, help %}
 {% block title %}{{ recipient.email }} - Bulk Mailer{% endblock %}
 
 {% block page_header %}
@@ -7,10 +9,14 @@
     <div class="row g-2 align-items-center">
       <div class="col">
         <div class="page-pretitle mono">{{ recipient.email }} &middot; source: {{ recipient.source }}</div>
-        <h2 class="page-title">{{ recipient.name }}</h2>
+        <h2 class="page-title d-flex align-items-center gap-2">
+          <span class="avatar avatar-initials">{{ ((recipient.name or recipient.email).split() | map('first') | join | upper)[:2] }}</span>
+          {{ recipient.name }}
+          {% if recipient.is_suppressed %}<span class="status-pill status-red">{{ icon('user-slash') }} unsubscribed</span>{% endif %}
+        </h2>
       </div>
       <div class="col-auto ms-auto d-print-none">
-        <a class="btn" href="/recipients">Back to list</a>
+        <a class="btn" href="/recipients">{{ icon('arrow-left') }} Back to recipients</a>
       </div>
     </div>
   </div>
@@ -21,7 +27,7 @@
 <div class="row row-cards">
   <div class="col-lg-7">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Details</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('user') }} Details</h3></div>
       <div class="card-body">
         <form method="post" action="/recipients/{{ recipient.id }}">
           <div class="mb-3">
@@ -73,7 +79,7 @@
                   <span class="form-check-label">{{ item.name }}</span>
                 </label>
               {% else %}
-                <span class="text-secondary">No lists defined yet.</span>
+                <span class="text-secondary">No lists yet. <a href="/lists">Create one</a>.</span>
               {% endfor %}
             </div>
           </div>
@@ -81,14 +87,14 @@
           <label class="form-check form-switch mb-1">
             <input type="checkbox" class="form-check-input" id="is_suppressed" name="is_suppressed"
                    value="1" {{ 'checked' if recipient.is_suppressed }}>
-            <span class="form-check-label">Unsubscribed &mdash; never send to this address</span>
+            <span class="form-check-label">Unsubscribed &mdash; never send to this address {{ help("Campaigns always skip unsubscribed people, even if they are on a list.") }}</span>
           </label>
           {% if recipient.suppressed_reason %}
             <small class="form-hint mb-3">Reason: {{ recipient.suppressed_reason }}</small>
           {% endif %}
 
           <div class="mt-3">
-            <button class="btn btn-primary" type="submit">Save changes</button>
+            <button class="btn btn-primary" type="submit">{{ icon('check') }} Save changes</button>
           </div>
         </form>
       </div>
@@ -97,7 +103,7 @@
 
   <div class="col-lg-5">
     <div class="card mb-3">
-      <div class="card-header"><h3 class="card-title">Extra attributes</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('code') }} Extra attributes</h3></div>
       {% if recipient.extra %}
         <div class="table-responsive">
           <table class="table card-table table-vcenter">
@@ -111,7 +117,7 @@
         </div>
       {% else %}
         <div class="card-body text-secondary">
-          None. Extra CSV columns and mapped LDAP attributes show up here and can be used as
+          Nothing extra yet. Additional CSV columns and LDAP attributes appear here, and you can use them as
           <code class="var">{{ '{{ key }}' }}</code> in a message.
         </div>
       {% endif %}
@@ -123,11 +129,11 @@
     </div>
 
     <div class="card border-danger">
-      <div class="card-header"><h3 class="card-title text-danger">Danger zone</h3></div>
+      <div class="card-header"><h3 class="card-title text-danger">{{ icon('alert') }} Danger zone</h3></div>
       <div class="card-body">
         <form method="post" action="/recipients/{{ recipient.id }}/delete"
-              onsubmit="return confirm('Delete {{ recipient.email }} permanently?')">
-          <button class="btn btn-danger" type="submit">Delete recipient</button>
+              {{ confirm('Delete this recipient?', recipient.email ~ ' will be removed for good, along with their list memberships.', 'Delete recipient') }}>
+          <button class="btn btn-danger" type="submit">{{ icon('trash') }} Delete recipient</button>
         </form>
       </div>
     </div>

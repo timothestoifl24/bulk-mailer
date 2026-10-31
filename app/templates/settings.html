@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
+{% from "_ui.html" import help %}
 {% block title %}Settings - Bulk Mailer{% endblock %}
 
 {% block page_header %}
@@ -7,8 +8,8 @@
   <div class="container-xl">
     <div class="row g-2 align-items-center">
       <div class="col">
-        <div class="page-pretitle">Stored in the database, applied without a restart</div>
-        <h2 class="page-title">Settings</h2>
+        <div class="page-pretitle">Changes apply right away, no restart needed</div>
+        <h2 class="page-title"><span class="page-title-icon">{{ icon('settings') }}</span> Settings</h2>
       </div>
     </div>
   </div>
@@ -19,12 +20,17 @@
 <div class="row row-cards">
   <div class="col-lg-7">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">SMTP server</h3></div>
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">{{ icon('server') }} Mail server (SMTP)</h3>
+          <p class="card-subtitle-help">The server that delivers your messages. Your IT team or email provider has these details.</p>
+        </div>
+      </div>
       <div class="card-body">
         <form method="post" action="/settings">
           <div class="row g-2">
             <div class="col-md-8 mb-3">
-              <label class="form-label" for="smtp_host">Host *</label>
+              <label class="form-label required" for="smtp_host">Server address {{ help("For example smtp.office365.com or smtp.gmail.com.", "/setup") }}</label>
               <input type="text" class="form-control" id="smtp_host" name="smtp_host"
                      value="{{ values.smtp_host }}" placeholder="smtp.example.com">
             </div>
@@ -34,21 +40,21 @@
                      value="{{ values.smtp_port }}">
             </div>
             <div class="col-md-8 mb-3">
-              <label class="form-label" for="smtp_security">Security</label>
+              <label class="form-label" for="smtp_security">Encryption {{ help("STARTTLS on port 587 is the most common choice. Picking an option fills in the usual port.") }}</label>
               <select class="form-select" id="smtp_security" name="smtp_security"
                       onchange="document.getElementById('smtp_port').value = {none:25, starttls:587, ssl:465}[this.value]">
-                <option value="none" {{ 'selected' if values.smtp_security == 'none' }}>None (25)</option>
-                <option value="starttls" {{ 'selected' if values.smtp_security == 'starttls' }}>STARTTLS (587)</option>
-                <option value="ssl" {{ 'selected' if values.smtp_security == 'ssl' }}>SSL/TLS (465)</option>
+                <option value="none" {{ 'selected' if values.smtp_security == 'none' }}>None &mdash; port 25</option>
+                <option value="starttls" {{ 'selected' if values.smtp_security == 'starttls' }}>STARTTLS &mdash; port 587 (most common)</option>
+                <option value="ssl" {{ 'selected' if values.smtp_security == 'ssl' }}>SSL/TLS &mdash; port 465</option>
               </select>
             </div>
             <div class="col-md-4 mb-3">
-              <label class="form-label" for="smtp_timeout">Timeout (s)</label>
+              <label class="form-label" for="smtp_timeout">Timeout (seconds)</label>
               <input type="number" class="form-control" id="smtp_timeout" name="smtp_timeout"
                      value="{{ values.smtp_timeout }}">
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label" for="smtp_username">Username</label>
+              <label class="form-label" for="smtp_username">Username {{ help("Leave empty if your server accepts mail without signing in.") }}</label>
               <input type="text" class="form-control" id="smtp_username" name="smtp_username"
                      value="{{ values.smtp_username }}" autocomplete="off">
             </div>
@@ -56,29 +62,29 @@
               <label class="form-label" for="smtp_password">Password</label>
               <input type="password" class="form-control" id="smtp_password" name="smtp_password"
                      value="{{ values.smtp_password }}" autocomplete="new-password">
-              <small class="form-hint">Leave the mask untouched to keep the stored password.</small>
+              <small class="form-hint">{{ icon('lock') }} Stored encrypted. Leave the dots as they are to keep the current password.</small>
             </div>
           </div>
 
-          <div class="hr-text">Sender identity</div>
+          <div class="hr-text">{{ icon('user') }} Who messages come from</div>
           <div class="row g-2">
             <div class="col-md-6 mb-3">
-              <label class="form-label" for="from_email">From address *</label>
+              <label class="form-label required" for="from_email">From address {{ help("Must be an address your mail server is allowed to send as, or messages may be rejected or land in spam.") }}</label>
               <input type="email" class="form-control" id="from_email" name="from_email"
                      value="{{ values.from_email }}">
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label" for="from_name">From name</label>
+              <label class="form-label" for="from_name">From name {{ help("What people see in their inbox, for example: IT Department.") }}</label>
               <input type="text" class="form-control" id="from_name" name="from_name"
                      value="{{ values.from_name }}">
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label" for="reply_to">Reply-To</label>
+              <label class="form-label" for="reply_to">Replies go to {{ help("Optional. Where replies land, if not the From address.") }}</label>
               <input type="email" class="form-control" id="reply_to" name="reply_to"
                      value="{{ values.reply_to }}">
             </div>
             <div class="col-md-6 mb-3">
-              <label class="form-label" for="default_throttle_per_minute">Default throttle (msg/min)</label>
+              <label class="form-label" for="default_throttle_per_minute">Default sending speed (per minute) {{ help("Used for new campaigns. Many mail servers block senders who send too fast.") }}</label>
               <input type="number" class="form-control" id="default_throttle_per_minute"
                      name="default_throttle_per_minute" value="{{ values.default_throttle_per_minute }}" min="0">
               <small class="form-hint">0 = as fast as the server accepts.</small>
@@ -89,10 +95,10 @@
             <input type="checkbox" class="form-check-input" id="add_unsubscribe_header"
                    name="add_unsubscribe_header" value="1"
                    {{ 'checked' if values.add_unsubscribe_header == '1' }}>
-            <span class="form-check-label">Add List-Unsubscribe headers to every message</span>
+            <span class="form-check-label">Add a one-click unsubscribe button in mail apps {{ help("Adds List-Unsubscribe headers. Gmail and Outlook show an Unsubscribe button, and it helps your messages avoid spam folders.") }}</span>
           </label>
 
-          <button class="btn btn-primary" type="submit">Save settings</button>
+          <button class="btn btn-primary" type="submit">{{ icon('check') }} Save settings</button>
         </form>
       </div>
     </div>
@@ -100,11 +106,16 @@
 
   <div class="col-lg-5">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Check the connection</h3></div>
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">{{ icon('plug') }} Check that it works</h3>
+          <p class="card-subtitle-help">Save first, then try one of these.</p>
+        </div>
+      </div>
       <div class="card-body">
         <form method="post" action="/settings/test-connection">
-          <p class="text-secondary">Connects and authenticates, without sending anything.</p>
-          <button class="btn" type="submit">{{ icon('check', 20) }} Test SMTP connection</button>
+          <p class="text-secondary">Signs in to the mail server without sending anything.</p>
+          <button class="btn" type="submit">{{ icon('plug') }} Test the connection</button>
         </form>
         <div class="hr-text">or</div>
         <form method="post" action="/settings/test-email">
@@ -113,14 +124,14 @@
             <input type="email" class="form-control" id="to_email" name="to_email"
                    placeholder="you@example.com" required>
           </div>
-          <button class="btn btn-primary" type="submit">{{ icon('send', 20) }} Send test email</button>
+          <button class="btn btn-primary" type="submit">{{ icon('send') }} Send a test email</button>
         </form>
       </div>
 
       <div class="card-body border-top">
-        <h3 class="card-title mb-1">Environment</h3>
+        <h3 class="card-title mb-1">{{ icon('code') }} Server configuration</h3>
         <p class="text-secondary">
-          These come from the <span class="mono">.env</span> file and need a restart to change.
+          Set in the <span class="mono">.env</span> file. Changing them needs a restart.
         </p>
         <div class="datagrid">
           <div class="datagrid-item">

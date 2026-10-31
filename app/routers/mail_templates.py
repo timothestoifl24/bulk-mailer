@@ -53,10 +53,10 @@ def create(
 ):
     name = name.strip()
     if not name:
-        flash(request, "The template needs a name.", "error")
+        flash(request, "Give the template a name so you can find it later.", "error")
         return redirect("/templates/new")
     if db.scalar(select(EmailTemplate).where(func.lower(EmailTemplate.name) == name.lower())):
-        flash(request, f"A template named '{name}' already exists.", "error")
+        flash(request, f"You already have a template called '{name}'. Pick another name.", "error")
         return redirect("/templates/new")
 
     item = EmailTemplate(
@@ -64,7 +64,7 @@ def create(
     )
     db.add(item)
     db.commit()
-    flash(request, f"Template '{name}' created.", "success")
+    flash(request, f"Template '{name}' saved. Use it in a campaign whenever you like.", "success")
     return redirect(f"/templates/{item.id}")
 
 

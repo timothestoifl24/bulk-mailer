@@ -1,93 +1,92 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
+{% from "_ui.html" import page_header, status_badge, stat_tile, empty_state %}
 {% block title %}Dashboard - Bulk Mailer{% endblock %}
 
 {% block page_header %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col">
-        <div class="page-pretitle">Overview</div>
-        <h2 class="page-title">Dashboard</h2>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <a href="/campaigns/new" class="btn btn-primary">
-          {{ icon('plus', 20) }} New campaign
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
+{% call page_header('Hi ' ~ (user.name if user else 'there') ~ ', here is where things stand', 'Dashboard') %}
+  <a href="/campaigns/new" class="btn btn-primary">{{ icon('plus') }} New campaign</a>
+{% endcall %}
 {% endblock %}
 
 {% block content %}
 {% if not smtp_ready %}
 <div class="alert alert-warning" role="alert">
-  <div class="d-flex">
-    <div class="me-2">{{ icon('alert', 24) }}</div>
-    <div>
-      SMTP is not configured yet, so nothing can be sent.
+  <div class="d-flex align-items-center">
+    <span class="alert-icon">{{ icon('alert') }}</span>
+    <div class="flex-fill">
+      <strong>Sending is switched off until a mail server is set up.</strong>
       {% if user and user.is_admin %}
-        <a href="/settings" class="alert-link">Open Settings</a> to set the mail server
-        and sender address.
+        You can still write drafts in the meantime.
       {% else %}
-        Ask an administrator to set the mail server and sender address.
+        Ask an administrator to add the mail server and sender address.
       {% endif %}
     </div>
+    {% if user and user.is_admin %}
+      <a href="/settings" class="btn btn-warning btn-sm ms-3">{{ icon('settings') }} Set up mail server</a>
+    {% endif %}
   </div>
 </div>
 {% endif %}
 
 <div class="row row-deck row-cards mb-3">
-  {% for label, value, colour in [
-      ('Recipients', recipient_count, 'blue'),
-      ('Lists', list_count, 'azure'),
-      ('Messages sent', sent_total, 'green'),
-      ('Unsubscribed', suppressed_count, 'yellow')] %}
-  <div class="col-sm-6 col-lg-3">
-    <div class="card card-sm">
-      <div class="card-body">
-        <div class="subheader">{{ label }}</div>
-        <div class="h1 mb-0 text-{{ colour }}">{{ value }}</div>
-      </div>
-    </div>
-  </div>
-  {% endfor %}
+  <div class="col-sm-6 col-lg-3">{{ stat_tile('Recipients', '{:,}'.format(recipient_count), 'users', 'primary', '/recipients') }}</div>
+  <div class="col-sm-6 col-lg-3">{{ stat_tile('Lists', '{:,}'.format(list_count), 'list', 'purple', '/lists') }}</div>
+  <div class="col-sm-6 col-lg-3">{{ stat_tile('Messages sent', '{:,}'.format(sent_total), 'mail-check', 'green', '/campaigns') }}</div>
+  <div class="col-sm-6 col-lg-3">{{ stat_tile('Unsubscribed', '{:,}'.format(suppressed_count), 'user-slash', 'red', '/recipients?suppressed=1') }}</div>
 </div>
+
+{# Setup checklist. Each step is ticked from data that already exists, so it
+   never needs dismissing - it shrinks to one line once everything is done. #}
+{% set is_admin = user and user.is_admin %}
+{% set steps = [] %}
+{% if is_admin %}
+  {% set _ = steps.append((smtp_ready, 'Connect your mail server', 'Add the SMTP server and sender address, then send yourself a test.', '/settings', 'Open settings')) %}
+{% endif %}
+{% set _ = steps.append((recipient_count > 0, 'Add recipients',
+    'Paste addresses, upload a CSV' ~ (', or import them from LDAP / Active Directory' if is_admin else '') ~ '.',
+    '/recipients/import', 'Import recipients')) %}
+{% set _ = steps.append((list_count > 0, 'Group them into a list', 'Lists let you reach the same people again with one click.', '/lists', 'Create a list')) %}
+{% set _ = steps.append((template_count > 0, 'Write a reusable template', 'Personalise it with placeholders like {{ first_name }}.', '/templates/new', 'Write a template')) %}
+{% set _ = steps.append((has_completed_campaign, 'Send your first campaign', 'Preview it, try a dry run, then send it for real.', '/campaigns/new', 'Start a campaign')) %}
+{% set done_count = steps | selectattr('0') | list | length %}
 
 <div class="row row-cards">
   <div class="col-lg-7">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Recent campaigns</h3></div>
+      <div class="card-header">
+        <h3 class="card-title">{{ icon('history') }} Recent campaigns</h3>
+        {% if recent %}<div class="card-actions"><a href="/campaigns">View all {{ icon('arrow-right') }}</a></div>{% endif %}
+      </div>
       {% if recent %}
-      <div class="table-responsive">
-        <table class="table card-table table-vcenter">
-          <thead><tr><th>Name</th><th>Status</th><th class="text-end">Progress</th></tr></thead>
-          <tbody>
-          {% for campaign in recent %}
-            {% set count = stats[campaign.id] %}
-            <tr>
-              <td><a href="/campaigns/{{ campaign.id }}">{{ campaign.name }}</a></td>
-              <td>
-                <span class="badge bg-{{ status_colors.get(campaign.status, 'secondary') }}-lt">
-                  {{ campaign.status }}
-                </span>
-              </td>
-              <td class="text-end mono">{{ count.sent }}/{{ count.total }}</td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
+      <div class="list-group list-group-flush">
+        {% for campaign in recent %}
+          {% set count = stats[campaign.id] %}
+          {% set settled = count.sent + count.failed + count.skipped %}
+          <a href="/campaigns/{{ campaign.id }}" class="list-group-item list-group-item-action">
+            <div class="row align-items-center g-3">
+              <div class="col text-truncate">
+                <div class="fw-semibold text-reset text-truncate">{{ campaign.name }}</div>
+                {% if count.total %}
+                <div class="progress progress-thin mt-2">
+                  <div class="progress-bar {{ 'bg-red' if campaign.status == 'failed' else ('bg-green' if campaign.status == 'completed' else '') }}"
+                       style="width: {{ (100 * settled / count.total) | round(1) }}%"></div>
+                </div>
+                {% else %}
+                <div class="text-secondary small">No recipients yet</div>
+                {% endif %}
+              </div>
+              <div class="col-auto">{{ status_badge(campaign.status) }}</div>
+              <div class="col-auto mono text-secondary text-end" style="min-width:5.5rem">{{ count.sent }}/{{ count.total }}</div>
+            </div>
+          </a>
+        {% endfor %}
       </div>
       {% else %}
         <div class="card-body">
-          <div class="empty">
-            <p class="empty-title">No campaigns yet</p>
-            <p class="empty-subtitle text-secondary">Create one to start sending.</p>
-            <div class="empty-action">
-              <a href="/campaigns/new" class="btn btn-primary">{{ icon('plus', 20) }} New campaign</a>
-            </div>
-          </div>
+          {{ empty_state('campaign', 'Your campaigns will show up here',
+                         'A campaign is one message sent to a group of people. Nothing goes out until you press Send.',
+                         '/campaigns/new', 'Start your first campaign') }}
         </div>
       {% endif %}
     </div>
@@ -95,23 +94,39 @@
 
   <div class="col-lg-5">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Getting started</h3></div>
-      <div class="card-body">
-        <ol class="ps-3 mb-0 text-secondary" style="line-height:1.9">
-          {% if user and user.is_admin %}
-            <li><a href="/settings">Configure SMTP</a> and send yourself a test message.</li>
-            <li>Add recipients: <a href="/recipients/import">paste or upload a CSV</a>, or
-                <a href="/ldap">import from LDAP / Active Directory</a>
-                ({{ ldap_count }} profile(s) configured).</li>
-          {% else %}
-            <li>Add recipients: <a href="/recipients/import">paste or upload a CSV</a>.</li>
-          {% endif %}
-          <li>Group them into <a href="/lists">lists</a>.</li>
-          <li>Write a <a href="/templates">template</a> with
-              <code class="var">{{ '{{ first_name }}' }}</code> placeholders.</li>
-          <li><a href="/campaigns/new">Start a campaign</a>, preview it, do a dry run, then send.</li>
-        </ol>
+      {% if done_count == steps | length %}
+      <div class="card-body d-flex align-items-center gap-3">
+        <span class="stat-icon bg-green-lt">{{ icon('rocket') }}</span>
+        <div>
+          <div class="fw-semibold">You're all set up</div>
+          <div class="text-secondary small">Everything's in place. Start a new campaign whenever you're ready.</div>
+        </div>
       </div>
+      {% else %}
+      <div class="card-header">
+        <div>
+          <h3 class="card-title">{{ icon('rocket') }} Getting started</h3>
+          <p class="card-subtitle-help">{{ done_count }} of {{ steps | length }} done</p>
+        </div>
+      </div>
+      <div class="card-body pt-2">
+        <div class="progress progress-thin mb-2">
+          <div class="progress-bar bg-green" style="width: {{ (100 * done_count / steps | length) | round(1) }}%"></div>
+        </div>
+        {% for done, title, text, href, label in steps %}
+          <div class="setup-step{{ ' done' if done }}">
+            <span class="step-check">{{ icon('check-circle' if done else 'circle') }}</span>
+            <div class="flex-fill">
+              <div class="step-title">{{ title }}</div>
+              <div class="text-secondary small">{{ text }}</div>
+              {% if not done %}
+                <a href="{{ href }}" class="btn btn-sm btn-outline-primary mt-2">{{ label }} {{ icon('arrow-right') }}</a>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

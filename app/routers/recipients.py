@@ -184,7 +184,7 @@ def paste_recipients(
 ):
     rows = parse_email_list(emails)
     if not rows:
-        flash(request, "No addresses found in the pasted text.", "error")
+        flash(request, "We couldn't find any email addresses in that text. Put one address per line.", "error")
         return redirect("/recipients/import")
 
     target = _resolve_target_list(db, list_id, new_list_name)
@@ -214,7 +214,7 @@ async def import_csv(
 ):
     raw = await file.read()
     if not raw:
-        flash(request, "The uploaded file is empty.", "error")
+        flash(request, "That file is empty. Choose the CSV again.", "error")
         return redirect("/recipients/import")
     for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
         try:
@@ -223,7 +223,7 @@ async def import_csv(
         except UnicodeDecodeError:
             continue
     else:  # pragma: no cover - latin-1 never fails
-        flash(request, "Could not decode the file; save it as UTF-8 and retry.", "error")
+        flash(request, "We couldn't read that file. Save it as CSV (UTF-8) in your spreadsheet app and try again.", "error")
         return redirect("/recipients/import")
 
     rows, warnings = parse_csv(content)
@@ -270,7 +270,7 @@ def bulk_action(
     elif selected:
         statement = select(Recipient).where(Recipient.id.in_(selected))
     else:
-        flash(request, "No recipients selected.", "warning")
+        flash(request, "Tick at least one person first.", "warning")
         return redirect(back)
 
     recipients = list(db.scalars(statement.options(selectinload(Recipient.lists))))
@@ -305,7 +305,7 @@ def bulk_action(
         verb = "Added to" if action == "add_to_list" else "Removed from"
         flash(request, f"{verb} '{target.name}': {len(recipients)} recipients.", "success")
     else:
-        flash(request, "Unknown action or missing target list.", "error")
+        flash(request, "Choose a list for that action, then try again.", "error")
         return redirect(back)
 
     db.commit()
@@ -527,13 +527,13 @@ def create_list(
 ):
     name = name.strip()
     if not name:
-        flash(request, "A list needs a name.", "error")
+        flash(request, "Give the list a name.", "error")
     elif db.scalar(select(RecipientList).where(func.lower(RecipientList.name) == name.lower())):
-        flash(request, f"A list named '{name}' already exists.", "error")
+        flash(request, f"You already have a list called '{name}'. Pick another name.", "error")
     else:
         db.add(RecipientList(name=name, description=description.strip()))
         db.commit()
-        flash(request, f"List '{name}' created.", "success")
+        flash(request, f"List '{name}' created. Add people to it from Recipients.", "success")
     return redirect("/lists")
 
 

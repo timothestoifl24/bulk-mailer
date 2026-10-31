@@ -67,7 +67,7 @@ def save(
     if smtp_password and smtp_password != "********":
         settings_store.set_value(db, "smtp_password", smtp_password)
     db.commit()
-    flash(request, "Settings saved.", "success")
+    flash(request, "Settings saved. Send yourself a test email to check them.", "success")
     return redirect("/settings")
 
 
