@@ -196,6 +196,29 @@ A few structural things worth knowing before you move files around:
 - `ignoreDeadLinks` is `false`, so a dead internal link fails the build rather
   than shipping. CI builds the site on every pull request that touches it.
 
+### Retaking the screenshots
+
+The images in `screenshots/` (used by the README and the
+[Screenshots](/screenshots) page) are made by a script, so they can be
+retaken whenever the UI changes:
+
+```bash
+pip install playwright && python -m playwright install chromium
+python tools/screenshots.py --version 2.0.0
+```
+
+It starts the app on a throwaway SQLite database in a temporary directory,
+seeds it to look like an installation in use, and captures every screen with
+headless Chromium: light theme, 1440px wide, same file names as before. The
+data is fixed and entirely fictional — example domains, made-up people,
+nothing queued — so a retake only changes what the UI changed. `--out` writes
+somewhere else, to compare before overwriting. Playwright is left out of
+`requirements-dev.txt` on purpose: it downloads a browser that only this
+script needs.
+
+If you add or rename a screen, update `PAGES` in the script and the matching
+section in `docs/screenshots.md`.
+
 ### The `vite` override in `package.json`
 
 ```json
