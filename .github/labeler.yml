@@ -1,0 +1,61 @@
+# Labels a pull request by the files it changes; used by .github/workflows/labeler.yml.
+# Labels listed here are removed again when the files no longer match.
+"area: sending":
+  - changed-files:
+      - any-glob-to-any-file:
+          - app/services/mailer.py
+          - app/services/sender.py
+          - app/services/rendering.py
+          - app/routers/campaigns.py
+          - app/routers/mail_templates.py
+
+"area: ldap":
+  - changed-files:
+      - any-glob-to-any-file:
+          - app/services/ldap_*.py
+          - app/routers/ldap.py
+
+"area: auth":
+  - changed-files:
+      - any-glob-to-any-file:
+          - app/security.py
+          - app/services/auth.py
+          - app/services/ldap_auth.py
+          - app/routers/auth.py
+          - app/routers/users.py
+
+"area: web":
+  - changed-files:
+      - any-glob-to-any-file:
+          - app/web.py
+          - app/templates/**
+          - app/static/**
+
+"area: database":
+  - changed-files:
+      - any-glob-to-any-file:
+          - app/db.py
+          - app/models.py
+          - app/migrations.py
+
+"area: deploy":
+  - changed-files:
+      - any-glob-to-any-file:
+          - Dockerfile
+          - compose.yaml
+          - deploy/**
+
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file: .github/**
+
+# Only tooling and housekeeping files changed, nothing users would notice.
+chore:
+  - changed-files:
+      - any-glob-to-all-files:
+          - .github/**
+          - requirements-dev.txt
+          - .gitignore
+          - .dockerignore
+          - package.json
+          - package-lock.json

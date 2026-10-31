@@ -1,0 +1,23 @@
+name: Labeler
+
+# Labels pull requests by the files they change (area: …, chore), see .github/labeler.yml.
+#
+# pull_request_target is needed to label pull requests from forks. It is safe here because the
+# pull request's code is never checked out or run: the labeler reads its configuration from the
+# base branch and only looks at the list of changed files.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write # add and remove labels
+
+jobs:
+  label:
+    name: Label by changed files
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/labeler@v7
+        with:
+          sync-labels: true

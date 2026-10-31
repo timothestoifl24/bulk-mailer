@@ -1,0 +1,85 @@
+name: PR checklist
+
+# Checks the pull request template and labels the pull request from it:
+#   - the author accepted CONTRIBUTING.md (required),
+#   - at least one "Type of change" is ticked (required) → labels such as bug, enhancement,
+#   - "AI usage" boxes → labels ai-written / ai-reviewed,
+#   - without any checkbox: security (security/* branch or title), hotfix (hotfix/* branch) and
+#     release (develop → main),
+#   - the template is only for pull requests into develop: releases (develop → main) and hotfixes
+#     (hotfix/* → main) skip the checklist,
+#   - pull requests into main only come from develop or hotfix/* branches.
+# Keep "Guidelines accepted" a required status check for main and develop.
+#
+# pull_request_target is needed to label pull requests from forks. It is safe here because the
+# pull request's code is never checked out or run: only the trusted scripts from the base branch
+# are, and the description is passed through the environment.
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+  issues: write # create labels
+  pull-requests: write # add and remove labels
+
+jobs:
+  accepted:
+    name: Guidelines accepted
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the base branch's scripts (not the pull request)
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+
+      - name: Read the checklist
+        id: check
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+          TITLE: ${{ github.event.pull_request.title }}
+          AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD: ${{ github.event.pull_request.head.ref }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: python3 .github/scripts/pr_checklist.py
+
+      - name: Apply labels
+        if: steps.check.outputs.labels_add != '' || steps.check.outputs.labels_remove != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.pull_request.number }}
+          ADD: ${{ steps.check.outputs.labels_add }}
+          REMOVE: ${{ steps.check.outputs.labels_remove }}
+          SPECS: ${{ steps.check.outputs.label_specs }}
+        run: |
+          # Create (or update) the labels first, so adding them can't fail on a fresh repository.
+          IFS=$'\t' read -ra specs <<< "$SPECS"
+          for spec in "${specs[@]}"; do
+            IFS='|' read -r name colour description <<< "$spec"
+            gh label create "$name" --color "$colour" --description "$description" --force
+          done
+          args=()
+          if [ -n "$ADD" ]; then args+=(--add-label "$ADD"); fi
+          if [ -n "$REMOVE" ]; then args+=(--remove-label "$REMOVE"); fi
+          gh pr edit "$NUMBER" "${args[@]}"
+
+      - name: Result
+        env:
+          SKIP: ${{ steps.check.outputs.skip }}
+          ERRORS: ${{ steps.check.outputs.errors }}
+        run: |
+          if [ -z "$ERRORS" ] && [ "$SKIP" = "true" ]; then
+            echo "Bot, release or hotfix pull request: no checklist needed."
+            exit 0
+          fi
+          if [ -z "$ERRORS" ]; then
+            echo "Checklist complete."
+            exit 0
+          fi
+          IFS='|' read -ra problems <<< "$ERRORS"
+          for problem in "${problems[@]}"; do echo "::error::$(printf '%s' "$problem" | sed 's/^ *//; s/ *$//')"; done
+          echo "The check runs again when you edit the pull request description."
+          exit 1
