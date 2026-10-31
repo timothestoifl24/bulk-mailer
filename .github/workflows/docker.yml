@@ -215,10 +215,11 @@ jobs:
           docker buildx imagetools inspect "$first"
           echo "digest=$(docker buildx imagetools inspect "$first" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
 
-      - name: Delete the image this build replaces
+      - name: Clean up the image this build replaces
         # Here rather than in a later job, and also when the run is cancelled (a newer push or
-        # closing the pull request): otherwise the old image would be left behind once the tag
-        # has moved. An image that still carries the pull request tag is kept.
+        # closing the pull request). Deletes any tags left on the old image (attestations); an
+        # image that still carries the pull request tag is kept. The old image itself is untagged
+        # by now, which Docker Hub can't delete through its API: pr_image.py reports it.
         if: always() && needs.version.outputs.channel == 'pr' && steps.previous.outputs.digest != ''
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}

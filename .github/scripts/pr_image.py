@@ -1,13 +1,16 @@
 """Manage the container image of a pull request into develop (tag develop-pr-N).
 
-  replace           after a push: delete the image the tag pointed to before (OLD_DIGEST), unless
-                    the tag still points to it or it carries another tag,
+  replace           after a push: delete the tags left on the image the tag pointed to before
+                    (OLD_DIGEST), unless the tag still points to it or it carries another tag,
   delete            after the pull request is merged or closed: delete the develop-pr-N image,
   comment           create or update the pull request comment that explains how to pull the image,
   comment --deleted update that comment once the image is gone.
 
 Images go with their attestation tags (see dockerhub.py). An image that carries a tag other than
-develop-pr-N or an attestation tag is never deleted.
+develop-pr-N or an attestation tag is never deleted. Once develop-pr-N has moved to a newer build,
+the previous image usually has no tag left at all: Docker Hub has no API to delete an untagged
+image, so `replace` reports it and it stays until it is removed in the Docker Hub web interface
+(Image Management), like every image these scripts delete.
 
 Reads GH_TOKEN, REPOSITORY (owner/name), DOCKERHUB_NAMESPACE, DOCKERHUB_REPOSITORY, PR_NUMBER,
 and depending on the command DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, IMAGE, DIGEST, OLD_DIGEST, SHA,
@@ -58,6 +61,14 @@ def delete(env: dict[str, str], dry_run: bool, *, tag: str = "", digest: str = "
 
     with_attestations(doomed, images)
     entries = delete_images(namespace, repository, doomed, token, dry_run)
+    if digest and digest not in images:
+        # The usual case for `replace`: moving develop-pr-N to the new build took the old image's
+        # only tag, and an untagged image can't be deleted through the API.
+        print(
+            f"::notice::The previous image {digest[:19]} has no tags left. Docker Hub has no API to "
+            "delete untagged images; remove it in Image Management on hub.docker.com."
+        )
+        entries.append(f"- `{digest[:19]}` untagged; remove it in Docker Hub's Image Management")
     report(f"{'Would delete' if dry_run else 'Deleted'} {len(doomed)} images", entries)
 
 
@@ -92,8 +103,8 @@ def comment_body(env: dict[str, str], deleted: bool) -> str:
             f"Built from {env.get('SHA', '')[:7]} as version `{env.get('VERSION', '')}`."
             + (f" To pin exactly this build, use `{pinned}`." if pinned else ""),
             "",
-            "The image is rebuilt on every push to this pull request (the previous one is deleted) and"
-            " deleted when the pull request is merged or closed.",
+            "The image is rebuilt on every push to this pull request (the tag moves to the new build)"
+            " and its tag is deleted when the pull request is merged or closed.",
         ]
     )
 

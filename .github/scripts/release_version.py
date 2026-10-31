@@ -8,8 +8,9 @@
 - pull requests into develop from this repository: version X.Y.Z-pr.N with the single image tag
   develop-pr-N, replaced on every push and deleted once the pull request is merged or closed
   (see pr_image.py). No git tag or release.
-- anything else (pull requests from forks, by Dependabot or into main, other branches): build and
-  test only.
+- pull requests into main: build and test only, but with the same release checks as main itself,
+  so a release missing its dated changelog section fails before the merge rather than after it.
+- anything else (pull requests from forks or by Dependabot, other branches): build and test only.
 
 Reads GITHUB_EVENT_NAME, GITHUB_REF, GITHUB_SHA, IMAGE, and for pull requests GITHUB_BASE_REF,
 GITHUB_REPOSITORY, GITHUB_ACTOR, PR_NUMBER and HEAD_REPO; writes key=value pairs to
@@ -89,6 +90,15 @@ def main() -> None:
         result.update(
             channel="beta", publish="true", version=beta, tag=f"v{beta}", image_tags=[beta, "beta", f"sha-{sha}"]
         )
+
+    elif event == "pull_request" and os.environ.get("GITHUB_BASE_REF") == "main":
+        tag = f"v{version}"
+        if tag in existing:
+            print(f"::notice::{tag} is already released; merging this publishes nothing.")
+        elif message := changelog.problem(version, released=True):
+            fail(message)
+        else:
+            print(f"::notice::Merging this releases {tag}.")
 
     elif (
         event == "pull_request"

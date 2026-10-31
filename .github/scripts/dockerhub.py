@@ -103,7 +103,11 @@ def with_attestations(doomed: dict[str, list[str]], images: dict[str, list[str]]
 def delete_images(
     namespace: str, repository: str, doomed: dict[str, list[str]], token: str, dry_run: bool
 ) -> list[str]:
-    """Delete every tag of the doomed images. Returns one Markdown list entry per image."""
+    """Delete every tag of the doomed images. Returns one Markdown list entry per image.
+
+    Each tag is looked up again right before it is deleted and skipped if it has moved on: another
+    run may have pointed a shared tag such as "beta" at a newer image since the listing was made.
+    """
     entries = []
     for digest, names in sorted(doomed.items(), key=lambda item: sorted(item[1])):
         entries.append(f"- `{digest[:19]}` {', '.join(sorted(names))}")
@@ -112,6 +116,10 @@ def delete_images(
         for name in names:
             url = f"{HUB}/repositories/{namespace}/{repository}/tags/{urllib.parse.quote(name)}/"
             try:
+                current = request(url, token, accept="application/json")[0] or {}
+                if current.get("digest") != digest:
+                    print(f"::notice::Keeping tag {name}: it now points to {str(current.get('digest'))[:19]}.")
+                    continue
                 request(url, token, method="DELETE", accept="application/json")
             except urllib.error.HTTPError as error:
                 if error.code == 404:  # already gone
