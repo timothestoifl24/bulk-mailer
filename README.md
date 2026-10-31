@@ -268,11 +268,8 @@ Notes on the published image:
   `runAsNonRoot` can verify it.
 - Built for `linux/amd64` and `linux/arm64` (Apple Silicon, ARM cloud
   instances) from 1.5.1 on; earlier releases are `amd64` only.
-- Published from [GitHub Container Registry](https://github.com/timothestoifl24/bulk-mailer/pkgs/container/bulk-mailer)
-  on every tagged release (`.github/workflows/docker-publish.yml`). If
-  `docker pull` reports the image doesn't exist or access is denied right
-  after a release, the package is likely still set to private from its first
-  publish — a one-time GitHub quirk, not a broken build.
+- Published to [Docker Hub](https://hub.docker.com/r/timothestoifl24/bulk-mailer)
+  on every tagged release (`.github/workflows/docker-publish.yml`).
 
 Building it yourself instead of pulling from the registry:
 

@@ -30,8 +30,12 @@ non-prerelease.
 Images used to be published as `ghcr.io/timothestoifl24/bulk-mailer`. New
 releases go only to `docker.io/timothestoifl24/bulk-mailer` — every earlier
 tag was copied there too — so change the `image:` line in your
-`compose.yaml` (or `images[].name` in `kustomization.yaml`) once, or
-`pull` keeps fetching the last GHCR release.
+`compose.yaml` once, or `pull` keeps fetching the last GHCR release.
+
+On Kubernetes, change the image name in **both** `base/deployment.yaml` and
+`images[].name` in `base/kustomization.yaml`. Kustomize only applies
+`newTag` to an image whose name matches, so changing just one leaves the
+deployment on the untagged GHCR image.
 :::
 
 ## What happens to your database
