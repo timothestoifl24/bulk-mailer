@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
+{% from "_ui.html" import empty_state %}
 {% block title %}Templates - Bulk Mailer{% endblock %}
 
 {% block page_header %}
@@ -7,11 +8,11 @@
   <div class="container-xl">
     <div class="row g-2 align-items-center">
       <div class="col">
-        <div class="page-pretitle">Reusable subject and body</div>
-        <h2 class="page-title">Email templates</h2>
+        <div class="page-pretitle">Write a message once, reuse it in any campaign</div>
+        <h2 class="page-title"><span class="page-title-icon">{{ icon('file') }}</span> Email templates</h2>
       </div>
       <div class="col-auto ms-auto d-print-none">
-        <a class="btn btn-primary" href="/templates/new">{{ icon('plus', 20) }} New template</a>
+        <a class="btn btn-primary" href="/templates/new">{{ icon('plus') }} New template</a>
       </div>
     </div>
   </div>
@@ -27,12 +28,13 @@
       <tbody>
       {% for item in templates_list %}
         <tr>
-          <td><a href="/templates/{{ item.id }}">{{ item.name }}</a></td>
+          <td><a class="fw-semibold" href="/templates/{{ item.id }}">{{ icon('file', cls='text-secondary me-1') }}{{ item.name }}</a></td>
           <td class="cell-truncate text-secondary">{{ item.subject }}</td>
           <td class="mono text-secondary">{{ item.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
-          <td class="text-end">
-            <a class="btn btn-sm btn-primary" href="/campaigns/new?template_id={{ item.id }}">
-              Use in campaign
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-ghost-secondary" href="/templates/{{ item.id }}">{{ icon('pen') }} Edit</a>
+            <a class="btn btn-sm btn-outline-primary" href="/campaigns/new?template_id={{ item.id }}">
+              {{ icon('send') }} Use in a campaign
             </a>
           </td>
         </tr>
@@ -42,15 +44,7 @@
   </div>
   {% else %}
     <div class="card-body">
-      <div class="empty">
-        <p class="empty-title">No templates yet</p>
-        <p class="empty-subtitle text-secondary">
-          Write the message once, reuse it for every campaign.
-        </p>
-        <div class="empty-action">
-          <a href="/templates/new" class="btn btn-primary">{{ icon('plus', 20) }} New template</a>
-        </div>
-      </div>
+      {{ empty_state('file', 'Write your first template', 'Save a message you send often, then start any campaign from it in one click.', '/templates/new', 'New template') }}
     </div>
   {% endif %}
 </div>

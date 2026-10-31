@@ -33,7 +33,7 @@ export default defineConfig({
 
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: `${base}media/brand/logo.svg` }],
-    ["meta", { name: "theme-color", content: "#206bc4" }],
+    ["meta", { name: "theme-color", content: "#4F46E5" }],
     ["meta", { property: "og:type", content: "website" }],
     ["meta", { property: "og:site_name", content: "Bulk Mailer" }],
     ["meta", { property: "og:image", content: `${site}/media/brand/social-preview.png` }],

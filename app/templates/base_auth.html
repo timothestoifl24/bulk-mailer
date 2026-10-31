@@ -4,8 +4,8 @@
   {% include "_head.html" %}
   <title>{% block title %}Bulk Mailer{% endblock %}</title>
 </head>
-<body class="d-flex flex-column bg-surface-secondary">
-{% from "_icons.html" import icon %}
+<body class="d-flex flex-column auth-page">
+{% from "_icons.html" import icon, brand_mark %}
 {# Not .page-center, which centres by justify-content: the footer's own
    margin-top:auto would swallow the free space that centring depends on and
    drag the card to the top. Growing a wrapper instead keeps the two
@@ -15,11 +15,13 @@
   <div class="flex-fill d-flex align-items-center">
     <div class="container container-tight py-4">
       <div class="text-center mb-4">
-        <span class="text-primary">{{ icon('mail', 40) }}</span>
-        <div class="h1 mt-2">Bulk Mailer</div>
+        {{ brand_mark(64) }}
+        <div class="auth-brand mt-2">Bulk Mailer</div>
       </div>
       {% for flash in flashes %}
-        <div class="alert alert-{{ flash_classes.get(flash.category, 'info') }}" role="alert">{{ flash.message }}</div>
+        <div class="alert alert-{{ flash_classes.get(flash.category, 'info') }}" role="alert">
+          <div class="d-flex"><span class="alert-icon">{{ icon('info') }}</span><div>{{ flash.message }}</div></div>
+        </div>
       {% endfor %}
       {% block content %}{% endblock %}
     </div>

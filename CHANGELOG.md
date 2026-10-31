@@ -25,6 +25,32 @@ pages no longer exist.
 - Development documentation for the upcoming release at
   [bulkmailer.stoifl.app/dev](https://bulkmailer.stoifl.app/dev/), next to the
   docs for the current release.
+- A new look for 2.0: a grouped sidebar (Audience, Content, Admin), the Inter
+  typeface, Font Awesome icons throughout, and an indigo colour scheme in both
+  light and dark mode. Fonts and icons ship with the app, so it still works on
+  a network with no internet access.
+- A new logo, used for the favicon, the home-screen icon and the header.
+- A "Getting started" checklist on the dashboard that ticks itself off as you
+  connect a mail server, add recipients, create a list, write a template and
+  send your first campaign.
+- A progress tracker on every campaign: write the message, choose who gets it,
+  preview and test, send, done.
+- Small (?) tips next to settings that are easy to get wrong (SMTP, LDAP,
+  sending speed, placeholders), with links to the guide.
+
+### Changed
+- Confirmations before sending, stopping or deleting now open a clear dialog
+  that says who is affected, instead of the browser's plain pop-up. A dry run
+  goes ahead without asking, since it sends nothing.
+- Friendlier wording across the app: page headings, empty pages, buttons and
+  most messages now say what happened and what to do next.
+- Statuses show an icon as well as a colour, so they can be told apart at a
+  glance and without relying on colour.
+
+### Fixed
+- After an upgrade, browsers no longer keep running the previous version's
+  stylesheet and scripts from cache.
+- `/favicon.ico` now serves the app's icon instead of a 404.
 
 ## [v1.5.1] - 2026-09-28
 

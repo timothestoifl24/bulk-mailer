@@ -1,57 +1,89 @@
 {#
-  Small inline icon set (24x24, 2px stroke) so the app needs no icon webfont
-  and keeps working on an isolated network.
+  Icons come from Font Awesome Free, vendored under static/vendor/fontawesome
+  so the app keeps working on an isolated network. Templates ask for an icon
+  by what it means ('send', 'campaign'), not by Font Awesome's name, so a
+  different glyph is a one-line change here.
+
+  brand_mark() is the logo itself, inlined rather than an <img> so it is
+  crisp at any size and needs no extra request. Same geometry as
+  static/brand/logo.svg.
 #}
-{% macro icon(name, size=24) -%}
-<svg xmlns="http://www.w3.org/2000/svg" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24"
-     fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-     stroke-linejoin="round" aria-hidden="true">
-{%- if name == 'home' %}
-  <polyline points="5 12 12 5 19 12"/><path d="M6 11v8a1 1 0 0 0 1 1h10a1 1 0 0 0 1 -1v-8"/><path d="M10 20v-5h4v5"/>
-{%- elif name == 'users' %}
-  <circle cx="9" cy="8" r="3"/><path d="M4 20v-1a5 5 0 0 1 10 0v1"/><path d="M16 5.5a3 3 0 0 1 0 5.4"/><path d="M17 20v-1a5 5 0 0 0 -1.5 -3.5"/>
-{%- elif name == 'list' %}
-  <line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/>
-  <circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/>
-{%- elif name == 'server' %}
-  <rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/>
-  <line x1="7" y1="7" x2="7.01" y2="7"/><line x1="7" y1="17" x2="7.01" y2="17"/>
-{%- elif name == 'file' %}
-  <path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"/>
-  <line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>
-{%- elif name == 'send' %}
-  <line x1="10" y1="14" x2="21" y2="3"/><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5"/>
-{%- elif name == 'settings' %}
-  <line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>
-  <circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="8" cy="18" r="2"/>
-{%- elif name == 'mail' %}
-  <rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/>
-{%- elif name == 'sun' %}
-  <circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4"/>
-{%- elif name == 'moon' %}
-  <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z"/>
-{%- elif name == 'user' %}
-  <circle cx="12" cy="8" r="3"/><path d="M5 20v-1a7 7 0 0 1 14 0v1"/>
-{%- elif name == 'shield' %}
-  <path d="M12 3l7 3v5c0 4.5 -3 8 -7 10c-4 -2 -7 -5.5 -7 -10v-5z"/>
-{%- elif name == 'key' %}
-  <circle cx="8" cy="12" r="4"/><line x1="12" y1="12" x2="21" y2="12"/><line x1="18" y1="12" x2="18" y2="15"/><line x1="21" y1="12" x2="21" y2="16"/>
-{%- elif name == 'check' %}
-  <polyline points="5 12 10 17 19 8"/>
-{%- elif name == 'alert' %}
-  <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-{%- elif name == 'search' %}
-  <circle cx="10" cy="10" r="7"/><line x1="21" y1="21" x2="15" y2="15"/>
-{%- elif name == 'download' %}
-  <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"/><polyline points="7 11 12 16 17 11"/><line x1="12" y1="4" x2="12" y2="16"/>
-{%- elif name == 'plus' %}
-  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-{%- elif name == 'eye' %}
-  <circle cx="12" cy="12" r="2"/><path d="M22 12c-2.667 4.667 -6 7 -10 7s-7.333 -2.333 -10 -7c2.667 -4.667 6 -7 10 -7s7.333 2.333 10 7"/>
-{%- elif name == 'refresh' %}
-  <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4"/>
-{%- elif name == 'brand-github' %}
-  <path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5"/>
-{%- endif %}
+{% set _fa = {
+  'home': 'solid gauge-high',
+  'dashboard': 'solid gauge-high',
+  'users': 'solid address-book',
+  'list': 'solid layer-group',
+  'server': 'solid sitemap',
+  'file': 'solid file-pen',
+  'send': 'solid paper-plane',
+  'campaign': 'solid bullhorn',
+  'settings': 'solid sliders',
+  'shield': 'solid user-shield',
+  'mail': 'solid envelope',
+  'mail-open': 'regular envelope-open',
+  'mail-check': 'solid envelope-circle-check',
+  'sun': 'regular sun',
+  'moon': 'regular moon',
+  'user': 'solid user',
+  'user-slash': 'solid user-slash',
+  'user-plus': 'solid user-plus',
+  'key': 'solid key',
+  'lock': 'solid lock',
+  'check': 'solid check',
+  'check-circle': 'solid circle-check',
+  'circle': 'regular circle',
+  'alert': 'solid triangle-exclamation',
+  'error': 'solid circle-exclamation',
+  'info': 'solid circle-info',
+  'help': 'regular circle-question',
+  'x-circle': 'solid circle-xmark',
+  'search': 'solid magnifying-glass',
+  'download': 'solid download',
+  'upload': 'solid upload',
+  'file-csv': 'solid file-csv',
+  'plus': 'solid plus',
+  'eye': 'solid eye',
+  'pen': 'solid pen',
+  'trash': 'solid trash-can',
+  'refresh': 'solid rotate',
+  'flask': 'solid flask',
+  'pause': 'solid pause',
+  'play': 'solid play',
+  'ban': 'solid ban',
+  'clock': 'regular clock',
+  'history': 'solid clock-rotate-left',
+  'hourglass': 'solid hourglass-half',
+  'forward': 'solid forward',
+  'spinner': 'solid spinner fa-spin-pulse',
+  'flag': 'solid flag-checkered',
+  'arrow-right': 'solid arrow-right',
+  'arrow-left': 'solid arrow-left',
+  'sign-out': 'solid right-from-bracket',
+  'sign-in': 'solid right-to-bracket',
+  'filter': 'solid filter',
+  'sync': 'solid arrows-rotate',
+  'plug': 'solid plug',
+  'at': 'solid at',
+  'code': 'solid code',
+  'compass': 'regular compass',
+  'book': 'solid book-open',
+  'rocket': 'solid rocket',
+  'brand-github': 'brands github',
+} %}
+
+{% macro icon(name, size=None, cls='') -%}
+{%- set parts = (_fa.get(name) or 'solid circle-question').split(' ', 1) -%}
+<i class="fa-{{ parts[0] }} fa-{{ parts[1] }} fa-fw{{ ' ' ~ cls if cls }}"{% if size %} style="font-size:{{ (size * 0.8) | round(1) }}px"{% endif %} aria-hidden="true"></i>
+{%- endmacro %}
+
+{% macro brand_mark(size=28) -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="{{ size }}" height="{{ size }}" viewBox="0 0 96 96" aria-hidden="true" class="brand-mark">
+  <rect y="5" width="96" height="91" rx="24" fill="#3730A3"/>
+  <rect width="96" height="90" rx="24" fill="#4F46E5"/>
+  <polygon points="86,28 24,56 50,64 58,86" fill="#3730A3" opacity=".6"/>
+  <path d="M12 64h12M8 74h16M16 84h8" stroke="#A5B4FC" stroke-width="5" stroke-linecap="round"/>
+  <polygon points="80,18 16,46 44,54" fill="#FFFFFF"/>
+  <polygon points="80,18 44,54 54,78" fill="#C7D2FE"/>
+  <polygon points="44,54 38,70 54,78" fill="#818CF8"/>
 </svg>
 {%- endmacro %}

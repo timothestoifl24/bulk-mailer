@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Account - Bulk Mailer{% endblock %}
 
 {% block page_header %}
@@ -6,11 +7,11 @@
   <div class="container-xl">
     <div class="row g-2 align-items-center">
       <div class="col">
-        <div class="page-pretitle">Signed in as {{ user.username }}</div>
+        <div class="page-pretitle">Your account &middot; signed in as {{ user.username }}</div>
         <h2 class="page-title">
           {{ user.name }}
-          {% if user.auth_source == 'ldap' %}<span class="badge bg-blue-lt ms-2">LDAP</span>{% endif %}
-          {% if user.is_admin %}<span class="badge bg-purple-lt ms-1">admin</span>{% endif %}
+          {% if user.auth_source == 'ldap' %}<span class="badge bg-blue-lt ms-2">{{ icon('server') }} LDAP</span>{% endif %}
+          {% if user.is_admin %}<span class="badge bg-purple-lt ms-1">{{ icon('shield') }} admin</span>{% endif %}
         </h2>
       </div>
     </div>
@@ -23,7 +24,7 @@
   <div class="col-md-6 col-lg-5">
     {% if user.auth_source == 'ldap' %}
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Directory account</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('server') }} Directory account</h3></div>
       <div class="card-body">
         <p class="text-secondary">
           You sign in with your directory credentials, so there is no password stored here.
@@ -51,7 +52,7 @@
     </div>
     {% else %}
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Change password</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('key') }} Change password</h3></div>
       <div class="card-body">
         <form method="post" action="/account/password">
           <div class="mb-3">
@@ -70,7 +71,7 @@
             <input type="password" class="form-control" id="confirm_password"
                    name="confirm_password" autocomplete="new-password" required>
           </div>
-          <button class="btn btn-primary" type="submit">Update password</button>
+          <button class="btn btn-primary" type="submit">{{ icon('check') }} Update password</button>
         </form>
       </div>
     </div>

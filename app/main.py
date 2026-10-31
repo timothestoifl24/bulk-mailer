@@ -18,7 +18,15 @@ from . import __version__
 from .config import settings
 from .db import IS_SQLITE, Base, engine, get_db, session_scope, startup_lock
 from .migrations import add_missing_columns
-from .models import Campaign, CampaignRecipient, LdapProfile, Recipient, RecipientList, User
+from .models import (
+    Campaign,
+    CampaignRecipient,
+    LdapProfile,
+    EmailTemplate,
+    Recipient,
+    RecipientList,
+    User,
+)
 from .routers import (
     auth,
     campaigns,
@@ -199,8 +207,23 @@ def dashboard(request: Request, user: User = Depends(require_user), db: Session 
             "recent": recent,
             "stats": {campaign.id: counts_by_status(db, campaign.id) for campaign in recent},
             "smtp_ready": bool(smtp.host and smtp.from_email),
+            # Setup checklist: each step ticks itself off from what already exists.
+            "template_count": db.scalar(select(func.count()).select_from(EmailTemplate)) or 0,
+            "has_completed_campaign": db.scalar(
+                select(func.count())
+                .select_from(Campaign)
+                .where(Campaign.status == "completed", Campaign.dry_run.is_(False))
+            )
+            > 0,
         },
     )
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    # Browsers and feed readers ask for this path on their own, ignoring the
+    # <link rel="icon"> tags; point them at the real icon instead of a 404.
+    return redirect("/static/brand/favicon-32.png", status_code=301)
 
 
 @app.get("/healthz", include_in_schema=False)

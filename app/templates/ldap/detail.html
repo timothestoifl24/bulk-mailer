@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
+{% from "_ui.html" import confirm %}
 {% block title %}{{ profile.name }} - LDAP{% endblock %}
 
 {% block page_header %}
@@ -10,14 +11,14 @@
         <div class="page-pretitle mono">
           {{ profile.host }}:{{ profile.port }}{% if profile.use_ssl %} (LDAPS){% elif profile.start_tls %} (StartTLS){% endif %}
         </div>
-        <h2 class="page-title">{{ profile.name }}</h2>
+        <h2 class="page-title"><span class="page-title-icon">{{ icon('server') }}</span> {{ profile.name }}</h2>
       </div>
       <div class="col-auto ms-auto d-print-none">
         <div class="btn-list">
           <form method="post" action="/ldap/{{ profile.id }}/test">
-            <button class="btn" type="submit">{{ icon('check', 20) }} Test connection</button>
+            <button class="btn" type="submit">{{ icon('plug') }} Test connection</button>
           </form>
-          <a class="btn" href="/ldap">All profiles</a>
+          <a class="btn btn-ghost-secondary" href="/ldap">{{ icon('arrow-left') }} All profiles</a>
         </div>
       </div>
     </div>
@@ -27,7 +28,7 @@
 
 {% block content %}
 <div class="card mb-3">
-  <div class="card-header"><h3 class="card-title">Search the directory</h3></div>
+  <div class="card-header"><h3 class="card-title">{{ icon('search') }} Search the directory</h3></div>
   <div class="card-body">
     <form method="post" action="/ldap/{{ profile.id }}/search">
       <div class="mb-3">
@@ -91,7 +92,7 @@
       </div>
       {% endif %}
 
-      <button class="btn btn-primary" type="submit">{{ icon('search', 20) }} Search</button>
+      <button class="btn btn-primary" type="submit">{{ icon('search') }} Search</button>
     </form>
   </div>
 </div>
@@ -99,9 +100,9 @@
 {% if results is not none %}
 <div class="card mb-3">
   <div class="card-header">
-    <h3 class="card-title">Results</h3>
+    <h3 class="card-title">{{ icon('users') }} Results</h3>
     <div class="card-actions">
-      <span class="badge bg-blue-lt">{{ result_count }} mailbox(es)</span>
+      <span class="badge bg-primary-lt">{{ "{:,}".format(result_count) }} {{ "person" if result_count == 1 else "people" }} found</span>
       {% if result_count > preview_limit %}
         <span class="text-secondary ms-2">showing the first {{ preview_limit }}</span>
       {% endif %}
@@ -140,7 +141,7 @@
           </select>
         </div>
         <div class="col-md-4">
-          <label class="form-label" for="new_list_name">...or a new list</label>
+          <label class="form-label" for="new_list_name">Or create a new list</label>
           <input type="text" class="form-control" id="new_list_name" name="new_list_name"
                  placeholder="e.g. AD - All staff">
         </div>
@@ -151,7 +152,7 @@
           </label>
         </div>
         <div class="col-md-2">
-          <button class="btn btn-primary w-100" type="submit">Import all {{ result_count }}</button>
+          <button class="btn btn-primary w-100" type="submit">{{ icon('download') }} Import all {{ "{:,}".format(result_count) }}</button>
         </div>
       </div>
       <div class="row g-2 mt-1">
@@ -180,7 +181,7 @@
 {% endif %}
 
 <div class="card">
-  <div class="card-header"><h3 class="card-title">Profile settings</h3></div>
+  <div class="card-header"><h3 class="card-title">{{ icon('settings') }} Profile settings</h3></div>
   <div class="card-body">
     <form method="post" action="/ldap/{{ profile.id }}">
       <div class="row g-2">
@@ -243,13 +244,13 @@
         <label class="form-label" for="attr_map">Attribute mapping (JSON)</label>
         <textarea class="form-control code" id="attr_map" name="attr_map" rows="9">{{ attr_map_json }}</textarea>
       </div>
-      <button class="btn btn-primary" type="submit">Save profile</button>
+      <button class="btn btn-primary" type="submit">{{ icon('check') }} Save profile</button>
     </form>
   </div>
   <div class="card-footer">
     <form method="post" action="/ldap/{{ profile.id }}/delete"
-          onsubmit="return confirm('Delete the profile {{ profile.name }}?')">
-      <button class="btn btn-ghost-danger btn-sm" type="submit">Delete profile</button>
+          {{ confirm('Delete the profile ' ~ profile.name ~ '?', 'People already imported from it stay in your recipients.', 'Delete profile') }}>
+      <button class="btn btn-ghost-danger btn-sm" type="submit">{{ icon('trash') }} Delete profile</button>
     </form>
   </div>
 </div>

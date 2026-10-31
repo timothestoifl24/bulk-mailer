@@ -1,9 +1,11 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="" width="96" height="96">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-wordmark-dark.svg">
+    <img src="assets/logo-wordmark.svg" alt="Bulk Mailer" width="300" height="72">
+  </picture>
 </p>
 
 <p align="center">
-  <b>Bulk Mailer</b><br>
   Send one message to many recipients — typed in, pasted, uploaded as CSV, or pulled straight from LDAP / Active Directory.
 </p>
 
@@ -12,19 +14,19 @@
     <img alt="Container image" src="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker.yml/badge.svg?branch=main">
   </a>
   <a href="https://hub.docker.com/r/timothestoifl24/bulk-mailer">
-    <img alt="Docker Hub" src="https://img.shields.io/docker/v/timothestoifl24/bulk-mailer?label=docker%20hub&sort=semver">
+    <img alt="Docker Hub" src="https://img.shields.io/docker/v/timothestoifl24/bulk-mailer?label=docker%20hub&sort=semver&color=4F46E5">
   </a>
   <a href="https://github.com/timothestoifl24/bulk-mailer/releases">
-    <img alt="Latest release" src="https://img.shields.io/github/v/release/timothestoifl24/bulk-mailer">
+    <img alt="Latest release" src="https://img.shields.io/github/v/release/timothestoifl24/bulk-mailer?color=4F46E5">
   </a>
   <a href="LICENSE">
-    <img alt="License" src="https://img.shields.io/github/license/timothestoifl24/bulk-mailer">
+    <img alt="License" src="https://img.shields.io/github/license/timothestoifl24/bulk-mailer?color=4F46E5">
   </a>
-  <img alt="Python 3.13" src="https://img.shields.io/badge/python-3.13-blue">
+  <img alt="Python 3.13" src="https://img.shields.io/badge/python-3.13-4F46E5">
 </p>
 
 <p align="center">
-  <b><a href="https://bulkmailer.stoifl.app">📖 Documentation — bulkmailer.stoifl.app</a></b><br>
+  <b><a href="https://bulkmailer.stoifl.app">Documentation: bulkmailer.stoifl.app</a></b><br>
   <sub>
     <a href="https://bulkmailer.stoifl.app/guide/">Guide</a> ·
     <a href="https://bulkmailer.stoifl.app/screenshots/">Screenshots</a> ·

@@ -78,15 +78,15 @@ def change_password(
             "error",
         )
     elif not verify_password(current_password, user.password_hash):
-        flash(request, "The current password is not correct.", "error")
+        flash(request, "Your current password isn't right. Try again.", "error")
     elif len(new_password) < 8:
         flash(request, "The new password must be at least 8 characters.", "error")
     elif new_password != confirm_password:
-        flash(request, "The new passwords do not match.", "error")
+        flash(request, "The two new passwords don't match. Type them again.", "error")
     else:
         db_user = db.get(User, user.id)
         assert db_user is not None
         db_user.password_hash = hash_password(new_password)
         db.commit()
-        flash(request, "Password updated.", "success")
+        flash(request, "Password changed. Use it next time you sign in.", "success")
     return redirect("/account")

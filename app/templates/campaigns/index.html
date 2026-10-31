@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
+{% from "_ui.html" import status_badge, empty_state %}
 {% block title %}Campaigns - Bulk Mailer{% endblock %}
 
 {% block page_header %}
@@ -7,11 +8,11 @@
   <div class="container-xl">
     <div class="row g-2 align-items-center">
       <div class="col">
-        <div class="page-pretitle">Every send, past and pending</div>
-        <h2 class="page-title">Campaigns</h2>
+        <div class="page-pretitle">Every message you have sent or are about to send</div>
+        <h2 class="page-title"><span class="page-title-icon">{{ icon('campaign') }}</span> Campaigns</h2>
       </div>
       <div class="col-auto ms-auto d-print-none">
-        <a class="btn btn-primary" href="/campaigns/new">{{ icon('plus', 20) }} New campaign</a>
+        <a class="btn btn-primary" href="/campaigns/new">{{ icon('plus') }} New campaign</a>
       </div>
     </div>
   </div>
@@ -34,20 +35,23 @@
       {% for campaign in campaigns %}
         {% set count = stats[campaign.id] %}
         <tr>
-          <td>
-            <a href="/campaigns/{{ campaign.id }}">{{ campaign.name }}</a>
-            {% if campaign.dry_run %}<span class="badge bg-yellow-lt ms-1">dry run</span>{% endif %}
+          {% set settled = count.sent + count.failed + count.skipped %}
+          <td style="min-width:12rem">
+            <a class="fw-semibold" href="/campaigns/{{ campaign.id }}">{{ campaign.name }}</a>
+            {% if campaign.dry_run %}<span class="status-pill status-yellow ms-1">{{ icon('flask') }} dry run</span>{% endif %}
+            {% if count.total %}
+            <div class="progress progress-thin mt-2">
+              <div class="progress-bar {{ 'bg-red' if count.failed else ('bg-green' if campaign.status == 'completed' else '') }}"
+                   style="width: {{ (100 * settled / count.total) | round(1) }}%"></div>
+            </div>
+            {% endif %}
           </td>
-          <td>
-            <span class="badge bg-{{ status_colors.get(campaign.status, 'secondary') }}-lt">
-              {{ campaign.status }}
-            </span>
-          </td>
+          <td>{{ status_badge(campaign.status) }}</td>
           <td class="cell-truncate text-secondary">{{ campaign.subject }}</td>
           <td class="text-end mono">{{ count.total }}</td>
           <td class="text-end mono">{{ count.sent }}</td>
           <td class="text-end mono">
-            {% if count.failed %}<span class="badge bg-red-lt">{{ count.failed }}</span>
+            {% if count.failed %}<span class="status-pill status-red">{{ icon('error') }} {{ count.failed }}</span>
             {% else %}0{% endif %}
           </td>
           <td class="mono text-secondary">{{ campaign.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
@@ -59,15 +63,7 @@
   </div>
   {% else %}
     <div class="card-body">
-      <div class="empty">
-        <p class="empty-title">No campaigns yet</p>
-        <p class="empty-subtitle text-secondary">
-          A campaign is one message sent to a set of recipients.
-        </p>
-        <div class="empty-action">
-          <a href="/campaigns/new" class="btn btn-primary">{{ icon('plus', 20) }} New campaign</a>
-        </div>
-      </div>
+      {{ empty_state('campaign', 'Send your first campaign', 'A campaign is one message sent to a group of people. You can preview and test it before anything goes out.', '/campaigns/new', 'New campaign') }}
     </div>
   {% endif %}
 </div>
