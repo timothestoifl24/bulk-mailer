@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import __version__
-from .config import settings
+from .config import secret_key_is_weak, settings
 from .db import IS_SQLITE, Base, engine, get_db, session_scope, startup_lock
 from .migrations import add_missing_columns
 from .models import (
@@ -29,16 +29,19 @@ from .models import (
 )
 from .routers import (
     auth,
+    auth_providers,
     campaigns,
+    import_wizard,
     ldap,
     mail_templates,
     public,
     recipients,
     settings_router,
+    system,
     users,
 )
 from .security import hash_password, origin_is_trusted, require_admin, require_user
-from .services import ldap_sync, settings_store
+from .services import ldap_auth, ldap_sync, settings_store
 from .services.sender import counts_by_status, start_worker, stop_worker
 from .web import redirect, render
 
@@ -51,17 +54,13 @@ logger = logging.getLogger("mailer")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
-WEAK_SECRETS = ("dev-insecure-secret-key-change-me", "CHANGE-ME", "change-me")
-
-
 def warn_about_weak_secrets() -> None:
     """A placeholder SECRET_KEY lets anyone forge a session cookie.
 
     The container images and compose file ship obvious placeholders so the stack
     starts out of the box; say so loudly rather than let one reach production.
     """
-    key = settings.secret_key
-    if any(marker in key for marker in WEAK_SECRETS) or len(key) < 32:
+    if secret_key_is_weak():
         logger.warning(
             "SECRET_KEY is a placeholder or too short. Session cookies can be forged and "
             "stored SMTP/LDAP passwords are not meaningfully protected. Set a long random "
@@ -107,6 +106,7 @@ def _bootstrap_schema_and_data() -> None:
             if first is not None:
                 first.is_admin = True
                 logger.info("Granted admin rights to the existing account '%s'.", first.username)
+        ldap_auth.migrate_legacy_settings(db)
         # A campaign left mid-flight by a crash goes back to the queue. Only on
         # SQLite, which is always a single instance: with several instances
         # sharing PostgreSQL, "sending" may mean another one is sending it right
@@ -172,12 +172,16 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 app.include_router(auth.router)
 app.include_router(public.router)
+# Before recipients: /recipients/import would otherwise be read as a recipient id.
+app.include_router(import_wizard.router)
 app.include_router(recipients.router)
 app.include_router(mail_templates.router)
 app.include_router(campaigns.router)
 
 # Admin-only: these hold stored credentials, or can lock everyone out.
 app.include_router(ldap.router, dependencies=[Depends(require_admin)])
+app.include_router(auth_providers.router, dependencies=[Depends(require_admin)])
+app.include_router(system.router, dependencies=[Depends(require_admin)])
 app.include_router(settings_router.router, dependencies=[Depends(require_admin)])
 app.include_router(users.router)
 

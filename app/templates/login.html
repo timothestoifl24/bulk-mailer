@@ -1,13 +1,15 @@
 {% extends "base_auth.html" %}
-{% from "_icons.html" import icon %}
+{% from "_icons.html" import icon, provider_icon %}
 {% block title %}Sign in - Bulk Mailer{% endblock %}
 {% block content %}
 <div class="card card-md">
   <div class="card-body">
     <h2 class="h2 text-center mb-1">Sign in</h2>
     <p class="text-secondary text-center mb-4">Sign in to send your next campaign.</p>
+    {% if show_form %}
     <form method="post" action="/login" autocomplete="off">
       <input type="hidden" name="next" value="{{ next }}">
+      {% if request.query_params.get('local') == '1' %}<input type="hidden" name="local" value="1">{% endif %}
       <div class="mb-3">
         <label class="form-label" for="username">
           {{ 'Username or directory account' if ldap_enabled else 'Username' }}
@@ -15,7 +17,7 @@
         <div class="input-icon">
           <span class="input-icon-addon">{{ icon('user') }}</span>
           <input type="text" class="form-control" id="username" name="username"
-                 autocomplete="username" autofocus required>
+                 autocomplete="username" {{ 'autofocus' if not providers }} required>
         </div>
       </div>
       <div class="mb-2">
@@ -30,8 +32,20 @@
         <button type="submit" class="btn btn-primary w-100">{{ icon('sign-in') }} Sign in</button>
       </div>
     </form>
+    {% endif %}
+
+    {% if providers %}
+      {% if show_form %}<div class="hr-text">or</div>{% endif %}
+      <div class="d-grid gap-2">
+        {% for provider in providers %}
+          <a class="btn w-100" href="/auth/oidc/{{ provider.id }}/login{{ '?next=' ~ (next | urlencode) if next }}">
+            {{ provider_icon(provider) }} {{ provider.label }}
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
   </div>
-  {% if ldap_enabled %}
+  {% if show_form and ldap_enabled %}
   <div class="card-footer text-center text-secondary">
     {{ icon('server') }} Use your directory account, or a local account if you have one.
   </div>

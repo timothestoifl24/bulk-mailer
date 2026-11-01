@@ -1,0 +1,245 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_header, confirm, help %}
+{% set p = provider %}
+{% block title %}{{ 'New LDAP provider' if is_new else p.name }} - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+{% call page_header('Authentication · LDAP / Active Directory', 'New LDAP provider' if is_new else p.name, 'server') %}
+  <a class="btn" href="/settings/auth">{{ icon('arrow-left') }} All providers</a>
+  {% if not is_new %}
+  <form method="post" action="/settings/auth/ldap/{{ p.id }}/test" class="d-inline">
+    <button class="btn btn-outline-primary" type="submit">{{ icon('plug') }} Test connection</button>
+  </form>
+  {% endif %}
+{% endcall %}
+{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ '/settings/auth/new/ldap' if is_new else '/settings/auth/ldap/' ~ p.id }}" autocomplete="off">
+<div class="row row-cards">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">{{ icon('plug') }} Connection</h3></div>
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-8 mb-3">
+            <label class="form-label required" for="host">Server {{ help("Your domain controller or LDAP server, for example dc01.corp.example.com.") }}</label>
+            <input type="text" class="form-control" id="host" name="host" value="{{ p.host or '' }}"
+                   placeholder="dc01.corp.example.com" required>
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="form-label" for="port">Port</label>
+            <input type="number" class="form-control" id="port" name="port" value="{{ p.port or 389 }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="security">Encryption {{ help("LDAPS or StartTLS keeps passwords off the network in clear text.") }}</label>
+            <select class="form-select" id="security" name="security"
+                    onchange="document.getElementById('port').value = this.value === 'ldaps' ? 636 : 389">
+              <option value="none" {{ 'selected' if not p.use_ssl and not p.start_tls }}>None &mdash; port 389</option>
+              <option value="starttls" {{ 'selected' if p.start_tls }}>StartTLS &mdash; port 389</option>
+              <option value="ldaps" {{ 'selected' if p.use_ssl }}>LDAPS &mdash; port 636</option>
+            </select>
+          </div>
+          <div class="col-md-6 mb-3 d-flex align-items-end">
+            <label class="form-check mb-2">
+              <input type="checkbox" class="form-check-input" name="verify_cert" value="1" {{ 'checked' if p.verify_cert }}>
+              <span class="form-check-label">Verify the TLS certificate</span>
+            </label>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="bind_dn">Service account {{ help("The account used to search the directory. Read-only access is enough.") }}</label>
+            <input type="text" class="form-control mono" id="bind_dn" name="bind_dn" value="{{ p.bind_dn or '' }}"
+                   placeholder="CN=svc-mailer,OU=Service,DC=corp,DC=example,DC=com">
+            <small class="form-hint">Empty for an anonymous bind. <code class="var">user@domain.tld</code> also works on Active Directory.</small>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="bind_password">Service account password</label>
+            <input type="password" class="form-control" id="bind_password" name="bind_password"
+                   autocomplete="new-password" placeholder="{{ 'Stored — leave empty to keep' if p.bind_password_enc else '' }}">
+            <small class="form-hint">{{ icon('lock') }} Stored encrypted with the app SECRET_KEY.</small>
+          </div>
+          <div class="col-md-9 mb-3">
+            <label class="form-label" for="base_dn">Where to search (base DN) {{ help("The part of the directory that holds your users.") }}</label>
+            <input type="text" class="form-control mono" id="base_dn" name="base_dn" value="{{ p.base_dn or '' }}"
+                   placeholder="OU=Users,DC=corp,DC=example,DC=com">
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="form-label" for="page_size">Page size {{ help("Results are fetched in pages of this size. 500 suits most directories.") }}</label>
+            <input type="number" class="form-control" id="page_size" name="page_size" value="{{ p.page_size or 500 }}">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="import">
+      <div class="card-header">
+        <h3 class="card-title">{{ icon('import') }} Recipient import</h3>
+        <div class="card-actions">
+          <label class="form-check form-switch mb-0">
+            <input type="checkbox" class="form-check-input" name="allow_import" value="1" {{ 'checked' if p.allow_import }}>
+            <span class="form-check-label">Use for recipient import</span>
+          </label>
+        </div>
+      </div>
+      <div class="card-body">
+        <p class="text-secondary">
+          When on, everyone who can manage recipients can pick this directory in the
+          <strong>Import</strong> wizard and choose a filter or groups. The server and service
+          account never leave this page.
+        </p>
+        <div class="mb-3">
+          <label class="form-label" for="search_filter">Default search filter {{ help("Which entries count as people. The default finds everyone with an email address.") }}</label>
+          <input type="text" class="form-control mono" id="search_filter" name="search_filter" value="{{ p.search_filter or '' }}">
+          <small class="form-hint">
+            For Active Directory,
+            <span class="mono">(&amp;(objectCategory=person)(objectClass=user)(mail=*)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))</span>
+            leaves out disabled accounts.
+          </small>
+        </div>
+        <div class="mb-0">
+          <label class="form-label" for="attr_map">Field mapping (JSON) {{ help("Which directory attribute fills which recipient field. The defaults suit Active Directory.") }}</label>
+          <textarea class="form-control code" id="attr_map" name="attr_map" rows="9">{{ attr_map_json }}</textarea>
+          <small class="form-hint">
+            Only <code class="var">email</code> is required. Extra keys become template variables;
+            attributes your directory does not define are skipped.
+          </small>
+        </div>
+      </div>
+      {% if synced_lists %}
+      <div class="card-footer">
+        <span class="text-secondary">{{ icon('list') }} Lists imported from here:</span>
+        {% for item in synced_lists %}
+          <a href="/recipients?list_id={{ item.id }}" class="status-pill {{ 'status-blue' if item.sync_enabled }} me-1">
+            {{ icon('sync' if item.sync_enabled else 'list') }} {{ item.name }}
+          </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">{{ icon('settings') }} General</h3></div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label required" for="name">Name</label>
+          <input type="text" class="form-control" id="name" name="name" value="{{ p.name or '' }}" placeholder="Company AD" required>
+          <small class="form-hint">Shown on the Users page and in the import wizard.</small>
+        </div>
+        <label class="form-check form-switch mb-0">
+          <input type="checkbox" class="form-check-input" name="enabled" value="1" {{ 'checked' if p.enabled }}>
+          <span class="form-check-label">Enabled
+            <small class="d-block text-secondary">Off pauses sign-in, import and list sync through it, without losing the settings.</small>
+          </span>
+        </label>
+      </div>
+    </div>
+
+    <div class="card mt-3" id="sign-in">
+      <div class="card-header">
+        <h3 class="card-title">{{ icon('sign-in') }} Sign-in</h3>
+        <div class="card-actions">
+          <label class="form-check form-switch mb-0">
+            <input type="checkbox" class="form-check-input" name="login_enabled" value="1" {{ 'checked' if p.login_enabled }}>
+            <span class="form-check-label">Use for sign-in</span>
+          </label>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="login_bind_mode">How to find the account</label>
+          <select class="form-select" id="login_bind_mode" name="login_bind_mode">
+            <option value="search" {{ 'selected' if p.login_bind_mode != 'template' }}>Search with the service account, then bind as the user (recommended)</option>
+            <option value="template" {{ 'selected' if p.login_bind_mode == 'template' }}>Build the bind name from the username</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="login_attribute">Login attribute {{ help("The directory field people type as their username.") }}</label>
+          <input type="text" class="form-control mono" id="login_attribute" name="login_attribute" value="{{ p.login_attribute or '' }}">
+          <small class="form-hint"><code class="var">sAMAccountName</code> on Active Directory, <code class="var">uid</code> on OpenLDAP.</small>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="login_user_filter">Extra filter</label>
+          <input type="text" class="form-control mono" id="login_user_filter" name="login_user_filter" value="{{ p.login_user_filter or '' }}">
+          <small class="form-hint">Added to the account search, for example to keep disabled accounts out.</small>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="login_bind_template">Bind template (template mode only)</label>
+          <input type="text" class="form-control mono" id="login_bind_template" name="login_bind_template"
+                 value="{{ p.login_bind_template or '' }}" placeholder="{{ '{username}' }}@corp.example.com">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="login_required_group">Only members of this group {{ help("Paste the group's full DN. Leave empty to let any directory account in.") }}</label>
+          <input type="text" class="form-control mono" id="login_required_group" name="login_required_group"
+                 value="{{ p.login_required_group or '' }}" placeholder="CN=Mailer Users,OU=Groups,DC=corp,DC=example,DC=com">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="login_admin_group">Administrator group {{ help("Members of this group become administrators when they sign in.") }}</label>
+          <input type="text" class="form-control mono" id="login_admin_group" name="login_admin_group"
+                 value="{{ p.login_admin_group or '' }}" placeholder="CN=Mailer Admins,OU=Groups,DC=corp,DC=example,DC=com">
+        </div>
+        <label class="form-check mb-3">
+          <input type="checkbox" class="form-check-input" name="login_auto_create" value="1" {{ 'checked' if p.login_auto_create }}>
+          <span class="form-check-label">Create the account on first sign-in
+            <small class="d-block text-secondary">Off means an administrator adds people first.</small>
+          </span>
+        </label>
+        <div class="mb-0">
+          <label class="form-label" for="sort_order">Order {{ help("With several directories, lower numbers are asked first.") }}</label>
+          <input type="number" class="form-control" id="sort_order" name="sort_order" value="{{ p.sort_order or 0 }}" style="max-width:8rem">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex align-items-center gap-2 mt-3">
+  <button class="btn btn-primary" type="submit">{{ icon('check') }} {{ 'Add provider' if is_new else 'Save' }}</button>
+  <a class="btn btn-link link-secondary" href="/settings/auth">Cancel</a>
+</div>
+</form>
+
+{% if not is_new %}
+<div class="row row-cards mt-3">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-body">
+        <h3 class="card-title mb-1">{{ icon('flask') }} Try a sign-in</h3>
+        <p class="text-secondary">
+          Checks the saved sign-in settings against the directory without signing you out.
+          Do this before you rely on it.
+        </p>
+        <form method="post" action="/settings/auth/ldap/{{ p.id }}/try-login" class="row g-2 align-items-end">
+          <div class="col-md-5">
+            <label class="form-label" for="test_username">Username</label>
+            <input type="text" class="form-control" id="test_username" name="test_username" autocomplete="off" required>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="test_password">Password</label>
+            <input type="password" class="form-control" id="test_password" name="test_password" autocomplete="new-password" required>
+          </div>
+          <div class="col-md-3"><button class="btn w-100" type="submit">{{ icon('sign-in') }} Try it</button></div>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card card-danger-zone">
+      <div class="card-body">
+        <h3 class="card-title mb-1">{{ icon('trash') }} Delete provider</h3>
+        <p class="text-secondary">
+          {{ user_count }} user(s) sign in through it. They stay, but can no longer sign in this
+          way. Recipients and lists imported from it are kept; their sync is switched off.
+        </p>
+        <form method="post" action="/settings/auth/ldap/{{ p.id }}/delete"
+              {{ confirm('Delete ' ~ p.name ~ '?', 'Its users stay but can no longer sign in through it. Synced lists stop syncing.', 'Delete provider') }}>
+          <button class="btn btn-outline-danger" type="submit">{{ icon('trash') }} Delete provider</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

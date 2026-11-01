@@ -1,5 +1,5 @@
 # Bulk Mailer on Kubernetes - the minimal install: one pod, SQLite on a
-# persistent volume. See docs/kubernetes.md (bulkmailer.stoifl.app/kubernetes).
+# persistent volume. See docs/kubernetes.md (bulkmailer.timothestoifl24.dev/kubernetes).
 #
 #   cp secret.env.example secret.env     # then fill it in
 #   kubectl apply -k deploy/kubernetes/base

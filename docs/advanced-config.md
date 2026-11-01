@@ -7,8 +7,11 @@ description: Environment variables, PostgreSQL, LDAP import and sign-in, keeping
 
 ## Environment variables
 
-Everything under *Settings* in the UI is stored in the database and overrides
-the SMTP defaults below without a restart.
+Everything under *Email delivery* in the UI is stored in the database and
+overrides the SMTP defaults below without a restart. The `SMTP_*` variables
+only fill those fields in until something is saved there. *System* (admin only)
+shows every value and where it comes from, and flags an environment value that
+is being ignored.
 
 | Variable | Meaning |
 | --- | --- |
@@ -43,19 +46,40 @@ docker run -d --name mailer-pg \
   -p 5432:5432 postgres:17-alpine
 ```
 
+## Authentication providers
+
+*Authentication* (admin only) is where the app is connected to the rest of
+your company: **LDAP / Active Directory** directories and **OpenID Connect**
+identity providers. Each provider gets a page with its connection, a
+**Test connection** button, and what it is used for:
+
+| Provider | Sign-in | Recipient import | List sync |
+| --- | --- | --- | --- |
+| LDAP / Active Directory | optional (*Use for sign-in*) | optional (*Use for recipient import*) | yes, for lists imported from it |
+| OpenID Connect | yes | — | — |
+
+Local accounts always keep working next to them, so one broken provider never
+locks everyone out.
+
 ## LDAP and Active Directory
 
-*LDAP* holds named connection profiles: LDAPS, StartTLS or plain, with a
-simple or anonymous bind. Bind passwords are encrypted with a key derived from
-`SECRET_KEY`.
+Add one with *Authentication* → **Add provider** → *LDAP / Active Directory*:
+LDAPS, StartTLS or plain, with a simple or anonymous bind. Bind passwords are
+encrypted with a key derived from `SECRET_KEY`.
+
+Importing goes through the **Import** wizard on *Recipients*, and only ever
+uses directories an administrator switched on with **Use for recipient
+import**. Anyone who manages recipients can then import from them — choosing
+the filter, the base DN and the groups — without ever seeing the server or the
+service account.
 
 **Attribute mapping** is configurable and only the address is required.
 Attributes your directory does not define are skipped with a note rather than
 failing the import — `company` and `department` are Active Directory-specific
 and a stock OpenLDAP has neither.
 
-Searches are **paged**, so large directories work, and you get a preview
-before anything is written.
+Searches are **paged**, so large directories work, and the wizard shows what
+will be added, updated or skipped before anything is written.
 
 ### Group filters
 
@@ -82,8 +106,8 @@ mailbox:
 An import is a snapshot: it adds whoever matched at the time and never looks
 again, so a list drifts as people join and leave the group behind it.
 
-Tick **Keep the list in sync with this search** on the import form and the
-list tracks its query instead. The search is re-run on a schedule and on
+Tick **Keep the list in sync with this search** in the last step of the
+import wizard and the list tracks its query instead. The search is re-run on a schedule and on
 demand: new matches are added, and members who no longer match are **removed
 from the list**.
 
@@ -92,12 +116,13 @@ The recipient record, its other list memberships and its send history are
 all left alone. A group edited by mistake costs a re-sync, not data.
 :::
 
-The *Lists* page shows which lists sync, which profile each came from, when
+The *Lists* tab shows which lists sync, which provider each came from, when
 each last ran, and why the last run failed if it did. **Sync now** re-runs one
 immediately. **Turn sync off** freezes a list exactly as it is without
 forgetting the query, so it can be switched back on later.
 
-The interval is on the *LDAP* page — 60 minutes by default, floored at 5 so a
+The interval is at the bottom of the *Lists* tab (admins only) — 60 minutes
+by default, floored at 5 so a
 stray `0` cannot turn the worker into a busy loop against your directory.
 
 Two things it deliberately refuses to do:
@@ -110,14 +135,19 @@ Two things it deliberately refuses to do:
   so the toggle refuses rather than showing "on" for something that will never
   change.
 
-Deleting an LDAP profile turns sync off for the lists that used it and says
-so. The lists and their members are untouched.
+Deleting an LDAP provider turns sync off for the lists that used it and says
+so. The lists and their members are untouched. Switching a provider off
+(*Enabled*) pauses sign-in, import and sync through it without losing its
+settings.
 
 ## Signing in with LDAP
 
-*Users & access* (admin only) turns it on. It reuses an existing **LDAP
-profile**, so create one under *LDAP* first — the same server and service
-credentials used for importing recipients.
+Turn on **Use for sign-in** on an LDAP provider. Sign-in reuses the provider's
+server and service account; its settings sit in the *Sign-in* card of the
+same page. With several directories, each is asked in turn (lowest *Order*
+first) — and someone who signed in before is checked against their own
+directory first. The same username in a second directory is treated as a
+different person and refused, rather than taking over the first account.
 
 | Setting | What it does |
 | --- | --- |
@@ -133,8 +163,8 @@ and checking `member`, `uniqueMember` or `memberUid`. A stock OpenLDAP has no
 `memberOf` unless the overlay is enabled, so both paths matter.
 
 ::: warning Two things to do before you sign out
-Press **Test sign-in**. It checks the settings against the directory
-without touching your session.
+Press **Try it** under *Try a sign-in*. It checks the saved settings against
+the directory without touching your session.
 
 Keep at least one **local** account. It still works when the directory is
 unreachable, and `python -m app.cli disable-ldap-login` turns directory
@@ -143,6 +173,56 @@ sign-in off from the command line if a setting locks everyone out.
 
 Use LDAPS or StartTLS. With plain LDAP every user's password crosses the
 network in the clear on each sign-in — not just the service account's.
+
+Upgrading from 1.x moves the old global sign-in settings onto the LDAP
+provider they pointed at, once, at the first start.
+
+## Single sign-on with OpenID Connect
+
+*Authentication* → **Add provider** → *OpenID Connect* works with Microsoft
+Entra ID, Keycloak, Authentik, Google, GitLab and any other provider that
+speaks OpenID Connect — or plain OAuth2, with the endpoints entered by hand.
+
+1. Create a client (an "app registration") at your identity provider. It is a
+   confidential web client using the **authorization code** flow.
+2. Add the provider here with its **discovery URL**, the client ID and the
+   client secret, and save.
+3. Copy the **callback URL** shown on the provider page —
+   `PUBLIC_BASE_URL/auth/oidc/<id>/callback` — into the client's allowed
+   redirect URIs.
+4. Press **Test connection**, then try the new button on the sign-in page.
+
+| Provider | Discovery URL |
+| --- | --- |
+| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant-id>/v2.0/.well-known/openid-configuration` |
+| Keycloak | `https://<host>/realms/<realm>/.well-known/openid-configuration` |
+| Google | `https://accounts.google.com/.well-known/openid-configuration` |
+| Authentik | `https://<host>/application/o/<slug>/.well-known/openid-configuration` |
+
+Sign-in uses PKCE, and the ID token's signature, issuer, audience and nonce
+are all checked. Accounts are matched by the provider's `sub` claim, never by
+username, so a provider cannot take over a local account that happens to
+share a name — the new account gets `name-2` instead.
+
+| Setting | What it does |
+| --- | --- |
+| Create the account on first sign-in | Off means an administrator adds people first. New accounts are members. |
+| Administrator group | A value of the groups claim. With one set, the provider decides admin rights at every sign-in, both ways. Empty: rights are managed on *Users*. |
+| Claims | Which claim holds the username, email, name and groups. Dotted paths reach nested claims, e.g. `realm_access.roles` on Keycloak. |
+
+::: tip Use the address in PUBLIC_BASE_URL
+The identity provider sends people back to `PUBLIC_BASE_URL`. Someone who
+opened the app under another name (an internal alias, `localhost` instead of
+`127.0.0.1`) is moved to that address before sign-in starts, so the session
+cookie and the callback agree.
+:::
+
+With single sign-on in place you can hide the username and password form:
+*Authentication* → *Local accounts*. It stays while LDAP sign-in is on (LDAP
+users need it), and `/login?local=1` always shows it — the way in for a local
+administrator when the identity provider is down. `python -m app.cli
+disable-sso` switches every OpenID Connect provider off and shows the form
+again.
 
 ### No `company` or `department` on your directory?
 

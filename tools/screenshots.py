@@ -48,11 +48,22 @@ PAGES = [
     ("05-templates", "/templates", None),
     ("06-campaigns", "/campaigns", None),
     ("07-campaign-new", "/campaigns/new?template_id=1", None),
-    ("08-settings", "/settings", None),
-    ("09-ldap", "/ldap", None),
+    ("08-settings", "/settings/email", None),
+    ("09-auth-providers", "/settings/auth", None),
     ("10-users", "/users", None),
     ("11-account", "/account", None),
+    ("13-system", "/settings/system", None),
 ]
+# Filled in by the import wizard after the pages above (it needs an upload).
+WIZARD_SHOT = "12-import-wizard"
+WIZARD_CSV = """E-Mail;Vorname;Nachname;Firma;Abteilung;Region
+anna.gruber@contoso.example;Anna;Gruber;Contoso;Sales;Vienna
+neu.kollege@contoso.example;Max;Neumann;Contoso;IT;Graz
+eva.fuchs@fabrikam.example;Eva;Fuchs;Fabrikam;Finance;Linz
+jonas.weber@northwind.example;Jonas;Weber;Northwind;Support;Vienna
+lena.maier@tailspin.example;Lena;Maier;Tailspin Toys;Marketing;Salzburg
+kein-gültiger-eintrag;X;Y;Z;HR;Wien
+"""
 WIDTH, MIN_HEIGHT, MAX_HEIGHT = 1440, 900, 4000
 
 
@@ -84,11 +95,12 @@ def seed() -> None:
         CampaignRecipient,
         EmailTemplate,
         LdapProfile,
+        OidcProvider,
         Recipient,
         RecipientList,
         User,
     )
-    from app.security import hash_password
+    from app.security import encrypt_secret, hash_password
     from app.services import settings_store
 
     # Fixed, so a retake changes only what the UI changed - not who is on screen.
@@ -136,15 +148,30 @@ def seed() -> None:
             base_dn="OU=Staff,DC=corp,DC=contoso,DC=example",
             search_filter="(&(objectCategory=person)(objectClass=user)(mail=*)"
                           "(!(userAccountControl:1.2.840.113556.1.4.803:=2)))",
+            enabled=True, allow_import=True, login_enabled=True,
+            login_required_group="CN=Mailer Users,OU=Groups,DC=corp,DC=contoso,DC=example",
+            login_admin_group="CN=Mailer Admins,OU=Groups,DC=corp,DC=contoso,DC=example",
         )
         partners = LdapProfile(
             name="Partner directory", host="ldap.northwind.example", port=389, start_tls=True,
             base_dn="ou=people,dc=northwind,dc=example",
             attr_map_json=json.dumps({"email": "mail", "first_name": "givenName", "last_name": "sn",
                                       "display_name": "cn", "title": "title"}),
+            enabled=True, allow_import=True, login_enabled=False,
         )
-        db.add_all([contoso_ad, partners])
+        entra = OidcProvider(
+            name="Microsoft Entra ID", enabled=True,
+            discovery_url="https://login.microsoftonline.com/00000000-0000-0000-0000-000000000000"
+                          "/v2.0/.well-known/openid-configuration",
+            client_id="11111111-2222-3333-4444-555555555555",
+            client_secret_enc=encrypt_secret("not-a-real-secret"),
+            admin_group="Mailer-Admins",
+        )
+        db.add_all([contoso_ad, partners, entra])
         db.flush()
+        lukas.auth_provider_id = contoso_ad.id
+        sophie.auth_source, sophie.auth_provider_id, sophie.external_id = "oidc", entra.id, "f3a9c2e1"
+        sophie.ldap_dn = ""
 
         recipients: list[Recipient] = []
         seen: set[str] = set()
@@ -244,9 +271,6 @@ def seed() -> None:
             "smtp_username": "svc-mailer@contoso.example", "from_email": "news@contoso.example",
             "from_name": "Contoso Communications", "reply_to": "communications@contoso.example",
             "default_throttle_per_minute": "120",
-            "auth_ldap_enabled": "1", "auth_ldap_profile_id": str(contoso_ad.id),
-            "auth_ldap_required_group": "CN=Mailer Users,OU=Groups,DC=corp,DC=contoso,DC=example",
-            "auth_ldap_admin_group": "CN=Mailer Admins,OU=Groups,DC=corp,DC=contoso,DC=example",
             "ldap_sync_interval_minutes": "30",
         }.items():
             settings_store.set_value(db, key, value)
@@ -288,6 +312,18 @@ def capture(base: str, out: Path) -> None:
         page.goto(base + "/account")
         for name, path, cap in PAGES:
             shoot(name, path, cap)
+
+        # The wizard's review step, after a real upload.
+        csv_file = out / "staff-export.csv"
+        csv_file.write_text(WIZARD_CSV, encoding="utf-8")
+        try:
+            page.goto(base + "/recipients/import/csv")
+            page.set_input_files("#file", str(csv_file))
+            page.click("#csv-form button[type=submit]")
+            page.wait_for_url("**/recipients/import/*")
+        finally:
+            csv_file.unlink()
+        shoot(WIZARD_SHOT, page.url.removeprefix(base), None)
         browser.close()
 
 

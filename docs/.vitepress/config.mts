@@ -1,7 +1,7 @@
 import { defineConfig, type HeadConfig } from "vitepress";
 
 const repo = "https://github.com/timothestoifl24/bulk-mailer";
-const site = "https://bulkmailer.stoifl.app";
+const site = "https://bulkmailer.timothestoifl24.dev";
 // docs.yml builds main at / (production) and develop at /dev/ (development) into one site.
 const dev = process.env.DOCS_CHANNEL === "development";
 const base = dev ? "/dev/" : "/";

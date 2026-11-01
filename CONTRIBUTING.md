@@ -165,8 +165,8 @@ before anything is published.
 
 Images go to Docker Hub (`docker.io/timothestoifl24/bulk-mailer`). The docs
 are built from both branches: `main` at
-[bulkmailer.stoifl.app](https://bulkmailer.stoifl.app/), `develop` at
-[bulkmailer.stoifl.app/dev](https://bulkmailer.stoifl.app/dev/).
+[bulkmailer.timothestoifl24.dev](https://bulkmailer.timothestoifl24.dev/), `develop` at
+[bulkmailer.timothestoifl24.dev/dev](https://bulkmailer.timothestoifl24.dev/dev/).
 
 To release:
 

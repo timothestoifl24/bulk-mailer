@@ -323,15 +323,28 @@ def test_sync_now_reports_a_directory_failure_without_a_traceback(logged_in, sce
     db.refresh(target)
 
 
+def _wizard_import(client, profile_id, search=None, finish=None):
+    """Run the import wizard's directory path: search, then confirm."""
+    response = client.post(
+        "/recipients/import/ldap",
+        data={"provider_id": str(profile_id), **(search or {})},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303, response.text
+    review_url = response.headers["location"]
+    assert review_url.startswith("/recipients/import/")
+    return client.post(review_url, data=finish or {}, follow_redirects=True)
+
+
 def test_the_sync_interval_is_editable_and_floored(logged_in):
     from app.services import settings_store
 
-    logged_in.post("/ldap/sync-settings", data={"ldap_sync_interval_minutes": "180"})
+    logged_in.post("/lists/sync-settings", data={"ldap_sync_interval_minutes": "180"})
     with SessionLocal() as db:
         assert settings_store.get_value(db, "ldap_sync_interval_minutes") == "180"
 
     page = logged_in.post(
-        "/ldap/sync-settings", data={"ldap_sync_interval_minutes": "0"}, follow_redirects=True
+        "/lists/sync-settings", data={"ldap_sync_interval_minutes": "0"}, follow_redirects=True
     )
     assert "5 minutes" in page.text
     with SessionLocal() as db:
@@ -349,7 +362,7 @@ def test_importing_with_keep_in_sync_remembers_the_query(logged_in, monkeypatch)
     """
     client = logged_in
     client.post(
-        "/ldap",
+        "/settings/auth/new/ldap",
         data={
             "name": "Import sync profile",
             "host": "ldap.example.com",
@@ -358,6 +371,8 @@ def test_importing_with_keep_in_sync_remembers_the_query(logged_in, monkeypatch)
             "base_dn": "DC=corp,DC=example,DC=com",
             "search_filter": "(objectClass=person)",
             "page_size": "500",
+            "enabled": "1",
+            "allow_import": "1",
         },
         follow_redirects=True,
     )
@@ -368,16 +383,11 @@ def test_importing_with_keep_in_sync_remembers_the_query(logged_in, monkeypatch)
         ldap_client, "search", lambda *a, **k: [_entry("imported@example.com")]
     )
     used = "(&(objectClass=person)(memberOf=CN=Staff,DC=corp,DC=example,DC=com))"
-    client.post(
-        f"/ldap/{profile_id}/import",
-        data={
-            "search_filter": used,
-            "base_dn": "OU=People,DC=corp,DC=example,DC=com",
-            "new_list_name": "Synced from import",
-            "overwrite": "1",
-            "keep_in_sync": "1",
-        },
-        follow_redirects=True,
+    _wizard_import(
+        client,
+        profile_id,
+        search={"search_filter": used, "base_dn": "OU=People,DC=corp,DC=example,DC=com"},
+        finish={"new_list_name": "Synced from import", "overwrite": "1", "keep_in_sync": "1"},
     )
 
     with SessionLocal() as db:
@@ -388,7 +398,7 @@ def test_importing_with_keep_in_sync_remembers_the_query(logged_in, monkeypatch)
         assert target.ldap_base_dn == "OU=People,DC=corp,DC=example,DC=com"
 
         # And deleting the profile stops it rather than leaving a dangling id.
-        client.post(f"/ldap/{profile_id}/delete", follow_redirects=True)
+        client.post(f"/settings/auth/ldap/{profile_id}/delete", follow_redirects=True)
     with SessionLocal() as db:
         target = db.query(RecipientList).filter_by(name="Synced from import").one()
         assert target.sync_enabled is False
@@ -401,13 +411,15 @@ def test_importing_without_the_box_ticked_leaves_sync_off(logged_in, monkeypatch
     """An import stays a one-off snapshot unless sync is explicitly asked for."""
     client = logged_in
     client.post(
-        "/ldap",
+        "/settings/auth/new/ldap",
         data={
             "name": "No sync profile",
             "host": "ldap.example.com",
             "port": "389",
             "security": "none",
             "page_size": "500",
+            "enabled": "1",
+            "allow_import": "1",
         },
         follow_redirects=True,
     )
@@ -415,11 +427,7 @@ def test_importing_without_the_box_ticked_leaves_sync_off(logged_in, monkeypatch
         profile_id = db.query(LdapProfile).filter_by(name="No sync profile").one().id
 
     monkeypatch.setattr(ldap_client, "search", lambda *a, **k: [_entry("snap@example.com")])
-    client.post(
-        f"/ldap/{profile_id}/import",
-        data={"new_list_name": "Snapshot list", "overwrite": "1"},
-        follow_redirects=True,
-    )
+    _wizard_import(client, profile_id, finish={"new_list_name": "Snapshot list", "overwrite": "1"})
 
     with SessionLocal() as db:
         target = db.query(RecipientList).filter_by(name="Snapshot list").one()
@@ -436,13 +444,15 @@ def test_the_import_form_offers_the_sync_choice(logged_in, monkeypatch):
     """The checkbox is the only way in, so it must survive template edits."""
     client = logged_in
     client.post(
-        "/ldap",
+        "/settings/auth/new/ldap",
         data={
             "name": "Form profile",
             "host": "ldap.example.com",
             "port": "389",
             "security": "none",
             "page_size": "500",
+            "enabled": "1",
+            "allow_import": "1",
         },
         follow_redirects=True,
     )
@@ -450,13 +460,16 @@ def test_the_import_form_offers_the_sync_choice(logged_in, monkeypatch):
         profile_id = db.query(LdapProfile).filter_by(name="Form profile").one().id
 
     monkeypatch.setattr(ldap_client, "search", lambda *a, **k: [_entry("preview@example.com")])
-    page = client.post(f"/ldap/{profile_id}/search", data={}, follow_redirects=True).text
+    page = client.post(
+        "/recipients/import/ldap", data={"provider_id": str(profile_id)}, follow_redirects=True
+    ).text
 
     assert 'name="keep_in_sync"' in page
     assert "Keep the list in sync with this search" in page
     # The consequence has to be stated where the choice is made, not only in
     # the docs - this is the control that starts removing people from lists.
     assert "removed from the list" in page
+    assert "preview@example.com" in page
 
     with SessionLocal() as db:
         db.delete(db.get(LdapProfile, profile_id))
@@ -495,3 +508,22 @@ def test_a_list_another_instance_is_syncing_is_skipped(scenario):
 
         assert ldap_sync._lock_if_still_due(db, target) is False
         other.commit()
+
+
+def test_a_disabled_directory_is_not_searched_or_synced(scenario, monkeypatch):
+    """Switching a provider off pauses its lists: no query, no membership changes."""
+    db, target, returned = scenario
+    returned.append(_entry("would.be.added@example.com"))
+    profile = db.get(LdapProfile, target.ldap_profile_id)
+    profile.enabled = False
+    db.commit()
+
+    def must_not_search(*args, **kwargs):
+        raise AssertionError("a disabled directory was searched")
+
+    monkeypatch.setattr(ldap_client, "search", must_not_search)
+    with pytest.raises(ldap_sync.SyncError, match="switched off"):
+        ldap_sync.sync_list(db, target)
+    assert target.recipients == []
+    profile.enabled = True
+    db.commit()

@@ -500,3 +500,118 @@ textarea.code {
   border-color: var(--tblr-border-color);
   color: var(--tblr-body-color);
 }
+
+/* ------------------------------------------------------------- Audience */
+
+/* Recipients | Lists tabs sit flush under the page title. */
+.audience-tabs {
+  border-bottom: 0;
+  margin-bottom: -1px;
+}
+
+.audience-tabs .nav-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.audience-toolbar .form-select {
+  max-width: 14rem;
+}
+
+/* The bulk action bar: under the table without JavaScript, floating at the
+   bottom of the window (and only while something is ticked) with it. */
+.bulk-bar {
+  margin-top: 1rem;
+}
+
+.bulk-bar.bulk-bar-floating {
+  position: sticky;
+  bottom: 1rem;
+  z-index: 1010;
+  display: none;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  border-color: var(--tblr-primary-border-subtle, var(--tblr-border-color));
+}
+
+.bulk-bar.bulk-bar-floating.is-visible {
+  display: block;
+}
+
+/* Destructive actions get their own quiet card at the end of a form page. */
+.card-danger-zone {
+  border-color: rgba(var(--tblr-red-rgb), 0.3);
+}
+
+/* -------------------------------------------------------- Import wizard */
+
+.choice-card {
+  display: block;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.choice-card:hover,
+.choice-card:focus-within {
+  border-color: var(--tblr-primary);
+  box-shadow: 0 0 0 3px rgba(var(--tblr-primary-rgb), 0.12);
+  color: inherit;
+}
+
+.choice-card.disabled {
+  opacity: 0.6;
+  cursor: default;
+  pointer-events: none;
+}
+
+.choice-card .choice-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: var(--tblr-border-radius-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  background: var(--tblr-primary-lt);
+  color: var(--tblr-primary-text-emphasis);
+}
+
+.dropzone {
+  border: 2px dashed var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius-lg);
+  padding: 2rem 1rem;
+  text-align: center;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dropzone.is-dragover {
+  border-color: var(--tblr-primary);
+  background: var(--tblr-primary-lt);
+}
+
+.preview-table td,
+.preview-table th {
+  white-space: nowrap;
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------------------------------------------------------------- System */
+
+.system-table .system-label {
+  width: 38%;
+}
+
+/* Paths and URLs are long and unbroken; let them wrap inside the card. */
+.system-table .system-value {
+  overflow-wrap: anywhere;
+}
+
+.system-table .status-pill {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.5rem;
+}

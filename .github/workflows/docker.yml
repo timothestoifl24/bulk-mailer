@@ -110,7 +110,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=Bulk Mailer
             org.opencontainers.image.description=Send email to many recipients, with LDAP import
-            org.opencontainers.image.url=https://bulkmailer.stoifl.app
+            org.opencontainers.image.url=https://bulkmailer.timothestoifl24.dev
             org.opencontainers.image.version=${{ needs.version.outputs.version }}
 
       - uses: docker/setup-buildx-action@v4

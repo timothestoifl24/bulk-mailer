@@ -4,6 +4,7 @@
     python -m app.cli set-password admin
     python -m app.cli create-admin alice --password ...
     python -m app.cli disable-ldap-login
+    python -m app.cli disable-sso
 
 In a container:  podman exec -it <container> python -m app.cli list-users
 """
@@ -17,7 +18,7 @@ import sys
 from sqlalchemy import func, select
 
 from .db import session_scope
-from .models import User
+from .models import LdapProfile, OidcProvider, User
 from .security import hash_password
 from .services import settings_store
 
@@ -98,16 +99,36 @@ def promote(args) -> int:
     return 0
 
 
+def _local_admin_count(db) -> int:
+    return db.scalar(
+        select(func.count())
+        .select_from(User)
+        .where(User.is_admin.is_(True), User.is_active.is_(True), User.auth_source == "local")
+    )
+
+
 def disable_ldap_login(_args) -> int:
     """Escape hatch when a bad LDAP setting is keeping everyone out."""
     with session_scope() as db:
-        settings_store.set_value(db, "auth_ldap_enabled", "0")
-        admins = db.scalar(
-            select(func.count())
-            .select_from(User)
-            .where(User.is_admin.is_(True), User.is_active.is_(True), User.auth_source == "local")
-        )
+        for profile in db.scalars(select(LdapProfile).where(LdapProfile.login_enabled.is_(True))):
+            profile.login_enabled = False
+            print(f"Sign-in turned off for the LDAP provider {profile.name!r}.")
+        admins = _local_admin_count(db)
     print("LDAP sign-in disabled.")
+    if not admins:
+        print("Warning: no active local administrator exists. Run create-admin next.")
+    return 0
+
+
+def disable_sso(_args) -> int:
+    """Escape hatch for a broken OpenID Connect provider; also shows the local form again."""
+    with session_scope() as db:
+        for provider in db.scalars(select(OidcProvider).where(OidcProvider.enabled.is_(True))):
+            provider.enabled = False
+            print(f"Disabled the OpenID Connect provider {provider.name!r}.")
+        settings_store.set_value(db, "auth_show_local_form", "1")
+        admins = _local_admin_count(db)
+    print("Single sign-on disabled; the username and password form is shown again.")
     if not admins:
         print("Warning: no active local administrator exists. Run create-admin next.")
     return 0
@@ -137,6 +158,10 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "disable-ldap-login", help="turn LDAP sign-in off (use when it locks everyone out)"
     ).set_defaults(func=disable_ldap_login)
+
+    sub.add_parser(
+        "disable-sso", help="turn every OpenID Connect provider off and show the local form"
+    ).set_defaults(func=disable_sso)
 
     args = parser.parse_args(argv)
     return args.func(args)

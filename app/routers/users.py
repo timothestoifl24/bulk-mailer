@@ -1,144 +1,83 @@
-"""Users and access: local accounts plus LDAP sign-in configuration.
+"""Users: the accounts that can sign in to the tool.
 
-Restricted to administrators - everything here can lock people out or expose a
-stored directory password.
+Restricted to administrators. How people sign in (LDAP, OpenID Connect, the
+local form) is set up on the Authentication page; this page manages the
+accounts themselves.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Form, Request
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..models import LdapProfile, User
+from ..models import LdapProfile, OidcProvider, User
 from ..security import hash_password, require_admin
-from ..services import ldap_auth, settings_store
-from ..web import flash, redirect, render
+from ..web import done, flash, redirect, render
 
 router = APIRouter(prefix="/users", dependencies=[Depends(require_admin)])
 
 MIN_PASSWORD_LENGTH = 8
 
 
+def _providers(db: Session) -> dict[tuple[str, int], object]:
+    """Every provider by (kind, id), for naming each account's source."""
+    found: dict[tuple[str, int], object] = {}
+    for model in (LdapProfile, OidcProvider):
+        for provider in db.scalars(select(model)):
+            found[(provider.kind, provider.id)] = provider
+    return found
+
+
 @router.get("")
-def index(request: Request, db: Session = Depends(get_db)):
-    users = list(db.scalars(select(User).order_by(User.username)))
-    values = {key: settings_store.get_value(db, key) for key in settings_store.AUTH_KEYS}
+def index(
+    request: Request,
+    q: str = "",
+    source: str = "",
+    status: str = "",
+    db: Session = Depends(get_db),
+):
+    statement = select(User).order_by(func.lower(User.username))
+    term = q.strip()
+    if term:
+        like = f"%{term.lower()}%"
+        statement = statement.where(
+            or_(
+                func.lower(User.username).like(like),
+                func.lower(User.display_name).like(like),
+                func.lower(User.email).like(like),
+            )
+        )
+    # "local", or "ldap:3" / "oidc:1" for one provider.
+    if source == "local":
+        statement = statement.where(User.auth_source == "local")
+    elif ":" in source:
+        kind, _, raw_id = source.partition(":")
+        if raw_id.isdigit():
+            statement = statement.where(User.auth_source == kind, User.auth_provider_id == int(raw_id))
+    if status == "active":
+        statement = statement.where(User.is_active.is_(True))
+    elif status == "disabled":
+        statement = statement.where(User.is_active.is_(False))
+    elif status == "admin":
+        statement = statement.where(User.is_admin.is_(True))
+
+    users = list(db.scalars(statement))
+    total = db.scalar(select(func.count()).select_from(User)) or 0
     return render(
         request,
         "users.html",
         {
             "users": users,
-            "values": values,
-            "profiles": list(db.scalars(select(LdapProfile).order_by(LdapProfile.name))),
-            "admin_count": sum(1 for u in users if u.is_admin and u.is_active),
+            "total": total,
+            "providers": _providers(db),
+            "q": term,
+            "source": source,
+            "status": status,
+            "filtered": bool(term or source or status),
         },
     )
-
-
-# --------------------------------------------------------------------------- #
-# LDAP sign-in settings
-# --------------------------------------------------------------------------- #
-@router.post("/auth")
-def save_auth_settings(
-    request: Request,
-    auth_ldap_enabled: str = Form(""),
-    auth_ldap_profile_id: str = Form(""),
-    auth_ldap_bind_mode: str = Form("search"),
-    auth_ldap_login_attribute: str = Form(""),
-    auth_ldap_user_filter: str = Form(""),
-    auth_ldap_bind_template: str = Form(""),
-    auth_ldap_required_group: str = Form(""),
-    auth_ldap_admin_group: str = Form(""),
-    auth_ldap_auto_create: str = Form(""),
-    db: Session = Depends(get_db),
-):
-    enabled = auth_ldap_enabled == "1"
-    if enabled and not auth_ldap_profile_id.isdigit():
-        flash(request, "Choose the LDAP connection profile to authenticate against.", "error")
-        return redirect("/users")
-    if enabled and auth_ldap_bind_mode == "template" and "{username}" not in auth_ldap_bind_template:
-        flash(request, "The bind template must contain {username}.", "error")
-        return redirect("/users")
-
-    settings_store.set_value(db, "auth_ldap_enabled", "1" if enabled else "0")
-    settings_store.set_value(db, "auth_ldap_profile_id", auth_ldap_profile_id)
-    settings_store.set_value(db, "auth_ldap_bind_mode", auth_ldap_bind_mode)
-    settings_store.set_value(db, "auth_ldap_login_attribute", auth_ldap_login_attribute.strip())
-    settings_store.set_value(db, "auth_ldap_user_filter", auth_ldap_user_filter.strip())
-    settings_store.set_value(db, "auth_ldap_bind_template", auth_ldap_bind_template.strip())
-    settings_store.set_value(db, "auth_ldap_required_group", auth_ldap_required_group.strip())
-    settings_store.set_value(db, "auth_ldap_admin_group", auth_ldap_admin_group.strip())
-    settings_store.set_value(db, "auth_ldap_auto_create", "1" if auth_ldap_auto_create else "0")
-    db.commit()
-
-    flash(
-        request,
-        "Sign-in settings saved. Use 'Test a sign-in' before signing out."
-        if enabled
-        else "LDAP sign-in disabled.",
-        "success",
-    )
-    return redirect("/users")
-
-
-@router.post("/auth/test")
-def test_auth(
-    request: Request,
-    test_username: str = Form(...),
-    test_password: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    """Dry-run a directory sign-in without touching the current session."""
-    try:
-        flash(request, ldap_auth.test_login(db, test_username.strip(), test_password), "success")
-    except KeyError:
-        flash(
-            request,
-            f"The directory rejected '{test_username.strip()}'. Wrong password, no such "
-            "account, or it is outside the required group.",
-            "error",
-        )
-    except ldap_auth.LdapAuthError as exc:
-        flash(request, str(exc), "error")
-    return redirect("/users")
-
-
-# --------------------------------------------------------------------------- #
-# Local accounts
-# --------------------------------------------------------------------------- #
-@router.post("/add")
-def add_user(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    display_name: str = Form(""),
-    email: str = Form(""),
-    is_admin: str = Form(""),
-    db: Session = Depends(get_db),
-):
-    username = username.strip()
-    if not username:
-        flash(request, "A username is required.", "error")
-    elif len(password) < MIN_PASSWORD_LENGTH:
-        flash(request, f"The password must be at least {MIN_PASSWORD_LENGTH} characters.", "error")
-    elif db.scalar(select(User).where(func.lower(User.username) == username.lower())):
-        flash(request, f"'{username}' already exists.", "error")
-    else:
-        db.add(
-            User(
-                username=username,
-                password_hash=hash_password(password),
-                auth_source="local",
-                display_name=display_name.strip(),
-                email=email.strip(),
-                is_admin=is_admin == "1",
-            )
-        )
-        db.commit()
-        flash(request, f"Local account '{username}' created.", "success")
-    return redirect("/users")
 
 
 def _last_admin(db: Session, user: User) -> bool:
@@ -153,61 +92,115 @@ def _last_admin(db: Session, user: User) -> bool:
     return not remaining
 
 
-@router.post("/{user_id}/toggle-admin")
-def toggle_admin(request: Request, user_id: int, db: Session = Depends(get_db)):
-    user = db.get(User, user_id)
-    if user is None:
-        flash(request, "User not found.", "error")
-    elif user.is_admin and _last_admin(db, user):
-        flash(request, "This is the only administrator left; promote someone else first.", "error")
-    else:
-        user.is_admin = not user.is_admin
-        db.commit()
-        flash(
-            request,
-            f"'{user.username}' is {'now an administrator' if user.is_admin else 'no longer an administrator'}.",
-            "success",
-        )
-    return redirect("/users")
+def _form(request: Request, account: User, db: Session, status_code: int = 200):
+    provider = None
+    if account.auth_source != "local" and account.auth_provider_id:
+        provider = _providers(db).get((account.auth_source, account.auth_provider_id))
+    return render(
+        request,
+        "users/form.html",
+        {"account": account, "provider": provider, "min_password": MIN_PASSWORD_LENGTH},
+        status_code=status_code,
+    )
 
 
-@router.post("/{user_id}/toggle-active")
-def toggle_active(request: Request, user_id: int, db: Session = Depends(get_db)):
-    user = db.get(User, user_id)
-    if user is None:
-        flash(request, "User not found.", "error")
-    elif user.is_active and _last_admin(db, user):
-        flash(request, "This is the only administrator left; promote someone else first.", "error")
-    else:
-        user.is_active = not user.is_active
-        db.commit()
-        flash(
-            request,
-            f"'{user.username}' is {'enabled' if user.is_active else 'disabled'}.",
-            "success",
-        )
-    return redirect("/users")
+# --------------------------------------------------------------------------- #
+# New local account
+# --------------------------------------------------------------------------- #
+@router.get("/new")
+def new_form(request: Request, db: Session = Depends(get_db)):
+    return _form(request, User(auth_source="local", is_active=True, is_admin=False), db)
 
 
-@router.post("/{user_id}/password")
-def reset_password(
+@router.post("/new")
+def create(
     request: Request,
-    user_id: int,
-    new_password: str = Form(...),
+    username: str = Form(""),
+    password: str = Form(""),
+    display_name: str = Form(""),
+    email: str = Form(""),
+    is_admin: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    user = db.get(User, user_id)
-    if user is None:
+    account = User(
+        username=username.strip(),
+        auth_source="local",
+        display_name=display_name.strip(),
+        email=email.strip(),
+        is_admin=is_admin == "1",
+        is_active=True,
+    )
+    error = None
+    if not account.username:
+        error = "A username is required."
+    elif len(password) < MIN_PASSWORD_LENGTH:
+        error = f"The password must be at least {MIN_PASSWORD_LENGTH} characters."
+    elif db.scalar(select(User).where(func.lower(User.username) == account.username.lower())):
+        error = f"'{account.username}' already exists."
+    if error:
+        flash(request, error, "error")
+        return _form(request, account, db, status_code=422)
+
+    account.password_hash = hash_password(password)
+    db.add(account)
+    db.commit()
+    flash(request, f"Local account '{account.username}' created.", "success")
+    return done(request, "/users")
+
+
+# --------------------------------------------------------------------------- #
+# Edit
+# --------------------------------------------------------------------------- #
+@router.get("/{user_id}/edit")
+def edit_form(request: Request, user_id: int, db: Session = Depends(get_db)):
+    account = db.get(User, user_id)
+    if account is None:
         flash(request, "User not found.", "error")
-    elif user.auth_source != "local":
-        flash(request, "Directory accounts have no password stored here.", "error")
-    elif len(new_password) < MIN_PASSWORD_LENGTH:
-        flash(request, f"The password must be at least {MIN_PASSWORD_LENGTH} characters.", "error")
-    else:
-        user.password_hash = hash_password(new_password)
-        db.commit()
-        flash(request, f"Password reset for '{user.username}'.", "success")
-    return redirect("/users")
+        return redirect("/users")
+    return _form(request, account, db)
+
+
+@router.post("/{user_id}/edit")
+def update(
+    request: Request,
+    user_id: int,
+    display_name: str = Form(""),
+    email: str = Form(""),
+    is_admin: str = Form(""),
+    is_active: str = Form(""),
+    new_password: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account = db.get(User, user_id)
+    if account is None:
+        flash(request, "User not found.", "error")
+        return done(request, "/users")
+
+    me = request.state.user
+    wants_admin, wants_active = is_admin == "1", is_active == "1"
+    losing_access = (account.is_admin and not wants_admin) or (account.is_active and not wants_active)
+    error = None
+    if account.id == me.id and losing_access:
+        error = "You cannot take away your own admin rights or disable yourself. Ask another administrator."
+    elif losing_access and _last_admin(db, account):
+        error = "This is the only administrator left; make someone else an administrator first."
+    elif new_password and account.auth_source != "local":
+        error = "Accounts from a provider have no password stored here."
+    elif new_password and len(new_password) < MIN_PASSWORD_LENGTH:
+        error = f"The password must be at least {MIN_PASSWORD_LENGTH} characters."
+    if error:
+        flash(request, error, "error")
+        return _form(request, account, db, status_code=422)
+
+    account.display_name = display_name.strip()
+    account.email = email.strip()
+    account.is_admin = wants_admin
+    account.is_active = wants_active
+    if new_password:
+        account.password_hash = hash_password(new_password)
+    db.commit()
+    flash(request, f"'{account.username}' saved.", "success")
+    return done(request, "/users")
 
 
 @router.post("/{user_id}/delete")
@@ -215,6 +208,8 @@ def delete_user(request: Request, user_id: int, db: Session = Depends(get_db)):
     user = db.get(User, user_id)
     if user is None:
         flash(request, "User not found.", "error")
+    elif user.id == request.state.user.id:
+        flash(request, "You cannot delete your own account.", "error")
     elif _last_admin(db, user):
         flash(request, "This is the only administrator left; promote someone else first.", "error")
     else:

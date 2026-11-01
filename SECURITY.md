@@ -15,10 +15,9 @@ Preferred: use GitHub's private reporting for this repository — the
 **Security** tab → **Report a vulnerability**. It reaches the maintainer
 directly and keeps the report private until a fix is out.
 
-If you'd rather not use that, email **timothe@stoifl.app** with a
+If you'd rather not use that, email **security@timothestoifl24.dev** with a
 description, the affected version or commit, and reproduction steps if you
-have them. (This address is already visible in the commit history — it's not
-a new disclosure to put it here too.)
+have them.
 
 There's no formal SLA. As a solo-maintained project, expect an acknowledgement
 within a few days and a fix timeline once the report is confirmed, not a

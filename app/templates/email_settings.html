@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
 {% from "_ui.html" import help %}
-{% block title %}Settings - Bulk Mailer{% endblock %}
+{% block title %}Email delivery - Bulk Mailer{% endblock %}
 
 {% block page_header %}
 <div class="page-header d-print-none">
   <div class="container-xl">
     <div class="row g-2 align-items-center">
       <div class="col">
-        <div class="page-pretitle">Changes apply right away, no restart needed</div>
-        <h2 class="page-title"><span class="page-title-icon">{{ icon('settings') }}</span> Settings</h2>
+        <div class="page-pretitle">How your messages leave the building &middot; changes apply right away</div>
+        <h2 class="page-title"><span class="page-title-icon">{{ icon('mail') }}</span> Email delivery</h2>
       </div>
     </div>
   </div>
@@ -27,7 +27,7 @@
         </div>
       </div>
       <div class="card-body">
-        <form method="post" action="/settings">
+        <form method="post" action="/settings/email">
           <div class="row g-2">
             <div class="col-md-8 mb-3">
               <label class="form-label required" for="smtp_host">Server address {{ help("For example smtp.office365.com or smtp.gmail.com.", "/setup") }}</label>
@@ -113,12 +113,12 @@
         </div>
       </div>
       <div class="card-body">
-        <form method="post" action="/settings/test-connection">
+        <form method="post" action="/settings/email/test-connection">
           <p class="text-secondary">Signs in to the mail server without sending anything.</p>
           <button class="btn" type="submit">{{ icon('plug') }} Test the connection</button>
         </form>
         <div class="hr-text">or</div>
-        <form method="post" action="/settings/test-email">
+        <form method="post" action="/settings/email/test-email">
           <div class="mb-3">
             <label class="form-label" for="to_email">Send a test message to</label>
             <input type="email" class="form-control" id="to_email" name="to_email"
@@ -128,25 +128,10 @@
         </form>
       </div>
 
-      <div class="card-body border-top">
-        <h3 class="card-title mb-1">{{ icon('code') }} Server configuration</h3>
-        <p class="text-secondary">
-          Set in the <span class="mono">.env</span> file. Changing them needs a restart.
-        </p>
-        <div class="datagrid">
-          <div class="datagrid-item">
-            <div class="datagrid-title">PUBLIC_BASE_URL</div>
-            <div class="datagrid-content mono">{{ public_base_url }}</div>
-          </div>
-          <div class="datagrid-item">
-            <div class="datagrid-title">Database</div>
-            <div class="datagrid-content mono">{{ database_backend }}</div>
-          </div>
-        </div>
-        <small class="form-hint mt-3 d-block">
-          The base URL is used to build the unsubscribe links inside your messages &mdash;
-          it must be reachable by recipients.
-        </small>
+      <div class="card-footer text-secondary small">
+        {{ icon('info') }} Values from the <span class="mono">.env</span> file only fill these in at the
+        first start; after that what is saved here wins.
+        <a href="/settings/system#email">See where each value comes from</a>.
       </div>
     </div>
   </div>

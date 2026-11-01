@@ -24,7 +24,7 @@
 <div class="alert alert-warning" role="alert">
   <div class="d-flex"><span class="alert-icon">{{ icon('alert') }}</span><div>
   No mail server is set up yet. Write your draft now, and
-  <a href="/settings" class="alert-link">connect a mail server</a> before sending.
+  <a href="/settings/email" class="alert-link">connect a mail server</a> before sending.
   </div></div>
 </div>
 {% endif %}
@@ -102,8 +102,8 @@
               </label>
             {% else %}
               <span class="text-secondary">
-                No lists yet. <a href="/recipients/import">Import recipients</a>{% if user and user.is_admin %}
-                or <a href="/ldap">pull them from LDAP</a>{% endif %}, or type addresses below.
+                No lists yet. <a href="/recipients/import">Import recipients</a> from a file or your
+                directory, or type addresses below.
               </span>
             {% endfor %}
           </div>

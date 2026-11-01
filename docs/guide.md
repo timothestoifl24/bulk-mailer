@@ -10,7 +10,7 @@ the app is already running — if not, start at [Setup](/setup).
 
 ## 1. Point it at a mail server
 
-**Settings** holds the SMTP server. Everything here lives in the database and
+**Email delivery** (under *Admin*) holds the SMTP server. Everything here lives in the database and
 overrides the environment defaults without a restart, so you can change it
 while the app runs.
 
@@ -34,15 +34,22 @@ Three ways in, and they can be mixed:
 **Type or paste.** *Recipients → Import* accepts a block of addresses.
 `Jane Doe <jane@example.com>` is understood, as is a bare address per line.
 
-**Upload a CSV.** The delimiter and the column names are detected. An `email`
-column is the only requirement. Columns the app does not recognise are not
-discarded — they are kept as extra placeholders you can use in a template, so
-a `region` column becomes `{{ region }}`.
+Everything below starts from the **Import** button on *Recipients*: pick a
+source, give the details, then review what will happen before anything is
+written — how many people are new, how many get updated, and which rows are
+skipped and why.
 
-**Import from a directory.** *LDAP* → create a profile → **Test connection** →
-search. You get a preview before anything is written. See
+**Upload a CSV.** The delimiter and the column names are detected, in English
+or German (`Vorname`, `Nachname`, `Firma`…). The review step shows each column
+with what it was taken to be; change any that are wrong, or skip a column. An
+email column is the only requirement. Other columns become placeholders you
+can use in a template, so a `region` column becomes `{{ region }}`.
+
+**Import from a directory.** Choose *From the directory*, pick a filter or
+groups, and search. The directories offered are the ones an administrator set
+up under *Authentication* with **Use for recipient import** on. See
 [Advanced config](/advanced-config#ldap-and-active-directory) for group
-filters and attribute mapping.
+filters, attribute mapping and keeping a list in sync.
 
 Group recipients into **lists** — a campaign addresses lists, not individual
 people. A recipient can be in several.
@@ -126,5 +133,6 @@ it automatically. This is not something you have to remember to check.
 
 Campaigns record who created them, which matters once more than one person
 shares the tool. See
-[signing in with LDAP](/advanced-config#signing-in-with-ldap) for giving a
-team their own accounts.
+[signing in with LDAP](/advanced-config#signing-in-with-ldap) or
+[single sign-on](/advanced-config#single-sign-on-with-openid-connect) for
+giving a team their own accounts.
