@@ -104,6 +104,9 @@ def _bootstrap_schema_and_data() -> None:
             if first is not None:
                 first.is_admin = True
                 logger.info("Granted admin rights to the existing account '%s'.", first.username)
+        # SessionLocal does not autoflush: make a promotion just above visible
+        # to the adoption query, or it would find no administrator to adopt.
+        db.flush()
         first_run.adopt_existing(db)
         ldap_auth.migrate_legacy_settings(db)
         # A campaign left mid-flight by a crash goes back to the queue. Only on

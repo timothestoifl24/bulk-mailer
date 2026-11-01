@@ -59,7 +59,6 @@ def setup_submit(
         # Someone else finished setup first (another tab, another instance).
         flash(request, "Setup has already been completed. Sign in instead.", "info")
         return redirect("/login")
-    db.commit()
 
     request.session.clear()
     request.session["user_id"] = user.id

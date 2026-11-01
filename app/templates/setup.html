@@ -22,11 +22,11 @@
       <div class="row g-2">
         <div class="col-sm-6 mb-3">
           <label class="form-label" for="display_name">Your name</label>
-          <input type="text" class="form-control" id="display_name" name="display_name" value="{{ values.display_name or '' }}" autocomplete="name">
+          <input type="text" class="form-control" id="display_name" name="display_name" value="{{ values.display_name or '' }}" autocomplete="name" maxlength="255">
         </div>
         <div class="col-sm-6 mb-3">
           <label class="form-label" for="email">Email</label>
-          <input type="email" class="form-control" id="email" name="email" value="{{ values.email or '' }}" autocomplete="email">
+          <input type="email" class="form-control" id="email" name="email" value="{{ values.email or '' }}" autocomplete="email" maxlength="320">
         </div>
       </div>
       <div class="mb-3">

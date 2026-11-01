@@ -53,6 +53,8 @@ def test_setup_is_closed_once_done(client, anon_client):
         ({"username": "bad name", "password": "long-enough-1", "confirm": "long-enough-1"}, "Choose a username"),
         ({"username": "ok", "password": "short", "confirm": "short"}, "at least 8"),
         ({"username": "ok", "password": "long-enough-1", "confirm": "different-1"}, "don't match"),
+        ({"username": "ok", "password": "long-enough-1", "confirm": "long-enough-1", "display_name": "x" * 256}, "255"),
+        ({"username": "ok", "password": "long-enough-1", "confirm": "long-enough-1", "email": "a" * 310 + "@example.com"}, "320"),
     ],
 )
 def test_setup_validates_the_form(client, form, message):
@@ -67,12 +69,14 @@ def test_setup_on_an_empty_database_and_its_race(client):
         db.execute(delete(User))
         # A marker left behind with no accounts must not block setup.
         user = first_run.create_initial_admin(
-            db, username="fresh", password="fresh-pass-1", confirm="fresh-pass-1"
+            db, username="fresh", password="fresh-pass-1", confirm="fresh-pass-1", commit=False
         )
         assert user.is_initial_admin and user.is_admin
         # A second submission in the same moment finds setup done.
         with pytest.raises(LookupError):
-            first_run.create_initial_admin(db, username="second", password="second-pw-1", confirm="second-pw-1")
+            first_run.create_initial_admin(
+                db, username="second", password="second-pw-1", confirm="second-pw-1", commit=False
+            )
         db.rollback()
     assert _initial().username == "admin"
 
@@ -176,3 +180,70 @@ def test_upgrades_adopt_the_oldest_local_admin(client):
         db.flush()  # SessionLocal does not autoflush
         assert first_run.initial_admin(db).username == "admin"
         db.rollback()
+
+
+
+def test_competing_setups_in_separate_transactions_make_one_admin(client, tmp_path):
+    """Two requests that both find no account: only one may become admin.
+
+    Run against a database of its own, with two real threads and sessions
+    each committing on their own, released at the same moment.
+    """
+    import threading
+
+    from sqlalchemy import create_engine, func
+    from sqlalchemy.orm import sessionmaker
+
+    from app.db import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'race.db'}", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+    start = threading.Barrier(2)
+    outcomes: list[str] = []
+
+    def submit(name: str) -> None:
+        with Session() as db:
+            db.scalar(select(func.count()).select_from(User))  # both see an empty table
+            start.wait()
+            try:
+                first_run.create_initial_admin(db, username=name, password="race-pass-1", confirm="race-pass-1")
+                outcomes.append("created")
+            except LookupError:
+                outcomes.append("refused")
+
+    threads = [threading.Thread(target=submit, args=(name,)) for name in ("first", "second")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert sorted(outcomes) == ["created", "refused"]
+    with Session() as db:
+        assert db.scalar(select(func.count()).select_from(User)) == 1
+        assert db.scalar(select(func.count()).select_from(User).where(User.is_initial_admin.is_(True))) == 1
+    engine.dispose()
+
+
+def test_an_upgrade_without_any_admin_still_gets_an_initial_admin(client):
+    """The startup promotion and the adoption run in one session without autoflush."""
+    from app import main
+
+    with SessionLocal() as db:
+        admins = [u.id for u in db.scalars(select(User).where(User.is_admin.is_(True)))]
+        for user in db.scalars(select(User)):
+            user.is_admin = False
+            user.is_initial_admin = False
+        db.commit()
+    try:
+        main._bootstrap_schema_and_data()
+        with SessionLocal() as db:
+            initial = first_run.initial_admin(db)
+            assert initial is not None and initial.is_admin
+    finally:
+        with SessionLocal() as db:
+            for user in db.scalars(select(User).where(User.id.in_(admins))):
+                user.is_admin = True
+            db.commit()
+        with SessionLocal() as db:
+            assert first_run.initial_admin(db).username == "admin"

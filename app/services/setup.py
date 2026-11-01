@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,6 +27,9 @@ logger = logging.getLogger("mailer.setup")
 
 MIN_PASSWORD_LENGTH = 8
 USERNAME_RE = re.compile(r"^[A-Za-z0-9._@\-]{1,120}$")
+# The users table's column sizes, so a long value is a form error, not a crash.
+MAX_DISPLAY_NAME = 255
+MAX_EMAIL = 320
 # A row with this key exists once setup has run. Its primary key is what makes
 # setup race-safe across instances: two simultaneous submissions cannot both
 # insert it.
@@ -34,6 +38,13 @@ COMPLETED_KEY = "setup_completed_at"
 # Once true it stays true: the initial admin cannot be deleted. Cached so the
 # check costs nothing after the first account exists.
 _done = False
+
+# Setup is serialised from the empty-table check to the commit: within this
+# process by a lock, and across PostgreSQL instances by a transaction-scoped
+# advisory lock (SQLite only ever runs one instance). Without it, a request
+# that read "no users" could still go on after another one had committed.
+_lock = threading.Lock()
+SETUP_LOCK_KEY = 0x5E7A9D01
 
 
 def is_done(db: Session) -> bool:
@@ -61,11 +72,13 @@ def create_initial_admin(
     confirm: str,
     display_name: str = "",
     email: str = "",
+    commit: bool = True,
 ) -> User:
-    """Create the first administrator. Commits nothing; the caller does.
+    """Create the first administrator and commit it.
 
     Raises SetupError for a bad form, and LookupError when setup has already
-    happened (here or on another instance).
+    happened (here or on another instance). `commit=False` is for tests that
+    roll the whole thing back; it gives up the cross-instance guarantee.
     """
     username = (username or "").strip()
     if not USERNAME_RE.match(username):
@@ -74,7 +87,24 @@ def create_initial_admin(
         raise SetupError(f"The password must be at least {MIN_PASSWORD_LENGTH} characters.")
     if password != confirm:
         raise SetupError("The two passwords don't match. Type them again.")
+    if len((display_name or "").strip()) > MAX_DISPLAY_NAME:
+        raise SetupError(f"Keep the name to {MAX_DISPLAY_NAME} characters.")
+    if len((email or "").strip()) > MAX_EMAIL:
+        raise SetupError(f"Keep the email address to {MAX_EMAIL} characters.")
 
+    with _lock:
+        if db.get_bind().dialect.name == "postgresql":
+            # Taken before anything is read, and held until this transaction
+            # ends - so the count below already sees another instance's commit.
+            db.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": SETUP_LOCK_KEY})
+        user = _create_locked(db, username, password, display_name, email)
+        if commit:
+            db.commit()
+    logger.info("First-run setup created the initial administrator %r.", username)
+    return user
+
+
+def _create_locked(db: Session, username: str, password: str, display_name: str, email: str) -> User:
     if db.scalar(select(func.count()).select_from(User)):
         raise LookupError("setup already done")
     # With no accounts at all, a marker left behind (a user table emptied by
@@ -102,7 +132,6 @@ def create_initial_admin(
     )
     db.add(user)
     db.flush()
-    logger.info("First-run setup created the initial administrator %r.", username)
     return user
 
 
