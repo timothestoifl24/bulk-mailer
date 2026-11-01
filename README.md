@@ -26,15 +26,15 @@
 </p>
 
 <p align="center">
-  <b><a href="https://bulkmailer.stoifl.app">Documentation: bulkmailer.stoifl.app</a></b><br>
+  <b><a href="https://bulkmailer.timothestoifl24.dev">Documentation: bulkmailer.timothestoifl24.dev</a></b><br>
   <sub>
-    <a href="https://bulkmailer.stoifl.app/guide/">Guide</a> ·
-    <a href="https://bulkmailer.stoifl.app/screenshots/">Screenshots</a> ·
-    <a href="https://bulkmailer.stoifl.app/setup/">Setup</a> ·
-    <a href="https://bulkmailer.stoifl.app/kubernetes/">Kubernetes</a> ·
-    <a href="https://bulkmailer.stoifl.app/advanced-config/">Advanced config</a> ·
-    <a href="https://bulkmailer.stoifl.app/upgrading/">Upgrading</a> ·
-    <a href="https://bulkmailer.stoifl.app/faq/">FAQ</a>
+    <a href="https://bulkmailer.timothestoifl24.dev/guide/">Guide</a> ·
+    <a href="https://bulkmailer.timothestoifl24.dev/screenshots/">Screenshots</a> ·
+    <a href="https://bulkmailer.timothestoifl24.dev/setup/">Setup</a> ·
+    <a href="https://bulkmailer.timothestoifl24.dev/kubernetes/">Kubernetes</a> ·
+    <a href="https://bulkmailer.timothestoifl24.dev/advanced-config/">Advanced config</a> ·
+    <a href="https://bulkmailer.timothestoifl24.dev/upgrading/">Upgrading</a> ·
+    <a href="https://bulkmailer.timothestoifl24.dev/faq/">FAQ</a>
   </sub>
 </p>
 
@@ -182,7 +182,7 @@ That is one pod on SQLite, in the namespace `bulk-mailer`.
 `deploy/kubernetes/overlays/postgres` adds a PostgreSQL StatefulSet and is
 the starting point for more than one replica. Ingress, upgrades, backups and
 scaling out are covered in the
-[Kubernetes guide](https://bulkmailer.stoifl.app/kubernetes/)
+[Kubernetes guide](https://bulkmailer.timothestoifl24.dev/kubernetes/)
 ([source](docs/kubernetes.md)).
 
 ### From source
@@ -434,7 +434,7 @@ switches single sign-on off from the command line.
   several instances, put that directory on shared storage — the sending
   instance is not necessarily the one that received the upload. On
   Kubernetes that means a `ReadWriteMany` volume; see
-  [More than one replica](https://bulkmailer.stoifl.app/kubernetes/#more-than-one-replica).
+  [More than one replica](https://bulkmailer.timothestoifl24.dev/kubernetes/#more-than-one-replica).
 </details>
 
 ## Sending responsibly

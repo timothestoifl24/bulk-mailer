@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal
 from app.main import app
-from app.models import User
+from app.models import LdapProfile, User
 from app.security import hash_password
 
 ADMIN_ONLY = ["/users", "/settings", "/settings/email", "/settings/system", "/settings/auth", "/settings/auth/new/oidc", "/ldap"]
@@ -79,8 +79,16 @@ def test_the_old_ldap_page_points_at_its_new_home(logged_in):
     response = logged_in.get("/ldap", follow_redirects=False)
     assert response.status_code == 308
     assert response.headers["location"] == "/settings/auth"
-    response = logged_in.get("/ldap/7", follow_redirects=False)
-    assert response.headers["location"] == "/settings/auth/ldap/7"
+    with SessionLocal() as db:
+        profile = LdapProfile(name="old-link-profile", host="dc.example.com")
+        db.add(profile)
+        db.commit()
+        profile_id = profile.id
+    response = logged_in.get(f"/ldap/{profile_id}", follow_redirects=False)
+    assert response.headers["location"] == f"/settings/auth/ldap/{profile_id}"
+    # An id that does not exist goes to the list, not to a made-up address.
+    response = logged_in.get("/ldap/999999", follow_redirects=False)
+    assert response.headers["location"] == "/settings/auth"
 
 
 def test_an_ordinary_user_cannot_add_an_auth_provider(plain_user):

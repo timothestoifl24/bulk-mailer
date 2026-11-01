@@ -16,5 +16,5 @@ kubectl apply -k base                        # or: kubectl apply -k overlays/pos
 
 The full guide - PostgreSQL, Ingress, administration, upgrades, backups,
 scaling out, troubleshooting - is at
-[bulkmailer.stoifl.app/kubernetes](https://bulkmailer.stoifl.app/kubernetes)
+[bulkmailer.timothestoifl24.dev/kubernetes](https://bulkmailer.timothestoifl24.dev/kubernetes)
 ([source](../../docs/kubernetes.md)).

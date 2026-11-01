@@ -46,7 +46,7 @@ pages no longer exist.
   `:beta` for the newest), with a GitHub pre-release. `latest` and the
   `X.Y.Z` / `X.Y` / `X` tags still only move on a stable release.
 - Development documentation for the upcoming release at
-  [bulkmailer.stoifl.app/dev](https://bulkmailer.stoifl.app/dev/), next to the
+  [bulkmailer.timothestoifl24.dev/dev](https://bulkmailer.timothestoifl24.dev/dev/), next to the
   docs for the current release.
 - A new look for 2.0: a grouped sidebar (Audience, Content, Admin), the Inter
   typeface, Font Awesome icons throughout, and an indigo colour scheme in both
@@ -103,7 +103,7 @@ pages no longer exist.
   one pod on SQLite, or an overlay adding PostgreSQL that can be scaled to
   several replicas. Both run under the *restricted* Pod Security Standard.
   The walkthrough - install, Ingress, upgrades, backups, scaling out - is at
-  [bulkmailer.stoifl.app/kubernetes](https://bulkmailer.stoifl.app/kubernetes).
+  [bulkmailer.timothestoifl24.dev/kubernetes](https://bulkmailer.timothestoifl24.dev/kubernetes).
 
 ### Fixed
 - Two instances on the same PostgreSQL database could send the same campaign
@@ -134,7 +134,7 @@ pages no longer exist.
   content, nothing loaded off-origin — and `npm audit` reports zero.
 
 ### Added
-- A documentation site at [bulkmailer.stoifl.app](https://bulkmailer.stoifl.app):
+- A documentation site at [bulkmailer.timothestoifl24.dev](https://bulkmailer.timothestoifl24.dev):
   a guide, every screen in screenshots, setup, advanced configuration,
   upgrading notes, an FAQ and the contributing guide. Built from `docs/` with
   VitePress and published by GitHub Actions on every change.
