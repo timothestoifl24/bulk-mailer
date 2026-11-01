@@ -237,9 +237,11 @@ class SyncWorker(threading.Thread):
     def _pass(self) -> None:
         with SessionLocal() as db:
             # Housekeeping that has to happen even if nobody imports again:
-            # abandoned wizard drafts hold the uploaded rows.
-            if sweep_expired_drafts(db):
-                db.commit()
+            # abandoned wizard drafts hold the uploaded rows. Committed even
+            # when nothing was deleted: on SQLite the DELETE alone takes the
+            # write lock, which must not stay held through a slow LDAP search.
+            sweep_expired_drafts(db)
+            db.commit()
             targets = due_lists(db)
             for target in targets:
                 if self._stop.is_set():

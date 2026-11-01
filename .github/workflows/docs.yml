@@ -1,9 +1,9 @@
 name: Documentation site
 
-# Publishes bulkmailer.stoifl.app from docs/ with VitePress. GitHub Pages hosts
+# Publishes bulkmailer.timothestoifl24.dev from docs/ with VitePress. GitHub Pages hosts
 # one site per repository, so every deployment builds both branches:
-#   main    -> bulkmailer.stoifl.app/      (production)
-#   develop -> bulkmailer.stoifl.app/dev/  (development, see DOCS_CHANNEL in docs/.vitepress/config.mts)
+#   main    -> bulkmailer.timothestoifl24.dev/      (production)
+#   develop -> bulkmailer.timothestoifl24.dev/dev/  (development, see DOCS_CHANNEL in docs/.vitepress/config.mts)
 # A push to either branch deploys both.
 #
 # Pull requests build their own docs but do not deploy: a dead internal link
