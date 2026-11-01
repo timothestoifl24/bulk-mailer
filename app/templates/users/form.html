@@ -3,6 +3,8 @@
 {% from "_ui.html" import confirm, help %}
 {% set is_new = account.id is none %}
 {% set external = account.auth_source != 'local' %}
+{# The initial admin's rights and active state are fixed; see services/setup.py. #}
+{% set locked = account.is_initial_admin %}
 
 {% block form_action %}{{ '/users/new' if is_new else '/users/' ~ account.id ~ '/edit' }}{% endblock %}
 
@@ -53,15 +55,30 @@
     {% endif %}
   </div>
 
+  {% if locked %}
+    <div class="alert alert-info">
+      <div class="d-flex">
+        <span class="alert-icon">{{ icon('shield') }}</span>
+        <div>
+          <strong>Initial administrator.</strong> Created at first start, it is the guaranteed way in:
+          it always stays an active administrator and cannot be deleted. Lost its password?
+          <span class="mono">python -m app.cli reset-initial-admin</span>
+        </div>
+      </div>
+    </div>
+    {# Disabled switches are not submitted; these keep the values the server insists on. #}
+    <input type="hidden" name="is_admin" value="1">
+    <input type="hidden" name="is_active" value="1">
+  {% endif %}
   <label class="form-check form-switch mb-2">
-    <input type="checkbox" class="form-check-input" name="is_admin" value="1" {{ 'checked' if account.is_admin }}>
+    <input type="checkbox" class="form-check-input" {% if not locked %}name="is_admin" {% endif %}value="1" {{ 'checked' if account.is_admin }} {{ 'disabled' if locked }}>
     <span class="form-check-label">Administrator
       <small class="d-block text-secondary">Can also manage users, sign-in methods and the mail server.</small>
     </span>
   </label>
   {% if not is_new %}
   <label class="form-check form-switch mb-0">
-    <input type="checkbox" class="form-check-input" name="is_active" value="1" {{ 'checked' if account.is_active }}>
+    <input type="checkbox" class="form-check-input" {% if not locked %}name="is_active" {% endif %}value="1" {{ 'checked' if account.is_active }} {{ 'disabled' if locked }}>
     <span class="form-check-label">Active
       <small class="d-block text-secondary">Disabled accounts cannot sign in. Their campaigns are kept.</small>
     </span>
@@ -76,15 +93,16 @@
 {% endblock %}
 
 {% block modal_footer %}
-  {% if not is_new and not (user and user.id == account.id) %}
+  {% set can_delete = not is_new and not locked and not (user and user.id == account.id) %}
+  {% if can_delete %}
     <button type="submit" class="btn btn-ghost-danger me-auto" form="delete-user-form">{{ icon('trash') }} Delete</button>
   {% endif %}
-  <a href="/users" class="btn btn-link link-secondary {{ 'ms-auto' if is_new or (user and user.id == account.id) }}" data-bs-dismiss="modal">Cancel</a>
+  <a href="/users" class="btn btn-link link-secondary {{ 'ms-auto' if not can_delete }}" data-bs-dismiss="modal">Cancel</a>
   <button type="submit" class="btn btn-primary">{{ icon('check') }} {{ 'Create account' if is_new else 'Save' }}</button>
 {% endblock %}
 
 {% block modal_after %}
-  {% if not is_new %}
+  {% if not is_new and not locked %}
   <form method="post" action="/users/{{ account.id }}/delete" id="delete-user-form"
         {{ confirm('Delete ' ~ account.username ~ '?', 'They can no longer sign in. Campaigns they created are kept.', 'Delete account') }}></form>
   {% endif %}

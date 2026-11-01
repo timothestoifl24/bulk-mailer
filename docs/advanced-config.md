@@ -18,7 +18,6 @@ is being ignored.
 | `SECRET_KEY` | Signs session cookies **and** derives the key encrypting stored SMTP/LDAP passwords. Changing it logs everyone out and invalidates those stored passwords. |
 | `DATABASE_URL` | `sqlite:////data/mailer.db` by default in the Docker image (`./data` from source). Any SQLAlchemy URL works. |
 | `PUBLIC_BASE_URL` | Base for unsubscribe links inside messages — must be reachable **by recipients**. |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Bootstrap account, used only while the user table is empty. |
 | `SMTP_*` | Initial mail server settings. |
 | `DEFAULT_THROTTLE_PER_MINUTE` | Pre-filled throttle for new campaigns (0 = unlimited). |
 

@@ -180,7 +180,12 @@ def update(
     wants_admin, wants_active = is_admin == "1", is_active == "1"
     losing_access = (account.is_admin and not wants_admin) or (account.is_active and not wants_active)
     error = None
-    if account.id == me.id and losing_access:
+    if account.is_initial_admin and losing_access:
+        error = (
+            "The initial administrator always keeps its admin rights and stays active - it is "
+            "the guaranteed way in. You can still change its name, email and password."
+        )
+    elif account.id == me.id and losing_access:
         error = "You cannot take away your own admin rights or disable yourself. Ask another administrator."
     elif losing_access and _last_admin(db, account):
         error = "This is the only administrator left; make someone else an administrator first."
@@ -208,6 +213,8 @@ def delete_user(request: Request, user_id: int, db: Session = Depends(get_db)):
     user = db.get(User, user_id)
     if user is None:
         flash(request, "User not found.", "error")
+    elif user.is_initial_admin:
+        flash(request, "The initial administrator cannot be deleted.", "error")
     elif user.id == request.state.user.id:
         flash(request, "You cannot delete your own account.", "error")
     elif _last_admin(db, user):

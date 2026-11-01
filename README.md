@@ -124,7 +124,6 @@ services:
       - "8000:8000"
     environment:
       SECRET_KEY: change-me-to-a-long-random-string
-      ADMIN_PASSWORD: change-me
       # DATABASE_URL: postgresql+psycopg://user:pass@host:5432/db   # optional; defaults to SQLite
     volumes:
       - mailer-data:/data
@@ -141,18 +140,19 @@ Or without Compose:
 ```bash
 docker run -d -p 8000:8000 \
   -e SECRET_KEY=$(openssl rand -base64 36) \
-  -e ADMIN_PASSWORD=choose-one \
   -v mailer-data:/data \
   docker.io/timothestoifl24/bulk-mailer:latest
 ```
 
-Open <http://127.0.0.1:8000> and sign in with `admin` / whatever
-`ADMIN_PASSWORD` resolved to. **That password is read only once, while the
-account table is empty** — changing the environment variable afterwards does
-nothing. Change it under *Account*, or from a shell in the container:
+Open <http://127.0.0.1:8000>. On the first start there is no account yet: the app opens a **setup page**
+where you create the first administrator. Do this straight away — until then,
+anyone who can reach the address can create it.
+
+That *initial administrator* cannot be deleted, disabled or demoted, so there
+is always a way in. Lost its password? From a shell in the container:
 
 ```bash
-docker exec -it <container> python -m app.cli set-password admin
+docker exec -it <container> python -m app.cli reset-initial-admin
 ```
 
 `python -m app.cli list-users` shows who exists, `create-admin` adds another
@@ -172,7 +172,7 @@ in, so nothing else is needed. From a checkout:
 
 ```bash
 cp deploy/kubernetes/base/secret.env.example deploy/kubernetes/base/secret.env
-#   fill in SECRET_KEY (openssl rand -base64 36) and ADMIN_PASSWORD, then set
+#   fill in SECRET_KEY (openssl rand -base64 36), then set
 #   PUBLIC_BASE_URL and the SMTP block in deploy/kubernetes/base/config.env
 kubectl apply -k deploy/kubernetes/base
 kubectl -n bulk-mailer port-forward service/bulk-mailer 8000:80
@@ -189,7 +189,7 @@ scaling out are covered in the
 
 ```bash
 python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt
-cp .env.example .env   # set SECRET_KEY, ADMIN_PASSWORD, DATABASE_URL, and the SMTP block
+cp .env.example .env   # set SECRET_KEY, DATABASE_URL, and the SMTP block
 python run.py
 ```
 
@@ -220,7 +220,6 @@ without a restart. *System* shows each value and where it comes from.
 | `SECRET_KEY` | Signs session cookies **and** derives the key encrypting stored SMTP/LDAP passwords. Changing it logs everyone out and invalidates those stored passwords. |
 | `DATABASE_URL` | `sqlite:////data/mailer.db` by default in the Docker image (`./data` from source). Any SQLAlchemy URL works — see [Database](#database) below. |
 | `PUBLIC_BASE_URL` | Base for unsubscribe links inside messages — must be reachable **by recipients**. |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Bootstrap account, used only while the user table is empty. |
 | `SMTP_*` | Initial mail server settings. |
 | `DEFAULT_THROTTLE_PER_MINUTE` | Pre-filled throttle for new campaigns (0 = unlimited). |
 
@@ -251,7 +250,7 @@ docker run -d --name mailer-pg -e POSTGRES_USER=mailer -e POSTGRES_PASSWORD=mail
 
 The whole stack — app, PostgreSQL, and a throwaway SMTP sink — comes up with
 one command from a checkout of this repository. Compose substitutes
-`SECRET_KEY`, `ADMIN_PASSWORD` and friends from a `.env` file next to
+`SECRET_KEY` and friends from a `.env` file next to
 `compose.yaml`:
 
 ```bash

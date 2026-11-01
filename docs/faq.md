@@ -7,14 +7,25 @@ description: Bootstrap passwords, SECRET_KEY, SQLite versus PostgreSQL, delivera
 
 ## Getting in
 
-### I set `ADMIN_PASSWORD` but the password did not change
+### Where do I set the admin password?
 
-It is read **only once, while the user table is empty**. After the first
-start, changing the environment variable does nothing.
+Nowhere in the environment. On the first start the app shows a setup page
+where you create the first administrator. `ADMIN_USERNAME` and
+`ADMIN_PASSWORD` are no longer read; the System page reminds you to remove
+them if they are still set.
+
+### I lost the administrator's password
+
+The initial administrator — the account created on the setup page — can
+always be recovered:
 
 ```bash
-docker exec -it <container> python -m app.cli set-password admin
+docker exec -it <container> python -m app.cli reset-initial-admin
 ```
+
+It asks for a new password, and also re-enables the account and restores its
+admin rights. For any other local account, `set-password <username>` does the
+same for the password alone.
 
 ### I locked everyone out with an LDAP setting
 

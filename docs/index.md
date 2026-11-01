@@ -46,7 +46,6 @@ features:
 ```bash
 docker run -d -p 8000:8000 \
   -e SECRET_KEY=$(openssl rand -base64 36) \
-  -e ADMIN_PASSWORD=choose-one \
   -v mailer-data:/data \
   docker.io/timothestoifl24/bulk-mailer:latest
 ```

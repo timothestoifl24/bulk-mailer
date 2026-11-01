@@ -25,6 +25,7 @@ from ..config import settings as env
 from ..db import engine
 from ..models import LdapProfile, OidcProvider, RecipientList, Setting, User
 from . import ldap_auth, ldap_sync, oidc_auth, sender, settings_store
+from . import setup as first_run
 
 SAVED, ENVIRONMENT, DEFAULT = "saved", "environment", "default"
 SOURCE_LABELS = {SAVED: "Saved in the app", ENVIRONMENT: "Environment / .env", DEFAULT: "Default"}
@@ -166,6 +167,14 @@ def _email_rows(db: Session) -> tuple[list[Row], list[Notice]]:
     return rows, warnings
 
 
+def _initial_admin_label(db: Session) -> str:
+    user = first_run.initial_admin(db)
+    if user is None:
+        return "none"
+    state = "" if user.is_active and user.is_admin else " (not active - reset it)"
+    return f"{user.username}{state}"
+
+
 def collect(db: Session) -> SystemInfo:
     info = SystemInfo()
 
@@ -206,15 +215,21 @@ def collect(db: Session) -> SystemInfo:
     form_shown = settings_store.get_value(db, "auth_show_local_form") != "0"
     info.sign_in = [
         Row("Accounts", ", ".join(f"{count} {source}" for source, count in sorted(by_source.items())) or "none"),
+        Row("Initial administrator", _initial_admin_label(db)),
         Row("Active local administrators", str(local_admins)),
         Row("Username and password form", "shown" if form_shown else "hidden (/login?local=1 still works)"),
         Row("LDAP sign-in", "on" if ldap_auth.is_enabled(db) else "off"),
         Row("Single sign-on", "on" if oidc_auth.enabled_providers(db) else "off"),
     ]
+    if env.admin_username or env.admin_password:
+        info.warnings.append(Notice(
+            "ADMIN_USERNAME / ADMIN_PASSWORD are still set but no longer used: the first "
+            "administrator is created on the setup page. Remove them from the environment."
+        ))
     if not local_admins:
         info.warnings.append(Notice(
             "No active local administrator. If every provider fails, nobody can manage the app - "
-            "create one with python -m app.cli create-admin.",
+            "reset the initial administrator with python -m app.cli reset-initial-admin.",
             "/users",
         ))
     for profile in db.scalars(select(LdapProfile).order_by(LdapProfile.name)):
@@ -269,8 +284,6 @@ def collect(db: Session) -> SystemInfo:
         env_row("port", str(env.port)),
         env_row("debug", "on" if env.debug else "off"),
         env_row("secret_key", "placeholder - replace it" if secret_key_is_weak() else "set"),
-        env_row("admin_username", env.admin_username, "only read while there are no accounts yet"),
-        env_row("admin_password", _secret_state(env.admin_password), "only read while there are no accounts yet"),
     ]
     for key, env_name in SEEDED_FROM_ENV.items():
         secret = key in settings_store.SECRET_KEYS

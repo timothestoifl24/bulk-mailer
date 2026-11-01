@@ -72,7 +72,6 @@ def test_system_page_never_shows_secrets(logged_in, monkeypatch):
     page = logged_in.get("/settings/system").text
     assert "hunter2-smtp-secret" not in page
     assert env.secret_key not in page
-    assert env.admin_password not in page
     _clear("smtp_password")
 
 

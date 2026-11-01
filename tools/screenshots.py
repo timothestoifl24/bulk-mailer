@@ -276,7 +276,7 @@ def seed() -> None:
             settings_store.set_value(db, key, value)
 
 
-def capture(base: str, out: Path) -> None:
+def capture(base: str, out: Path, seed_data) -> None:
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
@@ -302,6 +302,17 @@ def capture(base: str, out: Path) -> None:
             page.screenshot(path=str(out / f"{name}.png"))
             page.set_viewport_size({"width": WIDTH, "height": MIN_HEIGHT})
             print(f"  {name}.png  {WIDTH}x{height}")
+
+        # A fresh database starts at first-run setup, which is also how the
+        # administrator the rest of the screenshots sign in as is created.
+        shoot("00-setup", "/setup", None)
+        page.fill("#username", "admin")
+        page.fill("#password", ADMIN_PASSWORD)
+        page.fill("#confirm_password", ADMIN_PASSWORD)
+        page.click("button[type=submit]")
+        page.wait_for_load_state("networkidle")
+        seed_data()
+        context.clear_cookies()
 
         shoot("01-login", "/login", None)
         page.fill("#username", "admin")
@@ -342,8 +353,6 @@ def main() -> None:
             "DATABASE_URL": f"sqlite:///{Path(tmp) / 'screenshots.db'}",
             "DATA_DIR": tmp,
             "SECRET_KEY": "screenshots-only-not-a-secret",
-            "ADMIN_USERNAME": "admin",
-            "ADMIN_PASSWORD": ADMIN_PASSWORD,
             "PUBLIC_BASE_URL": base,
             "DEBUG": "false",
         }
@@ -361,9 +370,8 @@ def main() -> None:
         try:
             wait_until_up(base, server, log)
             sys.path.insert(0, str(ROOT))
-            seed()
-            print(f"Seeded a throwaway database; capturing into {args.out}")
-            capture(base, args.out)
+            print(f"Capturing into {args.out} (the database is seeded right after setup)")
+            capture(base, args.out, seed)
         finally:
             server.terminate()
             try:

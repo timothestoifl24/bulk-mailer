@@ -20,8 +20,6 @@ os.environ.update(
         "DATABASE_URL": DATABASE_URL,
         "DATA_DIR": str(TMP_DIR),
         "SECRET_KEY": "test-secret-key-for-tests-only",
-        "ADMIN_USERNAME": "admin",
-        "ADMIN_PASSWORD": "admin-test-password",
         "PUBLIC_BASE_URL": "http://testserver",
         "SMTP_HOST": "",
         "DEBUG": "false",
@@ -46,12 +44,35 @@ def _clean_schema():
     yield
 
 
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin-test-password"
+
+
 @pytest.fixture(scope="session")
 def client():
     # The context manager runs the lifespan: schema creation + sender worker.
     with TestClient(app, base_url="http://testserver") as test_client:
         # The origin header satisfies the CSRF guard on state-changing requests.
         test_client.headers.update({"Origin": "http://testserver"})
+
+        # A fresh database has no account: every page leads to first-run
+        # setup, which is how the administrator every test signs in as is made.
+        for path in ("/", "/login", "/users"):
+            response = test_client.get(path, follow_redirects=False)
+            assert response.headers.get("location") == "/setup", path
+        response = test_client.post(
+            "/setup",
+            data={
+                "username": ADMIN_USERNAME,
+                "display_name": "Administrator",
+                "password": ADMIN_PASSWORD,
+                "confirm_password": ADMIN_PASSWORD,
+            },
+            follow_redirects=False,
+        )
+        assert response.headers.get("location") == "/settings/email", response.text
+        # Tests start signed out, as before; they sign in through `logged_in`.
+        test_client.post("/logout")
         yield test_client
 
 
@@ -72,7 +93,7 @@ def anon_client(client):
 def logged_in(client):
     response = client.post(
         "/login",
-        data={"username": "admin", "password": "admin-test-password"},
+        data={"username": ADMIN_USERNAME, "password": ADMIN_PASSWORD},
         follow_redirects=True,
     )
     assert response.status_code == 200

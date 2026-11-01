@@ -37,11 +37,8 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://mailer:${MAILER_DB_PASSWORD:-mailer_dev_pw}@db:5432/mailer
       SECRET_KEY: ${MAILER_SECRET_KEY:-CHANGE-ME-generate-a-long-random-string}
-      ADMIN_USERNAME: ${MAILER_ADMIN_USERNAME:-admin}
-      # Whatever this resolves to *is* the first admin password, placeholder
-      # included. It is only read while the users table is empty; afterwards
-      # change it with `python -m app.cli set-password admin`.
-      ADMIN_PASSWORD: ${MAILER_ADMIN_PASSWORD:-CHANGE-ME}
+      # No admin password here: on first start, open the app and create the
+      # first administrator on its setup page.
       PUBLIC_BASE_URL: ${MAILER_PUBLIC_BASE_URL:-http://127.0.0.1:8000}
       # Point at your real mail server, or leave it on the dev sink below.
       # This must be a name the app *container* can resolve, not localhost.

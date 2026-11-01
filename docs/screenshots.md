@@ -16,6 +16,15 @@ empty tables. The names, addresses, directory and mail server are all
 fictional, and nothing in it can send.
 :::
 
+## First start
+
+![The setup page that creates the first administrator](/media/screenshots/00-setup.png)
+
+A new installation has no account and no admin password to look up: every
+page leads here until the first administrator is created. That account cannot
+be deleted, disabled or demoted, and `python -m app.cli reset-initial-admin`
+recovers it.
+
 ## Sign in
 
 ![The sign-in page](/media/screenshots/01-login.png)
@@ -133,6 +142,5 @@ value, so **Copy as text** is safe to paste into a support ticket.
 
 ![The account page for changing your own password](/media/screenshots/11-account.png)
 
-Your own password and details. The bootstrap `ADMIN_PASSWORD` is read only
-once, while the user table is empty, so this is where you change it
-afterwards.
+Your own password and details — including the initial administrator's,
+which was chosen on the setup page.

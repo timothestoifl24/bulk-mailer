@@ -56,6 +56,7 @@
                 <div class="fw-semibold text-truncate">
                   {{ item.name }}
                   {% if user and item.id == user.id %}<span class="badge bg-secondary-lt ms-1">you</span>{% endif %}
+                  {% if item.is_initial_admin %}<span class="badge bg-purple-lt ms-1" title="Created at first start. Cannot be deleted, disabled or demoted.">{{ icon('lock') }} initial admin</span>{% endif %}
                   {% if not item.is_active %}<span class="status-pill status-red ms-1">{{ icon('ban') }} disabled</span>{% endif %}
                 </div>
                 <div class="text-secondary small text-truncate">{{ item.username }}{% if item.email %} &middot; {{ item.email }}{% endif %}</div>
@@ -96,7 +97,7 @@
   {% endif %}
 
   <div class="card-footer text-secondary small">
-    {{ icon('info') }} Administrators can also open Users, Authentication and Settings.
+    {{ icon('info') }} Administrators can also open Users, Authentication, Email delivery and System.
     Members manage recipients, lists, templates and campaigns.
     Accounts from LDAP or OpenID Connect appear here after their first sign-in.
   </div>
