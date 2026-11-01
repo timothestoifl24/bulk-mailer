@@ -35,6 +35,8 @@ from dockerhub import (
 )
 
 MARKER = "<!-- bulk-mailer-pr-image -->"
+# GITHUB_TOKEN posts as this account; see posted_comments.
+AUTHOR = "github-actions[bot]"
 DISPOSABLE = re.compile(r"^sha256-[0-9a-f]{64}(\.\w+)?$")
 
 
@@ -113,10 +115,18 @@ def comment_body(env: dict[str, str], deleted: bool) -> str:
 
 
 def posted_comments(env: dict[str, str]) -> list[dict]:
-    """The image comments this workflow posted on the pull request, oldest first."""
+    """The image comments this workflow posted on the pull request, oldest first.
+
+    Matched by author as well as by marker: someone quoting the comment in their own must never
+    have it edited or deleted.
+    """
     base = f"{API}/repos/{env['REPOSITORY']}/issues"
     comments = paginate(f"{base}/{env['PR_NUMBER']}/comments", env["GH_TOKEN"])
-    return [c for c in comments if (c.get("body") or "").startswith(MARKER)]
+    return [
+        c
+        for c in comments
+        if (c.get("body") or "").startswith(MARKER) and (c.get("user") or {}).get("login") == AUTHOR
+    ]
 
 
 def uncomment(env: dict[str, str], dry_run: bool) -> None:
