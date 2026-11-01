@@ -5,7 +5,8 @@ name: Container image
 # develop (pre-release): every push publishes X.Y.Z-beta.N and beta and creates a pre-release.
 # Pull requests into develop (from this repository): every push publishes develop-pr-N, deletes the
 #   image it replaces (also when the run is cancelled) and comments on the pull request how to
-#   pull it. pr-image-cleanup.yml deletes the image when the pull request is merged or closed.
+#   pull it (the comment is deleted when a rebuild starts and posted again once it is published).
+#   pr-image-cleanup.yml deletes the image when the pull request is merged or closed.
 # Other pull requests (forks, Dependabot, into main): tests and build only.
 # See .github/scripts/release_version.py for the rules, and CONTRIBUTING.md for how to release.
 #
@@ -67,6 +68,28 @@ jobs:
             echo
             for t in $IMAGE_TAGS; do echo "- \`$t\`"; done
           } >> "$GITHUB_STEP_SUMMARY"
+
+  pr-comment:
+    name: Remove the pull request image comment
+    # A rebuild is starting: the comment goes now, and pr-image posts it again once the new image
+    # is published, so the pull request never shows a pull command for a build that is replaced.
+    needs: version
+    if: needs.version.outputs.channel == 'pr'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write # delete the comment
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPOSITORY: ${{ github.repository }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - name: Delete the comment
+        run: python3 .github/scripts/pr_image.py uncomment
 
   tests:
     name: Tests
@@ -240,7 +263,8 @@ jobs:
 
   pr-image:
     name: Pull request image
-    needs: [version, publish]
+    # After pr-comment, so the new comment can't be deleted by the job meant for the old one.
+    needs: [version, pr-comment, publish]
     if: needs.version.outputs.channel == 'pr'
     runs-on: ubuntu-24.04
     permissions:
@@ -256,7 +280,7 @@ jobs:
         with:
           sparse-checkout: .github/scripts
           persist-credentials: false
-      - name: Comment how to pull the image
+      - name: Post the comment how to pull the image again
         env:
           SHA: ${{ github.event.pull_request.head.sha }}
           VERSION: ${{ needs.version.outputs.version }}

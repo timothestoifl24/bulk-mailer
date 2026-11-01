@@ -3,7 +3,8 @@
   replace           after a push: delete the tags left on the image the tag pointed to before
                     (OLD_DIGEST), unless the tag still points to it or it carries another tag,
   delete            after the pull request is merged or closed: delete the develop-pr-N image,
-  comment           create or update the pull request comment that explains how to pull the image,
+  uncomment         when a rebuild starts: delete the comment that explains how to pull the image,
+  comment           after the rebuild: post that comment again (as a new one, at the bottom),
   comment --deleted update that comment once the image is gone.
 
 Images go with their attestation tags (see dockerhub.py). An image that carries a tag other than
@@ -20,6 +21,7 @@ VERSION and DRY_RUN ("true" only lists what would be deleted). GH_TOKEN needs pu
 import os
 import re
 import sys
+import urllib.error
 
 from dockerhub import (
     API,
@@ -103,29 +105,58 @@ def comment_body(env: dict[str, str], deleted: bool) -> str:
             f"Built from {env.get('SHA', '')[:7]} as version `{env.get('VERSION', '')}`."
             + (f" To pin exactly this build, use `{pinned}`." if pinned else ""),
             "",
-            "The image is rebuilt on every push to this pull request (the tag moves to the new build)"
-            " and its tag is deleted when the pull request is merged or closed.",
+            "The image is rebuilt on every push to this pull request: this comment is removed while"
+            " the new build runs and posted again once its image is published. The tag is deleted"
+            " when the pull request is merged or closed.",
         ]
     )
 
 
+def posted_comments(env: dict[str, str]) -> list[dict]:
+    """The image comments this workflow posted on the pull request, oldest first."""
+    base = f"{API}/repos/{env['REPOSITORY']}/issues"
+    comments = paginate(f"{base}/{env['PR_NUMBER']}/comments", env["GH_TOKEN"])
+    return [c for c in comments if (c.get("body") or "").startswith(MARKER)]
+
+
+def uncomment(env: dict[str, str], dry_run: bool) -> None:
+    """Delete the image comment, so the pull request shows no pull command while a rebuild runs."""
+    base = f"{API}/repos/{env['REPOSITORY']}/issues"
+    for existing in posted_comments(env):
+        if dry_run:
+            print(f"Would delete {existing['html_url']}")
+            continue
+        try:
+            request(f"{base}/comments/{existing['id']}", env["GH_TOKEN"], method="DELETE")
+        except urllib.error.HTTPError as error:
+            if error.code != 404:  # already gone
+                raise
+        print(f"Deleted {existing['html_url']}")
+
+
 def comment(env: dict[str, str], deleted: bool, dry_run: bool) -> None:
-    """Create the pull request comment, or update the one posted before."""
+    """Post the image comment after a build, or mark the posted one once the image is deleted."""
     token, number = env["GH_TOKEN"], env["PR_NUMBER"]
     base = f"{API}/repos/{env['REPOSITORY']}/issues"
     body = comment_body(env, deleted)
-    existing = next(
-        (c for c in paginate(f"{base}/{number}/comments", token) if (c.get("body") or "").startswith(MARKER)),
-        None,
-    )
+    if deleted:
+        existing = posted_comments(env)
+        if not existing:
+            print("No image comment to update.")
+        elif dry_run:
+            print(f"Would update {existing[-1]['html_url']}:\n\n{body}")
+        else:
+            request(f"{base}/comments/{existing[-1]['id']}", token, method="PATCH", data={"body": body})
+            print(f"Updated {existing[-1]['html_url']}")
+        return
+    # Normally uncomment already removed it when the build started; this catches a comment left by a
+    # run that overlapped, so there is only ever one.
+    uncomment(env, dry_run)
     if dry_run:
-        print(f"Would {'update' if existing else 'post'} the comment:\n\n{body}")
-    elif existing:
-        request(f"{base}/comments/{existing['id']}", token, method="PATCH", data={"body": body})
-        print(f"Updated {existing['html_url']}")
-    elif not deleted:
-        posted = request(f"{base}/{number}/comments", token, method="POST", data={"body": body})[0]
-        print(f"Posted {posted['html_url']}")
+        print(f"Would post the comment:\n\n{body}")
+        return
+    posted = request(f"{base}/{number}/comments", token, method="POST", data={"body": body})[0]
+    print(f"Posted {posted['html_url']}")
 
 
 def main() -> None:
@@ -144,10 +175,12 @@ def main() -> None:
         delete(env, dry_run, digest=old)
     elif command == "delete":
         delete(env, dry_run, tag=tag_name(env["PR_NUMBER"]))
+    elif command == "uncomment":
+        uncomment(env, dry_run)
     elif command == "comment":
         comment(env, "--deleted" in sys.argv[2:], dry_run)
     else:
-        print("usage: pr_image.py replace | delete | comment [--deleted]")
+        print("usage: pr_image.py replace | delete | uncomment | comment [--deleted]")
         sys.exit(2)
 
 
