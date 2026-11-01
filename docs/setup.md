@@ -77,6 +77,7 @@ Other commands worth knowing before you need them:
 | `python -m app.cli list-users` | Who exists, and how they authenticate |
 | `python -m app.cli create-admin` | Add another administrator |
 | `python -m app.cli disable-ldap-login` | The way back in when a directory setting locks everyone out |
+| `python -m app.cli disable-sso` | Switches every OpenID Connect provider off and shows the password form again |
 
 ## Kubernetes
 
@@ -124,7 +125,7 @@ A throwaway SMTP sink ships with the source. Start it in a second terminal:
 python tools/dev_smtp.py --port 8025 --out ./data/sent
 ```
 
-Point *Settings → SMTP* at `127.0.0.1:8025` with security `none`. Every
+Point *Email delivery* at `127.0.0.1:8025` with security `none`. Every
 message is printed and written to `./data/sent/*.eml` instead of being
 delivered — which makes it safe to run a real campaign against real addresses
 while you are still learning what the tool does.

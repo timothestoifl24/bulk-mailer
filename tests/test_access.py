@@ -11,7 +11,7 @@ from app.main import app
 from app.models import User
 from app.security import hash_password
 
-ADMIN_ONLY = ["/users", "/settings", "/ldap"]
+ADMIN_ONLY = ["/users", "/settings", "/settings/email", "/settings/system", "/settings/auth", "/settings/auth/new/oidc", "/ldap"]
 OPEN_TO_EVERYONE = ["/", "/recipients", "/lists", "/templates", "/campaigns"]
 
 
@@ -58,14 +58,15 @@ def test_the_rest_of_the_tool_stays_open(plain_user, path):
 
 def test_admin_navigation_is_hidden_from_ordinary_users(plain_user, logged_in):
     ordinary = plain_user.get("/").text
-    for label in ("Users", "Settings", "LDAP"):
+    for label in ("Users", "Authentication", "Email delivery", "System"):
         assert f'nav-link-title">{label}<' not in ordinary, label
     # ...and no dead links elsewhere on the page either.
-    assert 'href="/settings"' not in ordinary
+    assert 'href="/settings' not in ordinary
+    assert 'href="/settings/auth"' not in ordinary
     assert 'href="/ldap"' not in ordinary
 
     admin_view = logged_in.get("/").text
-    for label in ("Users", "Settings", "LDAP"):
+    for label in ("Users", "Authentication", "Email delivery", "System"):
         assert f'nav-link-title">{label}<' in admin_view, label
 
 
@@ -74,8 +75,21 @@ def test_admin_pages_are_reachable_by_admins(logged_in, path):
     assert logged_in.get(path).status_code == 200
 
 
+def test_the_old_ldap_page_points_at_its_new_home(logged_in):
+    response = logged_in.get("/ldap", follow_redirects=False)
+    assert response.status_code == 308
+    assert response.headers["location"] == "/settings/auth"
+    response = logged_in.get("/ldap/7", follow_redirects=False)
+    assert response.headers["location"] == "/settings/auth/ldap/7"
+
+
+def test_an_ordinary_user_cannot_add_an_auth_provider(plain_user):
+    response = plain_user.post("/settings/auth/new/oidc", data={"name": "evil", "client_id": "x"})
+    assert response.status_code == 403
+
+
 def test_an_ordinary_user_cannot_post_to_an_admin_route(plain_user):
-    response = plain_user.post("/users/add", data={"username": "sneaky", "password": "12345678"})
+    response = plain_user.post("/users/new", data={"username": "sneaky", "password": "12345678"})
     assert response.status_code == 403
     with SessionLocal() as db:
         assert db.scalar(select(User).where(User.username == "sneaky")) is None

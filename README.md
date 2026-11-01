@@ -53,19 +53,25 @@ network.
 ## Features
 
 **Recipients**
-- Add one by one, paste a block of addresses (`Jane Doe <jane@example.com>` is
-  understood), or upload a CSV — delimiter and column names are detected,
-  unknown columns are kept as extra template variables.
-- Group them into lists; filter and search; bulk add/remove/suppress/delete;
-  export to CSV.
+- Add one by one, or use the **Import** wizard: paste a block of addresses
+  (`Jane Doe <jane@example.com>` is understood), upload a CSV, or search the
+  directory. Column names are recognised (English and German) and can be
+  changed; a review step shows how many people are new, updated or skipped
+  before anything is written. Unknown columns become template variables.
+- Recipients and lists on one *Audience* page; filter and search; bulk
+  add/remove/suppress/delete; export to CSV.
 
 **LDAP / Active Directory**
-- Named connection profiles (LDAPS, StartTLS or plain; simple or anonymous
-  bind). Bind passwords are stored encrypted with the app `SECRET_KEY`.
+- Directories are set up by an administrator on the *Authentication* page
+  (LDAPS, StartTLS or plain; simple or anonymous bind), each usable for
+  sign-in, recipient import, or both. Bind passwords are stored encrypted
+  with the app `SECRET_KEY`.
+- Anyone who manages recipients can import from a directory an administrator
+  enabled for import, without seeing its server or service account.
 - Configurable attribute mapping; only the address is required — attributes
   your directory doesn't define (`company` and `department` are Active
   Directory–specific) are skipped with a note instead of failing the import.
-- Paged search for large directories, with a preview before importing.
+- Paged search for large directories, with a review before importing.
 - Import everyone in a group by DN, including nested groups.
 - Optionally **keep a list in sync** with the search that filled it: new
   matches are added and people who have left are removed from the list, on a
@@ -90,11 +96,14 @@ network.
 - Progress lives in the database, so a restart resumes where it stopped.
 
 **Users & sign-in**
-- Local accounts, or sign in against LDAP / Active Directory so a team
-  shares the tool with their own profiles. The directory password is
-  verified by binding as the user and is never stored.
+- Local accounts, sign-in against one or more LDAP / Active Directory
+  directories, and **single sign-on with OpenID Connect** (Entra ID,
+  Keycloak, Google, Authentik, …) — all set up on one *Authentication* page.
+  Directory passwords are verified by binding as the user and never stored.
 - Optional group restrictions: one group to allow sign-in at all, another to
   grant admin rights. Campaigns record who created them.
+- A *Users* page to search accounts, see how each signs in, and edit them in
+  place.
 
 **Compliance & safety**
 - One-click unsubscribe link plus `List-Unsubscribe` headers; unsubscribed
@@ -186,11 +195,11 @@ python run.py
 
 ## Typical run
 
-1. **Settings** — enter the SMTP server, press *Test the connection*, then
+1. **Email delivery** — enter the SMTP server, press *Test the connection*, then
    send yourself a test email.
-2. **LDAP** — create a profile, *Test connection*, then search. Check the
-   preview and *Import all N* into a new list. (Or **Recipients → Import**
-   for CSV/paste.)
+2. **Recipients → Import** — upload a CSV, paste addresses, or search your
+   directory (an administrator connects it first under *Authentication*).
+   Check the review and import into a new list.
 3. **Templates** — write the message once, using `{{ first_name }}` and
    friends.
 4. **Campaigns → New** — pick the lists, load the template, *Preview*.
@@ -202,9 +211,9 @@ python run.py
 
 ## Configuration
 
-Environment variables (see `.env.example`); everything under *Settings* in
-the UI is stored in the database and overrides the SMTP defaults below
-without a restart.
+Environment variables (see `.env.example`); everything under *Email delivery*
+in the UI is stored in the database and overrides the SMTP defaults below
+without a restart. *System* shows each value and where it comes from.
 
 | Variable | Meaning |
 | --- | --- |
@@ -294,7 +303,7 @@ A throwaway SMTP sink is included. Start it in a second terminal:
 python tools/dev_smtp.py --port 8025 --out ./data/sent
 ```
 
-Point *Settings → SMTP* at `127.0.0.1:8025` with security `none`. Every
+Point *Email delivery* at `127.0.0.1:8025` with security `none`. Every
 message is printed and written to `./data/sent/*.eml` instead of being
 delivered.
 </details>
@@ -302,9 +311,9 @@ delivered.
 <details>
 <summary><strong>Signing in with LDAP</strong></summary>
 
-*Users & access* (admin only) turns it on. It reuses an existing **LDAP
-profile**, so create one under *LDAP* first — the same server and service
-credentials used for importing recipients.
+Turn on **Use for sign-in** on an LDAP provider under *Authentication*
+(admin only). It reuses the provider's server and service account. With
+several directories, each is asked in turn.
 
 | Setting | What it does |
 | --- | --- |
@@ -320,7 +329,7 @@ entry and checking `member`, `uniqueMember` or `memberUid` — a stock
 OpenLDAP has no `memberOf` unless the overlay is enabled, so both paths
 matter.
 
-Press **Test sign-in** before signing out — it checks the settings against
+Press **Try it** under *Try a sign-in* before signing out — it checks the settings against
 the directory without touching your session. Keep at least one **local**
 account: it still works when the directory is unreachable, and
 `python -m app.cli disable-ldap-login` turns directory sign-in off from the
@@ -348,8 +357,8 @@ your directory does have, e.g. `"department": "departmentNumber"` or
 <details>
 <summary><strong>Keeping a list in sync with a group</strong></summary>
 
-An import is a snapshot. Tick **Keep the list in sync with this search** on
-the import form and the list instead tracks the query that filled it: the
+An import is a snapshot. Tick **Keep the list in sync with this search** in
+the last step of the import wizard and the list instead tracks the query that filled it: the
 search is re-run on a schedule, new matches are added, and members who no
 longer match are **removed from the list**.
 
@@ -357,12 +366,12 @@ Removal is from the list only. The recipient record, its other lists and its
 send history are all left alone, so a group edited by mistake costs a re-sync
 rather than data.
 
-The *Lists* page shows which lists sync, which profile each came from, when
+The *Lists* tab shows which lists sync, which provider each came from, when
 each last ran, and why the last run failed if it did. **Sync now** re-runs one
 immediately; **Turn sync off** freezes a list exactly as it is without
 forgetting the query, so it can be turned back on later.
 
-The interval is on the *LDAP* page — default 60 minutes, floored at 5 so a
+The interval is at the bottom of the *Lists* tab — default 60 minutes, floored at 5 so a
 stray `0` cannot turn the worker into a busy loop against the directory.
 
 Two things it deliberately refuses to do:
@@ -375,8 +384,27 @@ Two things it deliberately refuses to do:
   so the toggle refuses rather than showing "on" for something that will never
   change.
 
-Deleting an LDAP profile turns sync off for the lists that used it and says
+Deleting an LDAP provider turns sync off for the lists that used it and says
 so. The lists and their members are untouched.
+</details>
+
+<details>
+<summary><strong>Single sign-on with OpenID Connect</strong></summary>
+
+*Authentication* → **Add provider** → *OpenID Connect*. Enter the provider's
+discovery URL, client ID and secret, save, and register the **callback URL**
+the page then shows (`PUBLIC_BASE_URL/auth/oidc/<id>/callback`) with the
+client. *Test connection*, and a button appears on the sign-in page.
+
+Sign-in uses the authorization code flow with PKCE; the ID token's signature,
+issuer, audience and nonce are checked. Accounts are matched on the `sub`
+claim, so a provider can never take over a local account of the same name.
+An optional administrator group (a value of the groups claim) grants and
+revokes admin rights at each sign-in.
+
+The username and password form can then be hidden. `/login?local=1` always
+brings it back for a local administrator, and `python -m app.cli disable-sso`
+switches single sign-on off from the command line.
 </details>
 
 <a id="deployment-notes"></a>
@@ -428,15 +456,17 @@ app/
   cli.py                  password reset / user admin from the command line
   migrations.py           adds columns a newer model expects (stopgap for Alembic)
   config.py  db.py  models.py  security.py  web.py
-  routers/                auth, recipients+lists, ldap, mail_templates, campaigns, users, settings, public
+  routers/                auth, auth_providers, recipients+lists, import_wizard, mail_templates, campaigns, users, settings, public
   services/
     auth.py               local-then-directory sign-in
-    ldap_auth.py          bind-as-user authentication, group checks
+    ldap_auth.py          bind-as-user authentication, group checks, per-provider settings
+    oidc_auth.py          OpenID Connect sign-in (PKCE, ID token checks, provisioning)
     ldap_client.py        directory search and attribute mapping
+    ldap_import.py        group/filter building for directory imports
     mailer.py             MIME construction + SMTP connection
     sender.py             background worker, single/test sends
     rendering.py          sandboxed templating, HTML→text
-    importer.py           CSV/paste parsing, recipient upsert
+    importer.py           CSV/paste parsing, column mapping, preview, recipient upsert
     settings_store.py     DB-backed settings
   templates/               server-rendered Jinja pages (Tabler UI)
   static/vendor/tabler/    vendored Tabler dist (MIT) - no CDN, no npm

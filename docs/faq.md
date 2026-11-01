@@ -25,6 +25,31 @@ docker exec -it <container> python -m app.cli disable-ldap-login
 This is why the docs suggest keeping one local account: it still works when
 the directory is unreachable or misconfigured.
 
+### Single sign-on is broken and the password form is hidden
+
+Open `/login?local=1`: it always shows the username and password form, and a
+local administrator can sign in there. Or, from the command line:
+
+```bash
+docker exec -it <container> python -m app.cli disable-sso
+```
+
+which switches every OpenID Connect provider off and shows the form again.
+
+### Single sign-on says "The sign-in took too long or was started elsewhere"
+
+The sign-in started and finished in different browser sessions. Check that
+`PUBLIC_BASE_URL` is the address people actually use, scheme included, and
+that the callback URL registered at the identity provider is the one shown on
+the provider's page.
+
+### I changed SMTP_HOST in .env and nothing happened
+
+The `SMTP_*` variables only fill in *Email delivery* until something is saved
+there; after that the saved value wins. Change it on *Email delivery*
+instead. *System* shows, for each value, whether it comes from the app or the
+environment, and flags an environment value that is being ignored.
+
 ### Can I change `SECRET_KEY` later?
 
 You can, but it logs everyone out **and** invalidates every stored SMTP and
@@ -122,7 +147,7 @@ and its send history are kept. See
 
 ### My synced list stopped updating and says the run failed
 
-Read the message on the *Lists* page. The most common cause is a directory that
+Read the message on the *Lists* tab. The most common cause is a directory that
 did not answer. A deliberate one: if the search returns **nothing** while the
 list has members, the sync refuses rather than emptying it — an empty result is
 indistinguishable from a filter that broke.

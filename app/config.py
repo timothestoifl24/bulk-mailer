@@ -53,3 +53,11 @@ def get_settings() -> Settings:
 
 
 settings = get_settings()
+
+# Placeholders shipped in .env.example, the compose file and the images.
+WEAK_SECRETS = ("dev-insecure-secret-key-change-me", "CHANGE-ME", "change-me")
+
+
+def secret_key_is_weak(key: str | None = None) -> bool:
+    key = settings.secret_key if key is None else key
+    return any(marker in key for marker in WEAK_SECRETS) or len(key) < 32

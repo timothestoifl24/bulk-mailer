@@ -4,6 +4,10 @@ The password is verified by binding to the directory as the user; it is never
 stored locally. A matching row in `users` is created on first successful login
 so the rest of the app has a stable identity to attach things to.
 
+Each LdapProfile with `login_enabled` is a sign-in provider; its sign-in
+settings live on the profile itself (they were global settings before 2.0 -
+see `migrate_legacy_settings`).
+
 Two things here are load-bearing for security, and both are easy to get wrong:
 
 * **An empty password must never reach the server.** RFC 4513 calls a bind with
@@ -27,7 +31,7 @@ from ldap3.utils.conv import escape_filter_chars
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from ..models import LdapProfile, User
+from ..models import LdapProfile, Setting, User
 from . import settings_store
 from .ldap_client import connect, first_value, supported_attributes, tls_config
 
@@ -51,15 +55,61 @@ class LdapIdentity:
     is_admin: bool = False
 
 
+def login_profiles(db: Session) -> list[LdapProfile]:
+    """The providers people can sign in through, in the order they are tried."""
+    return list(
+        db.scalars(
+            select(LdapProfile)
+            .where(LdapProfile.enabled.is_(True), LdapProfile.login_enabled.is_(True))
+            .order_by(LdapProfile.sort_order, LdapProfile.id)
+        )
+    )
+
+
 def is_enabled(db: Session) -> bool:
-    return settings_store.get_value(db, "auth_ldap_enabled") == "1"
+    return bool(login_profiles(db))
 
 
-def get_auth_profile(db: Session) -> LdapProfile | None:
+MIGRATION_MARKER = "auth_migrated_v2"
+
+
+def migrate_legacy_settings(db: Session) -> bool:
+    """Move the pre-2.1 global LDAP sign-in settings onto their profile.
+
+    Runs at every start and does its work once: the marker setting records that
+    it happened, so switching sign-in off later is not undone by a restart.
+    Returns True when something was moved.
+    """
+    if db.get(Setting, MIGRATION_MARKER) is not None:
+        return False
+    settings_store.set_value(db, MIGRATION_MARKER, "1")
+
     raw = settings_store.get_value(db, "auth_ldap_profile_id")
-    if not raw.isdigit():
-        return None
-    return db.get(LdapProfile, int(raw))
+    profile = db.get(LdapProfile, int(raw)) if raw.isdigit() else None
+    if profile is None:
+        return False
+
+    def value(key: str) -> str:
+        return settings_store.get_value(db, f"auth_ldap_{key}").strip()
+
+    profile.login_enabled = value("enabled") == "1"
+    profile.login_bind_mode = value("bind_mode") or "search"
+    profile.login_attribute = value("login_attribute") or "sAMAccountName"
+    profile.login_user_filter = value("user_filter")
+    # The old default was a placeholder, never a working value.
+    template = value("bind_template")
+    profile.login_bind_template = "" if template == "{username}@example.com" else template
+    profile.login_required_group = value("required_group")
+    profile.login_admin_group = value("admin_group")
+    profile.login_auto_create = value("auto_create") != "0"
+
+    # Directory accounts made before 2.0 all came through this one profile.
+    for user in db.scalars(
+        select(User).where(User.auth_source == "ldap", User.auth_provider_id.is_(None))
+    ):
+        user.auth_provider_id = profile.id
+    logger.info("Moved the LDAP sign-in settings onto the profile '%s'.", profile.name)
+    return True
 
 
 def _bind_as(profile: LdapProfile, bind_name: str, password: str) -> bool:
@@ -96,10 +146,10 @@ def _bind_as(profile: LdapProfile, bind_name: str, password: str) -> bool:
                 pass
 
 
-def _find_user(profile: LdapProfile, db: Session, username: str) -> tuple[str, dict]:
+def _find_user(profile: LdapProfile, username: str) -> tuple[str, dict]:
     """Locate the account with the service credentials. Returns (dn, attributes)."""
-    login_attribute = settings_store.get_value(db, "auth_ldap_login_attribute") or "uid"
-    extra_filter = settings_store.get_value(db, "auth_ldap_user_filter").strip()
+    login_attribute = (profile.login_attribute or "").strip() or "uid"
+    extra_filter = (profile.login_user_filter or "").strip()
     safe = escape_filter_chars(username)
 
     search_filter = f"({login_attribute}={safe})"
@@ -190,8 +240,8 @@ def in_group(
     return _group_contains(profile, group_dn, user_dn, username)
 
 
-def authenticate_ldap(db: Session, username: str, password: str) -> LdapIdentity:
-    """Verify credentials against the directory.
+def authenticate_ldap(profile: LdapProfile, username: str, password: str) -> LdapIdentity:
+    """Verify credentials against one directory.
 
     Raises KeyError when the account is unknown or the password is wrong, and
     LdapAuthError when the directory or configuration is at fault.
@@ -203,25 +253,21 @@ def authenticate_ldap(db: Session, username: str, password: str) -> LdapIdentity
         logger.warning("Rejected an LDAP login for a malformed username: %r", username[:80])
         raise KeyError(username)
 
-    profile = get_auth_profile(db)
-    if profile is None:
-        raise LdapAuthError("LDAP sign-in is enabled but no connection profile is selected.")
-
-    mode = settings_store.get_value(db, "auth_ldap_bind_mode") or "search"
-    required_group = settings_store.get_value(db, "auth_ldap_required_group").strip()
-    admin_group = settings_store.get_value(db, "auth_ldap_admin_group").strip()
+    mode = profile.login_bind_mode or "search"
+    required_group = (profile.login_required_group or "").strip()
+    admin_group = (profile.login_admin_group or "").strip()
 
     dn = ""
     attributes: dict = {}
 
     if mode == "template":
-        template = settings_store.get_value(db, "auth_ldap_bind_template")
+        template = profile.login_bind_template or ""
         if "{username}" not in template:
             raise LdapAuthError("The bind template must contain {username}.")
         dn = template.replace("{username}", username)
     else:
         try:
-            dn, attributes = _find_user(profile, db, username)
+            dn, attributes = _find_user(profile, username)
         except KeyError:
             raise KeyError(username) from None
 
@@ -232,7 +278,7 @@ def authenticate_ldap(db: Session, username: str, password: str) -> LdapIdentity
     # been read yet, so fetch them now that the credentials are known good.
     if (required_group or admin_group) and not attributes:
         try:
-            _, attributes = _find_user(profile, db, username)
+            _, attributes = _find_user(profile, username)
         except KeyError:
             attributes = {}
 
@@ -252,12 +298,12 @@ def authenticate_ldap(db: Session, username: str, password: str) -> LdapIdentity
     )
 
 
-def sync_user(db: Session, identity: LdapIdentity) -> User | None:
+def sync_user(db: Session, identity: LdapIdentity, profile: LdapProfile) -> User | None:
     """Create or refresh the local row for a directory account."""
     user = db.scalar(select(User).where(func.lower(User.username) == identity.username.lower()))
 
     if user is None:
-        if settings_store.get_value(db, "auth_ldap_auto_create") != "1":
+        if not profile.login_auto_create:
             logger.info("Refused %s: auto-creation is off and no local account exists.",
                         identity.username)
             return None
@@ -266,6 +312,7 @@ def sync_user(db: Session, identity: LdapIdentity) -> User | None:
         user = User(
             username=identity.username,
             auth_source="ldap",
+            auth_provider_id=profile.id,
             password_hash="",
             is_active=True,
             is_admin=False,
@@ -277,6 +324,12 @@ def sync_user(db: Session, identity: LdapIdentity) -> User | None:
             logger.info("Refused %s: a local account already owns that username.",
                         identity.username)
             return None
+        if user.auth_provider_id not in (None, profile.id):
+            # The same name in a second directory is a different person until
+            # an administrator says otherwise.
+            logger.info("Refused %s: the account belongs to another LDAP provider.",
+                        identity.username)
+            return None
         if not user.is_active:
             logger.info("Refused %s: the account is disabled here.", identity.username)
             return None
@@ -284,6 +337,7 @@ def sync_user(db: Session, identity: LdapIdentity) -> User | None:
     user.display_name = identity.display_name or user.display_name
     user.email = identity.email or user.email
     user.ldap_dn = identity.dn
+    user.auth_provider_id = profile.id
     if identity.is_admin:
         user.is_admin = True
     user.last_login_at = datetime.now(timezone.utc)
@@ -291,9 +345,9 @@ def sync_user(db: Session, identity: LdapIdentity) -> User | None:
     return user
 
 
-def test_login(db: Session, username: str, password: str) -> str:
+def test_login(profile: LdapProfile, username: str, password: str) -> str:
     """Dry-run a sign-in so the configuration can be checked before relying on it."""
-    identity = authenticate_ldap(db, username, password)
+    identity = authenticate_ldap(profile, username, password)
     parts = [f"Authenticated as {identity.dn or identity.username}"]
     if identity.display_name:
         parts.append(f"display name '{identity.display_name}'")

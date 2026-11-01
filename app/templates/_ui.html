@@ -18,7 +18,7 @@
 <div class="page-header d-print-none">
   <div class="container-xl">
     <div class="row g-2 align-items-center">
-      <div class="col">
+      <div class="col-12 col-md">
         {% if pretitle %}<div class="page-pretitle">{{ pretitle }}</div>{% endif %}
         <h2 class="page-title">
           {% if icon_name %}<span class="page-title-icon">{{ icon(icon_name) }}</span>{% endif %}
@@ -26,7 +26,7 @@
         </h2>
       </div>
       {% if caller %}
-      <div class="col-auto ms-auto d-print-none">
+      <div class="col-12 col-md-auto ms-md-auto d-print-none">
         <div class="btn-list">{{ caller() }}</div>
       </div>
       {% endif %}

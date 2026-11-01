@@ -1,300 +1,104 @@
 {% extends "base.html" %}
-{% from "_icons.html" import icon %}
-{% from "_ui.html" import confirm, help %}
-{% block title %}Users &amp; access - Bulk Mailer{% endblock %}
+{% from "_icons.html" import icon, provider_icon %}
+{% from "_ui.html" import page_header, empty_state %}
+{% block title %}Users - Bulk Mailer{% endblock %}
 
 {% block page_header %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col">
-        <div class="page-pretitle">Who can sign in, and what they can do</div>
-        <h2 class="page-title"><span class="page-title-icon">{{ icon('shield') }}</span> Users &amp; access</h2>
-      </div>
-    </div>
-  </div>
-</div>
+{% call page_header('Who can sign in, and what they can do', 'Users', 'shield') %}
+  <a class="btn" href="/settings/auth">{{ icon('shield-auth') }} Sign-in methods</a>
+  <a class="btn btn-primary" href="/users/new" data-modal>{{ icon('user-plus') }} New local user</a>
+{% endcall %}
 {% endblock %}
 
 {% block content %}
-<div class="row row-cards">
-  <div class="col-lg-7">
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">{{ icon('users') }} Accounts</h3>
-        <div class="card-actions"><span class="badge bg-secondary-lt">{{ users | length }}</span></div>
+<div class="card">
+  <div class="card-header flex-wrap gap-2">
+    <form method="get" action="/users" class="d-flex flex-wrap gap-2 flex-fill" role="search">
+      <div class="input-icon flex-fill" style="min-width:12rem;max-width:22rem">
+        <span class="input-icon-addon">{{ icon('search') }}</span>
+        <input type="search" class="form-control" name="q" value="{{ q }}" placeholder="Search name, username or email" aria-label="Search users">
       </div>
-
-      <div class="table-responsive">
-        <table class="table card-table table-vcenter">
-          <thead>
-            <tr><th>User</th><th>Source</th><th>Rights</th><th>Last sign-in</th><th></th></tr>
-          </thead>
-          <tbody>
-          {% for item in users %}
-            <tr class="{{ 'opacity-50' if not item.is_active }}">
-              <td>
-                <div class="d-flex align-items-center gap-2">
-                  <span class="avatar avatar-sm avatar-initials">{{ (item.name.split() | map('first') | join | upper)[:2] }}</span>
-                  <div>
-                    <div class="fw-semibold">{{ item.name }}</div>
-                    <div class="text-secondary mono">{{ item.username }}{% if item.email %} &middot; {{ item.email }}{% endif %}</div>
-                  </div>
-                </div>
-              </td>
-              <td>
-                {% if item.auth_source == 'ldap' %}
-                  <span class="status-pill status-blue">{{ icon('server') }} LDAP</span>
-                {% else %}
-                  <span class="status-pill">{{ icon('key') }} local</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if item.is_admin %}<span class="badge bg-purple-lt">{{ icon('shield') }} admin</span>{% endif %}
-                {% if not item.is_active %}<span class="status-pill status-red">{{ icon('ban') }} disabled</span>{% endif %}
-              </td>
-              <td class="mono text-secondary">
-                {{ item.last_login_at.strftime('%Y-%m-%d %H:%M') if item.last_login_at else 'never' }}
-              </td>
-              <td class="text-end">
-                {# One menu instead of four buttons: the row stays narrow enough for
-                   the half-width card. Fixed positioning keeps the menu from being
-                   clipped by the scrolling table wrapper. #}
-                <div class="dropdown">
-                  <button class="btn btn-sm btn-ghost-secondary btn-icon" type="button"
-                          data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}'
-                          aria-label="Actions for {{ item.username }}" title="Actions">
-                    {{ icon('more') }}
-                  </button>
-                  <div class="dropdown-menu dropdown-menu-end">
-                    {% if item.auth_source == 'local' %}
-                      <a class="dropdown-item" href="#modal-password-{{ item.id }}" data-bs-toggle="modal">
-                        {{ icon('key') }} Reset password
-                      </a>
-                    {% endif %}
-                    <form method="post" action="/users/{{ item.id }}/toggle-admin">
-                      <button class="dropdown-item" type="submit">
-                        {{ icon('shield') }} {{ 'Revoke admin' if item.is_admin else 'Make admin' }}
-                      </button>
-                    </form>
-                    <form method="post" action="/users/{{ item.id }}/toggle-active">
-                      <button class="dropdown-item" type="submit">
-                        {{ icon('ban' if item.is_active else 'play') }} {{ 'Disable' if item.is_active else 'Enable' }}
-                      </button>
-                    </form>
-                    <div class="dropdown-divider"></div>
-                    <form method="post" action="/users/{{ item.id }}/delete"
-                          {{ confirm('Delete ' ~ item.username ~ '?', 'They can no longer sign in. Campaigns they created are kept.', 'Delete account') }}>
-                      <button class="dropdown-item text-danger" type="submit">{{ icon('trash') }} Delete account</button>
-                    </form>
-                  </div>
-                </div>
-              </td>
-            </tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="card-body border-top">
-        <h3 class="card-title mb-1">{{ icon('user-plus') }} Add a local account</h3>
-        <p class="text-secondary">
-          Local accounts still work when the directory is down, so keep at least one.
-        </p>
-        <form method="post" action="/users/add">
-          <div class="row g-2">
-            <div class="col-md-6 mb-3">
-              <label class="form-label required" for="username">Username</label>
-              <input type="text" class="form-control" id="username" name="username" required>
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label required" for="password">Password</label>
-              <input type="password" class="form-control" id="password" name="password"
-                     minlength="8" autocomplete="new-password" required>
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label" for="display_name">Display name</label>
-              <input type="text" class="form-control" id="display_name" name="display_name">
-            </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label" for="email">Email</label>
-              <input type="email" class="form-control" id="email" name="email">
-            </div>
-          </div>
-          <div class="d-flex align-items-center">
-            <label class="form-check mb-0">
-              <input type="checkbox" class="form-check-input" name="is_admin" value="1">
-              <span class="form-check-label">Administrator {{ help("Administrators can also manage users, LDAP and the mail server settings.") }}</span>
-            </label>
-            <button class="btn btn-primary ms-auto" type="submit">{{ icon('user-plus') }} Create account</button>
-          </div>
-        </form>
-      </div>
-
-      <div class="card-footer text-secondary">
-        {{ icon('info') }} Administrators can open this page, LDAP and Settings.
-        Everyone else can manage recipients, lists, templates and campaigns.
-      </div>
-    </div>
+      <select class="form-select w-auto" name="source" aria-label="Sign-in method" data-autosubmit>
+        <option value="">Every sign-in method</option>
+        <option value="local" {{ 'selected' if source == 'local' }}>Local accounts</option>
+        {% for key, provider in providers.items() %}
+          {% set value = key[0] ~ ':' ~ key[1] %}
+          <option value="{{ value }}" {{ 'selected' if source == value }}>{{ provider.name }} ({{ provider.kind_label }})</option>
+        {% endfor %}
+      </select>
+      <select class="form-select w-auto" name="status" aria-label="Status" data-autosubmit>
+        <option value="">Any status</option>
+        <option value="active" {{ 'selected' if status == 'active' }}>Active</option>
+        <option value="disabled" {{ 'selected' if status == 'disabled' }}>Disabled</option>
+        <option value="admin" {{ 'selected' if status == 'admin' }}>Administrators</option>
+      </select>
+      <noscript><button class="btn" type="submit">Filter</button></noscript>
+      {% if filtered %}<a class="btn btn-link link-secondary px-1" href="/users">{{ icon('xmark') }} Clear</a>{% endif %}
+    </form>
+    <span class="text-secondary small ms-auto">
+      {% if filtered %}{{ users | length }} of {{ total }}{% else %}{{ total }} account(s){% endif %}
+    </span>
   </div>
 
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-header">
-        <h3 class="card-title">{{ icon('server') }} Sign in with LDAP</h3>
-        <div class="card-actions">
-          {% if values.auth_ldap_enabled == '1' %}
-            <span class="status-pill status-green">{{ icon('check') }} on</span>
-          {% else %}
-            <span class="status-pill">{{ icon('pause') }} off</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="card-body">
-        {% if not profiles %}
-          <div class="alert alert-warning">
-            {{ icon('alert') }} No LDAP connection yet.
-            <a href="/ldap" class="alert-link">Create one first</a> &mdash; sign-in reuses the
-            same server and service credentials.
-          </div>
-        {% endif %}
-        <form method="post" action="/users/auth">
-          <label class="form-check form-switch mb-3">
-            <input type="checkbox" class="form-check-input" name="auth_ldap_enabled" value="1"
-                   {{ 'checked' if values.auth_ldap_enabled == '1' }}>
-            <span class="form-check-label">Let directory accounts sign in</span>
-          </label>
-
-          <div class="mb-3">
-            <label class="form-label" for="auth_ldap_profile_id">Connection profile {{ help("The LDAP server to check passwords against. Set these up on the LDAP page.") }}</label>
-            <select class="form-select" id="auth_ldap_profile_id" name="auth_ldap_profile_id">
-              <option value="">Choose a profile</option>
-              {% for profile in profiles %}
-                <option value="{{ profile.id }}"
-                        {{ 'selected' if values.auth_ldap_profile_id == profile.id|string }}>
-                  {{ profile.name }} ({{ profile.host }})
-                </option>
-              {% endfor %}
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label" for="auth_ldap_bind_mode">How to find the account</label>
-            <select class="form-select" id="auth_ldap_bind_mode" name="auth_ldap_bind_mode">
-              <option value="search" {{ 'selected' if values.auth_ldap_bind_mode == 'search' }}>
-                Search with the service account, then bind as the user (recommended)
-              </option>
-              <option value="template" {{ 'selected' if values.auth_ldap_bind_mode == 'template' }}>
-                Build the bind name from the username
-              </option>
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label" for="auth_ldap_login_attribute">Login attribute (search mode) {{ help("The directory field people type as their username.") }}</label>
-            <input type="text" class="form-control mono" id="auth_ldap_login_attribute"
-                   name="auth_ldap_login_attribute" value="{{ values.auth_ldap_login_attribute }}">
-            <small class="form-hint">
-              <code class="var">sAMAccountName</code> on Active Directory,
-              <code class="var">uid</code> on OpenLDAP.
-            </small>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label" for="auth_ldap_user_filter">Extra filter (search mode)</label>
-            <input type="text" class="form-control mono" id="auth_ldap_user_filter"
-                   name="auth_ldap_user_filter" value="{{ values.auth_ldap_user_filter }}">
-            <small class="form-hint">Added to the search, for example to keep disabled accounts out.</small>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label" for="auth_ldap_bind_template">Bind template (template mode)</label>
-            <input type="text" class="form-control mono" id="auth_ldap_bind_template"
-                   name="auth_ldap_bind_template" value="{{ values.auth_ldap_bind_template }}">
-            <small class="form-hint">
-              Must contain <code class="var">{{ '{username}' }}</code>, e.g.
-              <code class="var">{{ '{username}' }}@corp.example.com</code>.
-            </small>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label" for="auth_ldap_required_group">Only members of this group {{ help("Paste the group's full DN. Leave empty to let any directory account in.") }}</label>
-            <input type="text" class="form-control mono" id="auth_ldap_required_group"
-                   name="auth_ldap_required_group" value="{{ values.auth_ldap_required_group }}"
-                   placeholder="CN=Mailer Users,OU=Groups,DC=corp,DC=example,DC=com">
-            <small class="form-hint">Leave empty to let any directory account in.</small>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label" for="auth_ldap_admin_group">Administrator group {{ help("Members of this group become administrators when they sign in.") }}</label>
-            <input type="text" class="form-control mono" id="auth_ldap_admin_group"
-                   name="auth_ldap_admin_group" value="{{ values.auth_ldap_admin_group }}"
-                   placeholder="CN=Mailer Admins,OU=Groups,DC=corp,DC=example,DC=com">
-            <small class="form-hint">Members get admin rights on sign-in.</small>
-          </div>
-
-          <label class="form-check mb-3">
-            <input type="checkbox" class="form-check-input" name="auth_ldap_auto_create" value="1"
-                   {{ 'checked' if values.auth_ldap_auto_create == '1' }}>
-            <span class="form-check-label">
-              Create a profile automatically on first sign-in
-              <small class="d-block text-secondary">
-                Off means an administrator must create the account here first.
-              </small>
-            </span>
-          </label>
-
-          <button class="btn btn-primary" type="submit">{{ icon('check') }} Save sign-in settings</button>
-        </form>
-      </div>
-
-      <div class="card-body border-top">
-        <h3 class="card-title mb-1">{{ icon('flask') }} Try a sign-in</h3>
-        <p class="text-secondary">
-          Checks the settings above against the directory without signing you out.
-          Do this before you sign out, so you don't lock yourself out.
-        </p>
-        <form method="post" action="/users/auth/test">
-          <div class="row g-2">
-            <div class="col-md-6 mb-3">
-              <label class="form-label" for="test_username">Username</label>
-              <input type="text" class="form-control" id="test_username" name="test_username"
-                     autocomplete="off" required>
+  {% if users %}
+  <div class="table-responsive">
+    <table class="table card-table table-vcenter">
+      <thead>
+        <tr><th>User</th><th>Rights</th><th>Signs in with</th><th>Last sign-in</th><th class="w-1"></th></tr>
+      </thead>
+      <tbody>
+      {% for item in users %}
+        <tr class="{{ 'text-secondary' if not item.is_active }}">
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <span class="avatar avatar-sm avatar-initials">{{ (item.name.split() | map('first') | join | upper)[:2] }}</span>
+              <div style="min-width:0">
+                <div class="fw-semibold text-truncate">
+                  {{ item.name }}
+                  {% if user and item.id == user.id %}<span class="badge bg-secondary-lt ms-1">you</span>{% endif %}
+                  {% if not item.is_active %}<span class="status-pill status-red ms-1">{{ icon('ban') }} disabled</span>{% endif %}
+                </div>
+                <div class="text-secondary small text-truncate">{{ item.username }}{% if item.email %} &middot; {{ item.email }}{% endif %}</div>
+              </div>
             </div>
-            <div class="col-md-6 mb-3">
-              <label class="form-label" for="test_password">Password</label>
-              <input type="password" class="form-control" id="test_password" name="test_password"
-                     autocomplete="new-password" required>
-            </div>
-          </div>
-          <button class="btn" type="submit">{{ icon('sign-in') }} Test sign-in</button>
-        </form>
-      </div>
-    </div>
+          </td>
+          <td>
+            {% if item.is_admin %}<span class="badge bg-purple-lt">{{ icon('shield') }} Administrator</span>
+            {% else %}<span class="text-secondary">Member</span>{% endif %}
+          </td>
+          <td>
+            {% if item.auth_source == 'local' %}
+              <span class="status-pill">{{ icon('key') }} Local</span>
+            {% else %}
+              {% set provider = providers.get((item.auth_source, item.auth_provider_id)) %}
+              {% if provider %}
+                <span class="status-pill status-blue" title="{{ provider.kind_label }}">{{ provider_icon(provider) }} {{ provider.name }}</span>
+              {% else %}
+                <span class="status-pill status-yellow" title="The provider was deleted; this account cannot sign in.">{{ icon('alert') }} deleted provider</span>
+              {% endif %}
+            {% endif %}
+          </td>
+          <td class="text-secondary" title="{{ item.last_login_at.strftime('%Y-%m-%d %H:%M') if item.last_login_at else '' }}">
+            {{ item.last_login_at.strftime('%Y-%m-%d') if item.last_login_at else 'never' }}
+          </td>
+          <td class="text-end">
+            <a class="btn btn-sm" href="/users/{{ item.id }}/edit" data-modal aria-label="Edit {{ item.username }}">{{ icon('pen') }} Edit</a>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    {{ empty_state('search', 'No users match', 'Try another search, or clear the filters.', '/users', 'Clear filters', 'xmark') }}
+  </div>
+  {% endif %}
+
+  <div class="card-footer text-secondary small">
+    {{ icon('info') }} Administrators can also open Users, Authentication and Settings.
+    Members manage recipients, lists, templates and campaigns.
+    Accounts from LDAP or OpenID Connect appear here after their first sign-in.
   </div>
 </div>
-
-{% for item in users if item.auth_source == 'local' %}
-<div class="modal modal-blur fade" id="modal-password-{{ item.id }}" tabindex="-1" role="dialog" aria-hidden="true">
-  <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title">{{ icon('key') }} Reset password</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <form method="post" action="/users/{{ item.id }}/password">
-        <div class="modal-body">
-          <p class="text-secondary">New password for <strong>{{ item.username }}</strong>.</p>
-          <input type="password" class="form-control" name="new_password" minlength="8"
-                 placeholder="At least 8 characters" autocomplete="new-password" required>
-        </div>
-        <div class="modal-footer">
-          <a href="#" class="btn btn-link link-secondary" data-bs-dismiss="modal">Cancel</a>
-          <button type="submit" class="btn btn-primary ms-auto">{{ icon('check') }} Set password</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-{% endfor %}
 {% endblock %}

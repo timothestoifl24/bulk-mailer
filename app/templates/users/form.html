@@ -1,0 +1,91 @@
+{% extends "_modal_partial.html" if partial else "_modal_page.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import confirm, help %}
+{% set is_new = account.id is none %}
+{% set external = account.auth_source != 'local' %}
+
+{% block form_action %}{{ '/users/new' if is_new else '/users/' ~ account.id ~ '/edit' }}{% endblock %}
+
+{% block modal_title %}
+  {% if is_new %}{{ icon('user-plus') }} New local user{% else %}{{ icon('pen') }} {{ account.name }}{% endif %}
+{% endblock %}
+
+{% block modal_body %}
+  {% if external %}
+    <div class="alert alert-info">
+      <div class="d-flex">
+        <span class="alert-icon">{{ icon('info') }}</span>
+        <div>
+          Signs in through <strong>{{ provider.name if provider else 'a provider that was deleted' }}</strong>.
+          Name and email are refreshed at every sign-in.
+          {% if provider and (provider.login_admin_group if provider.kind == 'ldap' else provider.admin_group) %}
+            Administrator rights come from the provider's group, so a change here lasts until the next sign-in.
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <div class="row g-2">
+    <div class="col-md-6 mb-3">
+      <label class="form-label {{ 'required' if is_new }}" for="username">Username</label>
+      {% if is_new %}
+        <input type="text" class="form-control" id="username" name="username" value="{{ account.username or '' }}" required autofocus>
+      {% else %}
+        <input type="text" class="form-control" id="username" value="{{ account.username }}" disabled>
+      {% endif %}
+    </div>
+    <div class="col-md-6 mb-3">
+      <label class="form-label" for="display_name">Display name</label>
+      <input type="text" class="form-control" id="display_name" name="display_name" value="{{ account.display_name or '' }}">
+    </div>
+    <div class="col-12 mb-3">
+      <label class="form-label" for="email">Email</label>
+      <input type="email" class="form-control" id="email" name="email" value="{{ account.email or '' }}">
+    </div>
+    {% if not external %}
+    <div class="col-12 mb-3">
+      <label class="form-label {{ 'required' if is_new }}" for="password">{{ 'Password' if is_new else 'New password' }}</label>
+      <input type="password" class="form-control" id="password" name="{{ 'password' if is_new else 'new_password' }}"
+             minlength="{{ min_password }}" autocomplete="new-password" {{ 'required' if is_new }}
+             placeholder="{{ 'At least ' ~ min_password ~ ' characters' if is_new else 'Leave empty to keep the current one' }}">
+    </div>
+    {% endif %}
+  </div>
+
+  <label class="form-check form-switch mb-2">
+    <input type="checkbox" class="form-check-input" name="is_admin" value="1" {{ 'checked' if account.is_admin }}>
+    <span class="form-check-label">Administrator
+      <small class="d-block text-secondary">Can also manage users, sign-in methods and the mail server.</small>
+    </span>
+  </label>
+  {% if not is_new %}
+  <label class="form-check form-switch mb-0">
+    <input type="checkbox" class="form-check-input" name="is_active" value="1" {{ 'checked' if account.is_active }}>
+    <span class="form-check-label">Active
+      <small class="d-block text-secondary">Disabled accounts cannot sign in. Their campaigns are kept.</small>
+    </span>
+  </label>
+  {% endif %}
+  {% if not is_new %}
+  <div class="text-secondary small mt-3">
+    Created {{ account.created_at.strftime('%Y-%m-%d') if account.created_at else '' }} ·
+    last sign-in {{ account.last_login_at.strftime('%Y-%m-%d %H:%M') if account.last_login_at else 'never' }}
+  </div>
+  {% endif %}
+{% endblock %}
+
+{% block modal_footer %}
+  {% if not is_new and not (user and user.id == account.id) %}
+    <button type="submit" class="btn btn-ghost-danger me-auto" form="delete-user-form">{{ icon('trash') }} Delete</button>
+  {% endif %}
+  <a href="/users" class="btn btn-link link-secondary {{ 'ms-auto' if is_new or (user and user.id == account.id) }}" data-bs-dismiss="modal">Cancel</a>
+  <button type="submit" class="btn btn-primary">{{ icon('check') }} {{ 'Create account' if is_new else 'Save' }}</button>
+{% endblock %}
+
+{% block modal_after %}
+  {% if not is_new %}
+  <form method="post" action="/users/{{ account.id }}/delete" id="delete-user-form"
+        {{ confirm('Delete ' ~ account.username ~ '?', 'They can no longer sign in. Campaigns they created are kept.', 'Delete account') }}></form>
+  {% endif %}
+{% endblock %}

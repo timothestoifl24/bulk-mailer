@@ -83,7 +83,7 @@ The unsubscribe link is in the default template for a reason — keep it.
 | [Screenshots](/screenshots) | Every screen, before you install anything |
 | [Setup](/setup) | Docker, Compose, or from source |
 | [Kubernetes](/kubernetes) | Ready-made manifests, from one pod to several replicas |
-| [Advanced config](/advanced-config) | PostgreSQL, LDAP sign-in, list sync, deployment |
+| [Advanced config](/advanced-config) | PostgreSQL, LDAP and single sign-on, list sync, deployment |
 | [Upgrading](/upgrading) | Versioning, schema changes, what to check |
 | [FAQ](/faq) | The questions that come up |
 | [Contributing](/contributing) | Development setup, tests, releases |

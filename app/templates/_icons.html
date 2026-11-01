@@ -70,6 +70,19 @@
   'book': 'solid book-open',
   'rocket': 'solid rocket',
   'brand-github': 'brands github',
+  'brand-google': 'brands google',
+  'brand-microsoft': 'brands microsoft',
+  'brand-gitlab': 'brands gitlab',
+  'shield-auth': 'solid shield-halved',
+  'id-badge': 'solid id-badge',
+  'copy': 'regular copy',
+  'paste': 'solid paste',
+  'table': 'solid table-list',
+  'wand': 'solid wand-magic-sparkles',
+  'chevron-down': 'solid chevron-down',
+  'xmark': 'solid xmark',
+  'import': 'solid file-import',
+  'gauge': 'solid server',
 } %}
 
 {% macro icon(name, size=None, cls='') -%}
@@ -87,4 +100,15 @@
   <polygon points="80,18 44,54 54,78" fill="#C7D2FE"/>
   <polygon points="44,54 38,70 54,78" fill="#818CF8"/>
 </svg>
+{%- endmacro %}
+
+{# A provider's icon, guessed from its name so well-known ones are recognisable. #}
+{% macro provider_icon(provider) -%}
+{%- set name = (provider.name or '') | lower -%}
+{%- if 'google' in name %}{{ icon('brand-google') }}
+{%- elif 'github' in name %}{{ icon('brand-github') }}
+{%- elif 'gitlab' in name %}{{ icon('brand-gitlab') }}
+{%- elif 'microsoft' in name or 'entra' in name or 'azure' in name %}{{ icon('brand-microsoft') }}
+{%- elif provider.kind == 'ldap' %}{{ icon('server') }}
+{%- else %}{{ icon('id-badge') }}{% endif -%}
 {%- endmacro %}

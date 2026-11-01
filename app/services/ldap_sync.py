@@ -246,6 +246,12 @@ _worker: SyncWorker | None = None
 _worker_lock = threading.Lock()
 
 
+
+def is_running() -> bool:
+    """Whether this process's sync thread is alive (for the System page)."""
+    worker = _worker
+    return worker is not None and worker.is_alive()
+
 def start_worker() -> None:
     """Start the sync thread. Safe to call again after a shutdown."""
     global _worker

@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from ..db import get_db
 from ..models import LdapProfile, Recipient, RecipientList
-from ..security import require_user
-from ..services import ldap_sync
+from ..security import require_admin, require_user
+from ..services import ldap_sync, settings_store
 from ..services.importer import (
     import_rows,
     normalise_email,
@@ -30,6 +30,14 @@ PAGE_SIZE = 50
 
 def _all_lists(db: Session) -> list[RecipientList]:
     return list(db.scalars(select(RecipientList).order_by(RecipientList.name)))
+
+
+def _audience_counts(db: Session) -> dict[str, int]:
+    """The numbers on the Recipients and Lists tabs - always unfiltered."""
+    return {
+        "recipients": db.scalar(select(func.count()).select_from(Recipient)) or 0,
+        "lists": db.scalar(select(func.count()).select_from(RecipientList)) or 0,
+    }
 
 
 def _filtered_statement(q: str = "", list_id: str = "", source: str = "", suppressed: str = ""):
@@ -133,6 +141,7 @@ def index(
             "list_id": list_id,
             "source": source,
             "suppressed": suppressed,
+            "counts": _audience_counts(db),
         },
     )
 
@@ -198,11 +207,8 @@ def paste_recipients(
     return redirect("/recipients")
 
 
-@router.get("/recipients/import")
-def import_form(request: Request, db: Session = Depends(get_db)):
-    return render(request, "recipients/import.html", {"lists": _all_lists(db)})
-
-
+# The two one-shot imports below predate the import wizard (routers/
+# import_wizard.py) and stay for scripts that post to them. Remove in 2.1.
 @router.post("/recipients/import")
 async def import_csv(
     request: Request,
@@ -457,8 +463,30 @@ def lists_index(request: Request, db: Session = Depends(get_db)):
             "rows": rows,
             "profile_names": profiles,
             "sync_interval_minutes": ldap_sync.interval_minutes(db),
+            "counts": _audience_counts(db),
         },
     )
+
+
+@router.post("/lists/sync-settings", dependencies=[Depends(require_admin)])
+def update_sync_settings(
+    request: Request,
+    ldap_sync_interval_minutes: int = Form(60),
+    db: Session = Depends(get_db),
+):
+    minutes = max(5, ldap_sync_interval_minutes)
+    settings_store.set_value(db, "ldap_sync_interval_minutes", str(minutes))
+    db.commit()
+    if minutes != ldap_sync_interval_minutes:
+        flash(
+            request,
+            f"Synchronisation interval set to {minutes} minutes. Anything shorter would "
+            "have the worker querying the directory almost continuously.",
+            "warning",
+        )
+    else:
+        flash(request, f"Lists marked for sync are re-queried every {minutes} minutes.", "success")
+    return redirect("/lists")
 
 
 @router.post("/lists/{list_id}/sync")
@@ -494,7 +522,7 @@ def toggle_list_sync(request: Request, list_id: int, db: Session = Depends(get_d
         flash(
             request,
             f"'{target.name}' was not filled from a directory search, so there is no "
-            "query to keep it in sync with. Import into it from the LDAP page first.",
+            "query to keep it in sync with. Import into it from a directory first.",
             "error",
         )
         return redirect("/lists")

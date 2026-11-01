@@ -187,8 +187,9 @@ Edit `config.env` or `secret.env` and apply again. Both are generated with a
 hash of their contents in the name, so a change rolls the pod and the app
 starts with the new values — the app reads its environment only at startup.
 
-Anything saved under *Settings* in the UI is stored in the database and takes
-precedence over the `SMTP_*` values in `config.env`.
+Anything saved under *Email delivery* in the UI is stored in the database and
+takes precedence over the `SMTP_*` values in `config.env`. *System* shows which
+of the two is in effect for each value.
 
 ## Upgrading
 

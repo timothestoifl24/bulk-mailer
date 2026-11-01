@@ -18,6 +18,29 @@ pages no longer exist.
 ## [Unreleased]
 
 ### Added
+- **Single sign-on with OpenID Connect** (Microsoft Entra ID, Keycloak,
+  Google, Authentik and others): add a provider, register the callback URL it
+  shows, and a "Sign in with …" button appears on the sign-in page. An
+  optional administrator group grants admin rights. Once it works, the
+  username and password form can be hidden; `/login?local=1` and
+  `python -m app.cli disable-sso` are the way back.
+- An **Authentication** page (admin only) for every way people sign in: LDAP /
+  Active Directory directories and OpenID Connect providers, each with its own
+  settings, *Test connection*, and the number of people using it. Several
+  directories can be used for sign-in at once.
+- An **Import** wizard for recipients: choose a file, pasted addresses or the
+  directory, then review before anything is written — the columns it
+  recognised (change any that are wrong), how many people are new, updated or
+  skipped, and which list they go into.
+- A **System** page (admin only): a read-only summary of how the instance is
+  set up — version, database, sign-in, background workers and every setting —
+  with where each value comes from (saved in the app, the environment, or the
+  default) and a list of what needs attention, such as an `SMTP_*` variable
+  that is being ignored or a placeholder `SECRET_KEY`. **Copy as text** gives
+  a summary without secrets for a support ticket.
+- Members can now import from a directory too, but only from ones an
+  administrator switched on with *Use for recipient import* — without seeing
+  the server or service account.
 - Pre-release images for trying what is coming next: every change merged into
   `develop` is published as `timothestoifl24/bulk-mailer:X.Y.Z-beta.N` (and
   `:beta` for the newest), with a GitHub pre-release. `latest` and the
@@ -39,6 +62,18 @@ pages no longer exist.
   sending speed, placeholders), with links to the guide.
 
 ### Changed
+- Recipients and lists are one *Audience* page with two tabs and a single
+  **Import** button. Filters apply as you pick them, and the bulk actions
+  appear in a bar at the bottom once people are selected.
+- The *Users* page lists every account with how it signs in, can be searched
+  and filtered, and edits accounts in a dialog. LDAP sign-in settings moved
+  to the LDAP provider on the *Authentication* page; upgrading moves them
+  there automatically.
+- *Settings* is now **Email delivery** (`/settings/email`), since mail is all
+  it holds. Old `/settings` links lead there.
+- The *LDAP* page is gone: connections live on *Authentication*, directory
+  imports in the Import wizard, and the sync interval on the *Lists* tab. Old
+  `/ldap` links lead to the new place.
 - Confirmations before sending, stopping or deleting now open a clear dialog
   that says who is affected, instead of the browser's plain pop-up. A dry run
   goes ahead without asking, since it sends nothing.

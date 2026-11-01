@@ -1,0 +1,391 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_header, help, confirm %}
+{% block title %}Import recipients - Bulk Mailer{% endblock %}
+
+{% set source_names = {'csv': 'CSV file', 'paste': 'Pasted addresses', 'ldap': 'Directory'} %}
+{% set keep_list = ('?list_id=' ~ list_id) if list_id else '' %}
+
+{% block page_header %}
+{% call page_header('Audience', 'Import recipients', 'import') %}
+  <a class="btn" href="/recipients">{{ icon('xmark') }} Cancel</a>
+{% endcall %}
+{% endblock %}
+
+{% block content %}
+{# Three steps; done ones link back. Same look as the campaign stepper. #}
+<div class="card mb-3">
+  <div class="card-body py-3">
+    <ol class="stepper">
+      {% for number, label in [(1, 'Source'), (2, 'Details'), (3, 'Review & import')] %}
+        {% set state = 'done' if number < step else ('current' if number == step else '') %}
+        <li class="{{ state }}">
+          <span class="step-dot">{{ icon('check') if number < step else number }}</span>
+          <span>
+            {% if number == 1 and step > 1 %}<a href="/recipients/import{{ keep_list }}">{{ label }}</a>
+            {% elif number == 2 and step > 2 %}<a href="/recipients/import/{{ source }}{{ keep_list }}">{{ label }}</a>
+            {% else %}{{ label }}{% endif %}
+          </span>
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+</div>
+
+{# ------------------------------------------------------------------ 1 #}
+{% if step == 1 %}
+<div class="row row-cards">
+  <div class="col-md-4">
+    <a class="card choice-card" href="/recipients/import/csv{{ keep_list }}">
+      <div class="card-body">
+        <span class="choice-icon mb-3">{{ icon('file-csv') }}</span>
+        <h3 class="card-title mb-1">Upload a file</h3>
+        <p class="text-secondary mb-0">A CSV export from Excel, Outlook or your CRM. You choose which column is which.</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    <a class="card choice-card" href="/recipients/import/paste{{ keep_list }}">
+      <div class="card-body">
+        <span class="choice-icon mb-3">{{ icon('paste') }}</span>
+        <h3 class="card-title mb-1">Paste addresses</h3>
+        <p class="text-secondary mb-0">Copy addresses from an email or a spreadsheet. <span class="mono">Name &lt;email&gt;</span> works too.</p>
+      </div>
+    </a>
+  </div>
+  <div class="col-md-4">
+    {% if providers %}
+    <a class="card choice-card" href="/recipients/import/ldap{{ keep_list }}">
+      <div class="card-body">
+        <span class="choice-icon mb-3">{{ icon('server') }}</span>
+        <h3 class="card-title mb-1">From the directory</h3>
+        <p class="text-secondary mb-0">
+          Search {{ providers | map(attribute='name') | join(', ') }} by filter or group, and optionally keep the list in sync.
+        </p>
+      </div>
+    </a>
+    {% else %}
+    <div class="card choice-card disabled" aria-disabled="true">
+      <div class="card-body">
+        <span class="choice-icon mb-3">{{ icon('server') }}</span>
+        <h3 class="card-title mb-1">From the directory</h3>
+        <p class="text-secondary mb-0">No directory is set up for import yet.</p>
+      </div>
+    </div>
+    <div class="text-secondary small mt-2">
+      {% if user and user.is_admin %}
+        <a href="/settings/auth">{{ icon('arrow-right') }} Connect one on Authentication</a>
+      {% else %}
+        Ask an administrator to connect your directory.
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+{# ------------------------------------------------------------------ 2 #}
+{% if step == 2 and source == 'csv' %}
+<div class="card">
+  <div class="card-body">
+    <form method="post" action="/recipients/import/csv" enctype="multipart/form-data" id="csv-form">
+      <input type="hidden" name="list_id" value="{{ list_id }}">
+      <label class="dropzone d-block mb-3" id="dropzone" for="file">
+        <div class="h1 text-secondary mb-2">{{ icon('upload') }}</div>
+        <div class="fw-semibold">Drop a CSV file here, or click to choose one</div>
+        <div class="text-secondary small" id="dropzone-name">Comma, semicolon or tab separated &middot; UTF-8 or Windows encoding</div>
+        <input type="file" class="visually-hidden" id="file" name="file" accept=".csv,.txt,text/csv" required>
+      </label>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <span class="text-secondary small">
+          {{ icon('info') }} Next you'll see the columns and pick what each one holds. Nothing is imported until you confirm.
+        </span>
+        <button class="btn btn-primary ms-auto" type="submit">Continue {{ icon('arrow-right') }}</button>
+      </div>
+    </form>
+  </div>
+  <div class="card-footer">
+    <details>
+      <summary class="text-secondary">What should the file look like?</summary>
+      <pre class="code mt-2 mb-1">email;first_name;last_name;company;department
+jane.doe@example.com;Jane;Doe;Example Ltd;Sales
+john@example.com;John;Smith;Example Ltd;IT</pre>
+      <small class="text-secondary">
+        Only an email column is required. German headers (Vorname, Nachname, Firma, Abteilung) are recognised;
+        any other column becomes a placeholder you can use in templates.
+      </small>
+    </details>
+  </div>
+</div>
+{% endif %}
+
+{% if step == 2 and source == 'paste' %}
+<div class="card">
+  <form method="post" action="/recipients/import/paste">
+    <input type="hidden" name="list_id" value="{{ list_id }}">
+    <div class="card-body">
+      <label class="form-label" for="emails">Addresses</label>
+      <textarea class="form-control mono" id="emails" name="emails" rows="12" autofocus required
+                placeholder="jane@example.com&#10;Bob Smith &lt;bob@example.com&gt;, carol@example.com">{{ emails or '' }}</textarea>
+      <small class="form-hint">One per line, or separated by commas or semicolons.</small>
+    </div>
+    <div class="card-footer d-flex">
+      <button class="btn btn-primary ms-auto" type="submit">Continue {{ icon('arrow-right') }}</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+
+{% if step == 2 and source == 'ldap' %}
+{% if not provider %}
+<div class="alert alert-warning">
+  <div class="d-flex"><span class="alert-icon">{{ icon('alert') }}</span><div>No directory is set up for import.
+  {% if user and user.is_admin %}<a href="/settings/auth" class="alert-link">Connect one on Authentication</a>.{% else %}Ask an administrator to connect one.{% endif %}</div></div>
+</div>
+{% else %}
+<form method="post" action="/recipients/import/ldap">
+<input type="hidden" name="list_id" value="{{ list_id }}">
+<div class="card">
+  <div class="card-body">
+    <div class="row g-2">
+      <div class="col-md-5 mb-3">
+        <label class="form-label" for="provider_id">Directory</label>
+        <select class="form-select" id="provider_id" name="provider_id"
+                onchange="window.location='/recipients/import/ldap?provider_id=' + this.value + '{{ '&list_id=' ~ list_id if list_id }}'">
+          {% for item in providers %}
+            <option value="{{ item.id }}" {{ 'selected' if item.id == provider.id }}>{{ item.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-7 mb-3">
+        <label class="form-label" for="base_dn">Search in {{ help("Leave empty to search the whole area the directory is set up for.") }}</label>
+        <input type="text" class="form-control mono" id="base_dn" name="base_dn" value="{{ form.base_dn }}" placeholder="{{ provider.base_dn }}">
+      </div>
+    </div>
+
+    <div class="row g-2">
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="include_groups">Members of these groups {{ help("One full group DN per line, e.g. CN=All Staff,OU=Groups,DC=corp,DC=example,DC=com.") }}</label>
+        <textarea class="form-control mono" id="include_groups" name="include_groups" rows="3"
+                  placeholder="CN=All Staff,OU=Groups,DC=corp,DC=example,DC=com">{{ form.include_groups }}</textarea>
+        <div class="d-flex flex-wrap gap-3 mt-2">
+          <label class="form-check form-check-inline mb-0">
+            <input type="radio" class="form-check-input" name="group_match" value="all" {{ 'checked' if form.group_match != 'any' }}>
+            <span class="form-check-label">in every group</span>
+          </label>
+          <label class="form-check form-check-inline mb-0">
+            <input type="radio" class="form-check-input" name="group_match" value="any" {{ 'checked' if form.group_match == 'any' }}>
+            <span class="form-check-label">in any group</span>
+          </label>
+        </div>
+      </div>
+      <div class="col-md-6 mb-3">
+        <label class="form-label" for="exclude_groups">Except members of {{ help("One full group DN per line.") }}</label>
+        <textarea class="form-control mono" id="exclude_groups" name="exclude_groups" rows="3"
+                  placeholder="CN=External,OU=Groups,DC=corp,DC=example,DC=com">{{ form.exclude_groups }}</textarea>
+        <label class="form-check mt-2 mb-0">
+          <input type="checkbox" class="form-check-input" id="nested_groups" name="nested_groups" value="1" {{ 'checked' if form.nested_groups }}>
+          <span class="form-check-label">Include members of nested groups (Active Directory)</span>
+        </label>
+      </div>
+    </div>
+
+    <details {{ 'open' if form.search_filter != provider.search_filter }}>
+      <summary class="text-secondary mb-2">Advanced: LDAP filter</summary>
+      <input type="text" class="form-control mono" id="search_filter" name="search_filter" value="{{ form.search_filter }}">
+      <small class="form-hint">Group conditions above are added to this filter. The default comes from the directory's settings.</small>
+    </details>
+  </div>
+  <div class="card-footer d-flex align-items-center">
+    <span class="text-secondary small">{{ icon('lock') }} Searches as the directory's service account, set up by an administrator.</span>
+    <button class="btn btn-primary ms-auto" type="submit">{{ icon('search') }} Search</button>
+  </div>
+</div>
+</form>
+{% endif %}
+{% endif %}
+
+{# ------------------------------------------------------------------ 3 #}
+{% if step == 3 %}
+<form method="post" action="/recipients/import/{{ draft.token }}" id="review">
+<div class="row row-cards">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">
+          {% if source == 'csv' %}{{ icon('file-csv') }} {{ meta.filename }}
+          {% elif source == 'ldap' %}{{ icon('server') }} {{ meta.provider_name }}
+          {% else %}{{ icon('paste') }} Pasted addresses{% endif %}
+        </h3>
+        <div class="card-actions text-secondary">{{ "{:,}".format(row_count) }} row(s)</div>
+      </div>
+      {% if source == 'csv' %}
+      <div class="card-body border-bottom">
+        <p class="text-secondary mb-0">
+          {{ icon('wand') }} We guessed what each column holds. Change any that are wrong;
+          columns set to <em>Placeholder</em> become template variables, and <em>Skip</em> leaves a column out.
+        </p>
+      </div>
+      {% endif %}
+      <div class="table-responsive">
+        <table class="table card-table table-vcenter preview-table">
+          <thead>
+            <tr>
+              {% for header in headers %}
+                {% set field = mapping[loop.index0] if loop.index0 < mapping|length else '' %}
+                <th class="align-top" style="min-width:11rem">
+                  <div class="text-reset fw-semibold text-truncate mb-1" title="{{ header }}">{{ header }}</div>
+                  {% if source == 'csv' %}
+                    {% set custom = field and field not in field_labels %}
+                    <select class="form-select form-select-sm" name="map_{{ loop.index0 }}" aria-label="Column {{ header }} holds"
+                            data-custom-target="custom_{{ loop.index0 }}">
+                      <option value="" {{ 'selected' if not field }}>Skip</option>
+                      {% for key, label in field_labels.items() %}
+                        <option value="{{ key }}" {{ 'selected' if field == key }}>{{ label }}</option>
+                      {% endfor %}
+                      <option value="_custom" {{ 'selected' if custom }}>Placeholder&hellip;</option>
+                    </select>
+                    <input type="text" class="form-control form-control-sm mono mt-1 {{ '' if custom else 'd-none' }}"
+                           id="custom_{{ loop.index0 }}" name="custom_{{ loop.index0 }}" value="{{ field if custom else '' }}"
+                           placeholder="placeholder_name" aria-label="Placeholder name for {{ header }}">
+                  {% else %}
+                    <span class="status-pill {{ 'status-blue' if field in field_labels }}">{{ field_labels.get(field, field) if field != 'ldap_dn' else 'Directory DN' }}</span>
+                  {% endif %}
+                </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+          {% for record in raw_rows %}
+            <tr>
+              {% for cell in record %}
+                <td class="{{ 'mono' if mapping[loop.index0] == 'email' else '' }} {{ 'text-secondary' if not mapping[loop.index0] }}">{{ cell }}</td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer d-flex flex-wrap align-items-center gap-2">
+        <span class="text-secondary small">
+          {% if row_count > raw_rows|length %}Showing the first {{ raw_rows|length }} of {{ "{:,}".format(row_count) }}.{% endif %}
+        </span>
+        {% if source == 'csv' %}
+          <button class="btn btn-sm ms-auto" type="submit" formaction="/recipients/import/{{ draft.token }}/mapping">
+            {{ icon('refresh') }} Update preview
+          </button>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if preview.invalid %}
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title text-danger">{{ icon('error') }} {{ preview.invalid | length }} row(s) without a valid address</h3></div>
+      <div class="card-body">
+        <p class="text-secondary">These are skipped. Fix them in the source and import again if you need them.</p>
+        <ul class="mb-0 small">
+          {% for line, value in preview.invalid[:15] %}
+            <li>Row {{ line }}: <span class="mono">{{ value or '(empty)' }}</span></li>
+          {% endfor %}
+          {% if preview.invalid | length > 15 %}<li class="text-secondary">&hellip; and {{ preview.invalid | length - 15 }} more</li>{% endif %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">{{ icon('check-circle') }} What will happen</h3></div>
+      <div class="card-body">
+        {% if not has_email %}
+          <div class="alert alert-danger mb-0"><div class="d-flex"><span class="alert-icon">{{ icon('error') }}</span><div>Choose which column holds the email address, then update the preview.</div></div></div>
+        {% else %}
+          <div class="row g-2 text-center mb-2">
+            <div class="col-6"><div class="stat-value text-green">{{ "{:,}".format(preview.new) }}</div><div class="stat-label">new</div></div>
+            <div class="col-6"><div class="stat-value text-primary">{{ "{:,}".format(preview.updated) }}</div><div class="stat-label">updated</div></div>
+            <div class="col-6"><div class="stat-value">{{ "{:,}".format(preview.unchanged) }}</div><div class="stat-label">already here, unchanged</div></div>
+            <div class="col-6"><div class="stat-value {{ 'text-danger' if preview.invalid }}">{{ preview.invalid | length }}</div><div class="stat-label">skipped</div></div>
+          </div>
+          {% if preview.duplicates %}
+            <p class="text-secondary small mb-0">{{ preview.duplicates }} address(es) appear more than once and are imported once.</p>
+          {% endif %}
+        {% endif %}
+      </div>
+
+      <div class="card-body border-top">
+        <label class="form-label" for="list_id">Add them to a list</label>
+        <select class="form-select mb-2" id="list_id" name="list_id">
+          <option value="">Don't add to a list</option>
+          {% for item in lists %}
+            <option value="{{ item.id }}" {{ 'selected' if list_id == item.id|string }}>{{ item.name }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" class="form-control" name="new_list_name" placeholder="&hellip;or name a new list" aria-label="New list name">
+
+        <label class="form-check mt-3 mb-0">
+          <input type="checkbox" class="form-check-input" name="overwrite" value="1" {{ 'checked' if overwrite }}>
+          <span class="form-check-label">Update details of people who are already here
+            <small class="d-block text-secondary">Off: existing recipients keep their names and fields.</small>
+          </span>
+        </label>
+
+        {% if source == 'ldap' %}
+        <label class="form-check mt-3 mb-0">
+          <input type="checkbox" class="form-check-input" name="keep_in_sync" value="1">
+          <span class="form-check-label">Keep the list in sync with this search
+            <small class="d-block text-secondary">
+              The search re-runs on a schedule: new matches are added, and people who no longer match are
+              removed from the list (never deleted). Needs a list.
+            </small>
+          </span>
+        </label>
+        {% endif %}
+      </div>
+      <div class="card-footer">
+        <button class="btn btn-primary w-100" type="submit" {{ 'disabled' if not has_email }}>
+          {{ icon('import') }} Import {{ "{:,}".format(preview.new + preview.updated + preview.unchanged) if has_email else '' }} recipient(s)
+        </button>
+      </div>
+    </div>
+    <button class="btn btn-link link-secondary w-100 mt-2" type="submit" formaction="/recipients/import/{{ draft.token }}/cancel" formnovalidate>
+      Discard this import
+    </button>
+  </div>
+</div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Placeholder columns need a name; show the box only when chosen.
+  document.addEventListener('change', function (event) {
+    var select = event.target;
+    if (!select.dataset || !select.dataset.customTarget) return;
+    var box = document.getElementById(select.dataset.customTarget);
+    if (!box) return;
+    box.classList.toggle('d-none', select.value !== '_custom');
+    if (select.value === '_custom') box.focus();
+  });
+
+  // Drag and drop onto the file picker, showing the chosen file's name.
+  (function () {
+    var zone = document.getElementById('dropzone');
+    var input = document.getElementById('file');
+    var label = document.getElementById('dropzone-name');
+    if (!zone || !input) return;
+    function show() { if (input.files.length) label.textContent = input.files[0].name; }
+    input.addEventListener('change', show);
+    ['dragenter', 'dragover'].forEach(function (name) {
+      zone.addEventListener(name, function (e) { e.preventDefault(); zone.classList.add('is-dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(function (name) {
+      zone.addEventListener(name, function (e) { e.preventDefault(); zone.classList.remove('is-dragover'); });
+    });
+    zone.addEventListener('drop', function (e) {
+      if (e.dataTransfer && e.dataTransfer.files.length) { input.files = e.dataTransfer.files; show(); }
+    });
+  })();
+</script>
+{% endblock %}

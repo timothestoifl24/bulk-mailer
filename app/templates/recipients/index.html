@@ -1,33 +1,14 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
 {% from "_ui.html" import empty_state, help %}
+{% from "recipients/_audience.html" import audience_header, source_labels %}
 {% block title %}Recipients - Bulk Mailer{% endblock %}
 
 {% block page_header %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row g-2 align-items-center">
-      <div class="col">
-        <div class="page-pretitle">The people you can send to &middot; {{ "{:,}".format(total) }} {{ "match" if total == 1 else "match" }}{{ "es" if total != 1 }}</div>
-        <h2 class="page-title"><span class="page-title-icon">{{ icon('users') }}</span> Recipients</h2>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <div class="btn-list">
-          <a class="btn" href="/recipients-export.csv{{ '?list_id=' ~ list_id if list_id }}">
-            {{ icon('download') }} Export CSV
-          </a>
-          {% if user and user.is_admin %}
-          <a class="btn" href="/ldap">{{ icon('server') }} From LDAP</a>
-          {% endif %}
-          <a class="btn" href="/recipients/import">{{ icon('upload') }} Import or paste</a>
-          <a class="btn btn-primary" href="#modal-add-recipient" data-bs-toggle="modal">
-            {{ icon('user-plus') }} Add recipient
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+{% call audience_header('recipients', counts, '/recipients/import' ~ ('?list_id=' ~ list_id if list_id else '')) %}
+  <a class="btn" href="/recipients-export.csv{{ '?list_id=' ~ list_id if list_id }}">{{ icon('download') }} Export</a>
+  <a class="btn" href="#modal-add-recipient" data-bs-toggle="modal">{{ icon('user-plus') }} Add recipient</a>
+{% endcall %}
 {% endblock %}
 
 {% block content %}
@@ -40,52 +21,36 @@
 <form id="filter-form" method="get" action="/recipients"></form>
 <form id="bulk-form" method="post" action="/recipients/bulk"></form>
 
+{% set filtered = q or list_id or source or suppressed %}
 <div class="card">
-  <div class="card-body border-bottom py-3">
-    <div class="row g-2 align-items-end">
-      <div class="col-md-4">
-        <label class="form-label" for="q">Search</label>
-        <div class="input-icon">
-          <span class="input-icon-addon">{{ icon('search') }}</span>
-          <input type="search" form="filter-form" class="form-control" id="q" name="q"
-                 value="{{ q }}" placeholder="Name, email or company">
-        </div>
-      </div>
-      <div class="col-md-3">
-        <label class="form-label" for="list_id">List</label>
-        <select class="form-select" form="filter-form" id="list_id" name="list_id">
-          <option value="">All lists</option>
-          {% for item in lists %}
-            <option value="{{ item.id }}" {{ 'selected' if list_id == item.id|string }}>{{ item.name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label" for="source">Source</label>
-        <select class="form-select" form="filter-form" id="source" name="source">
-          <option value="">Any</option>
-          {% for value in ['manual', 'csv', 'ldap'] %}
-            <option value="{{ value }}" {{ 'selected' if source == value }}>{{ value }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        <label class="form-label" for="suppressed">Status</label>
-        <select class="form-select" form="filter-form" id="suppressed" name="suppressed">
-          <option value="">Any</option>
-          <option value="0" {{ 'selected' if suppressed == '0' }}>Active</option>
-          <option value="1" {{ 'selected' if suppressed == '1' }}>Unsubscribed</option>
-        </select>
-      </div>
-      <div class="col-md-1">
-        <div class="btn-list flex-nowrap">
-          <button class="btn btn-primary w-100" form="filter-form" type="submit" title="Apply filters">{{ icon('filter') }}<span class="d-md-none d-xl-inline"> Filter</span></button>
-        </div>
-      </div>
+  <div class="card-header flex-wrap gap-2 audience-toolbar">
+    <div class="input-icon flex-fill" style="min-width:12rem;max-width:24rem">
+      <span class="input-icon-addon">{{ icon('search') }}</span>
+      <input type="search" form="filter-form" class="form-control" id="q" name="q"
+             value="{{ q }}" placeholder="Search recipients" aria-label="Search name, email or company" title="Name, email, company or department">
     </div>
-    {% if q or list_id or source or suppressed %}
-      <div class="mt-2"><a href="/recipients" class="text-secondary">{{ icon('x-circle') }} Clear filters</a></div>
-    {% endif %}
+    <select class="form-select w-auto" form="filter-form" id="list_id" name="list_id" aria-label="List" data-autosubmit>
+      <option value="">All lists</option>
+      {% for item in lists %}
+        <option value="{{ item.id }}" {{ 'selected' if list_id == item.id|string }}>{{ item.name }}</option>
+      {% endfor %}
+    </select>
+    <select class="form-select w-auto" form="filter-form" id="source" name="source" aria-label="Source" data-autosubmit>
+      <option value="">Any source</option>
+      {% for value, (icon_name, label) in source_labels.items() %}
+        <option value="{{ value }}" {{ 'selected' if source == value }}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <select class="form-select w-auto" form="filter-form" id="suppressed" name="suppressed" aria-label="Status" data-autosubmit>
+      <option value="">Any status</option>
+      <option value="0" {{ 'selected' if suppressed == '0' }}>Subscribed</option>
+      <option value="1" {{ 'selected' if suppressed == '1' }}>Unsubscribed</option>
+    </select>
+    <button class="btn btn-icon" form="filter-form" type="submit" title="Search" aria-label="Search">{{ icon('search') }}</button>
+    {% if filtered %}<a href="/recipients" class="btn btn-link link-secondary px-1">{{ icon('xmark') }} Clear</a>{% endif %}
+    <span class="text-secondary small ms-auto">
+      {{ "{:,}".format(total) }} {{ 'match' if filtered else 'recipient' }}{{ ('es' if filtered else 's') if total != 1 }}
+    </span>
   </div>
 
   {#
@@ -121,7 +86,7 @@
             <input type="checkbox" class="form-check-input m-0 align-middle" id="check-all"
                    title="Select every row on this page">
           </th>
-          <th>Email</th><th>Name</th><th>Company / Dept</th><th>Source</th><th>Lists</th><th></th>
+          <th>Email</th><th>Name</th><th class="d-none d-xl-table-cell">Company / Dept</th><th>Source</th><th>Lists</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -141,24 +106,25 @@
             </div>
           </td>
           <td>{{ recipient.name }}</td>
-          <td class="cell-truncate text-secondary">
+          <td class="cell-truncate text-secondary d-none d-xl-table-cell">
             {{ recipient.company }}{% if recipient.department %} / {{ recipient.department }}{% endif %}
           </td>
-          <td><span class="badge bg-secondary-lt">{{ recipient.source }}</span></td>
+          {% set src = source_labels.get(recipient.source, ('circle', recipient.source)) %}
+          <td><span class="status-pill">{{ icon(src[0]) }} {{ src[1] }}</span></td>
           <td class="cell-truncate text-secondary">
             {{ recipient.lists | map(attribute='name') | join(', ') }}
           </td>
           <td class="text-end">
-            <a class="btn btn-sm btn-ghost-secondary" href="/recipients/{{ recipient.id }}">{{ icon('pen') }} Edit</a>
+            <a class="btn btn-sm" href="/recipients/{{ recipient.id }}">{{ icon('pen') }} Edit</a>
           </td>
         </tr>
       {% else %}
         <tr>
           <td colspan="7">
-            {% if q or list_id or source or suppressed %}
+            {% if filtered %}
               {{ empty_state('search', 'Nobody matches these filters', 'Try a different search, or clear the filters to see everyone.', '/recipients', 'Clear filters', 'x-circle') }}
             {% else %}
-              {{ empty_state('users', 'Add the people you want to reach', 'Paste a list of addresses or upload a CSV. You can sort them into lists afterwards.', '/recipients/import', 'Import recipients', 'upload') }}
+              {{ empty_state('users', 'Add the people you want to reach', 'Upload a CSV, paste addresses, or import from your directory. You can sort them into lists as you go.', '/recipients/import', 'Import recipients', 'import') }}
             {% endif %}
           </td>
         </tr>
@@ -167,51 +133,47 @@
     </table>
   </div>
 
-  {% if recipients %}
-  <div class="card-footer">
-    <div class="row g-2 align-items-end">
-      <div class="col-md-4">
-        <label class="form-label" for="action">With the selected people</label>
-        <select class="form-select" form="bulk-form" id="action" name="action">
-          <option value="add_to_list">Add to list</option>
-          <option value="remove_from_list">Remove from list</option>
-          <option value="suppress">Mark as unsubscribed</option>
-          <option value="unsuppress">Re-enable</option>
-          <option value="delete">Delete</option>
-        </select>
-      </div>
-      <div class="col-md-4">
-        <label class="form-label" for="target_list_id">List {{ help("Only needed for adding to or removing from a list.") }}</label>
-        <select class="form-select" form="bulk-form" id="target_list_id" name="target_list_id">
-          <option value="">Choose a list</option>
-          {% for item in lists %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
-        </select>
-      </div>
-      <div class="col-md-2">
-        {# The delete confirmation lives in app.js, where the real count is
-           known - it has to say "all 4,312", not "the selected", when the
-           selection spans pages that were never rendered. #}
-        <button class="btn w-100" form="bulk-form" type="submit">{{ icon('check') }} Apply</button>
-      </div>
-      {% if pages > 1 %}
-      <div class="col-md-2 text-end text-secondary">Page {{ page }} of {{ pages }}</div>
-      {% endif %}
-    </div>
-
-    {% if pages > 1 %}
-    {% set base = '/recipients?q=' ~ q ~ '&list_id=' ~ list_id ~ '&source=' ~ source ~ '&suppressed=' ~ suppressed %}
-    <ul class="pagination m-0 mt-3 justify-content-end">
-      {% if page > 1 %}
-        <li class="page-item"><a class="page-link" href="{{ base }}&page={{ page - 1 }}">Previous</a></li>
-      {% endif %}
-      {% if page < pages %}
-        <li class="page-item"><a class="page-link" href="{{ base }}&page={{ page + 1 }}">Next</a></li>
-      {% endif %}
+  {% if pages > 1 %}
+  {% set base = '/recipients?q=' ~ (q | urlencode) ~ '&list_id=' ~ list_id ~ '&source=' ~ source ~ '&suppressed=' ~ suppressed %}
+  <div class="card-footer d-flex align-items-center">
+    <span class="text-secondary">Page {{ page }} of {{ pages }}</span>
+    <ul class="pagination m-0 ms-auto">
+      <li class="page-item{{ ' disabled' if page <= 1 }}"><a class="page-link" href="{{ base }}&page={{ page - 1 }}">{{ icon('arrow-left') }} Previous</a></li>
+      <li class="page-item{{ ' disabled' if page >= pages }}"><a class="page-link" href="{{ base }}&page={{ page + 1 }}">Next {{ icon('arrow-right') }}</a></li>
     </ul>
-    {% endif %}
   </div>
   {% endif %}
 </div>
+
+{% if recipients %}
+{#
+  Appears once something is ticked (app.js), pinned to the bottom of the
+  window so it stays in reach however far down the table you are. Without
+  JavaScript it simply sits under the table.
+#}
+<div class="bulk-bar card" id="bulk-bar">
+  <div class="card-body d-flex flex-wrap align-items-center gap-2 py-2">
+    <strong id="bulk-bar-count" class="me-2">With the selected people</strong>
+    <select class="form-select w-auto" form="bulk-form" id="action" name="action" aria-label="Action">
+      <option value="add_to_list">Add to list</option>
+      <option value="remove_from_list">Remove from list</option>
+      <option value="suppress">Mark as unsubscribed</option>
+      <option value="unsuppress">Re-enable</option>
+      <option value="delete">Delete</option>
+    </select>
+    <span id="target-list-wrap">
+      <select class="form-select w-auto" form="bulk-form" id="target_list_id" name="target_list_id" aria-label="List">
+        <option value="">Choose a list</option>
+        {% for item in lists %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+      </select>
+    </span>
+    {# The delete confirmation lives in app.js, where the real count is
+       known - it has to say "all 4,312", not "the selected", when the
+       selection spans pages that were never rendered. #}
+    <button class="btn btn-primary" form="bulk-form" type="submit">{{ icon('check') }} Apply</button>
+  </div>
+</div>
+{% endif %}
 
 <div class="modal modal-blur fade" id="modal-add-recipient" tabindex="-1" role="dialog" aria-hidden="true">
   <div class="modal-dialog modal-lg modal-dialog-centered" role="document">

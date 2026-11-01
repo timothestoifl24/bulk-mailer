@@ -23,7 +23,7 @@
       {% endif %}
     </div>
     {% if user and user.is_admin %}
-      <a href="/settings" class="btn btn-warning btn-sm ms-3">{{ icon('settings') }} Set up mail server</a>
+      <a href="/settings/email" class="btn btn-warning btn-sm ms-3">{{ icon('settings') }} Set up mail server</a>
     {% endif %}
   </div>
 </div>
@@ -41,7 +41,7 @@
 {% set is_admin = user and user.is_admin %}
 {% set steps = [] %}
 {% if is_admin %}
-  {% set _ = steps.append((smtp_ready, 'Connect your mail server', 'Add the SMTP server and sender address, then send yourself a test.', '/settings', 'Open settings')) %}
+  {% set _ = steps.append((smtp_ready, 'Connect your mail server', 'Add the SMTP server and sender address, then send yourself a test.', '/settings/email', 'Open email delivery')) %}
 {% endif %}
 {% set _ = steps.append((recipient_count > 0, 'Add recipients',
     'Paste addresses, upload a CSV' ~ (', or import them from LDAP / Active Directory' if is_admin else '') ~ '.',

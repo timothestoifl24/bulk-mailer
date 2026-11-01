@@ -13,20 +13,20 @@
    whose items are all admin-only disappears for everyone else. #}
 {% set nav_groups = [
     (None, [
-      ('/',            'Dashboard',  'dashboard', current_path == '/',                    false),
+      ('/',              'Dashboard',      'dashboard',   current_path == '/',                    false),
     ]),
     ('Audience', [
-      ('/recipients',  'Recipients', 'users',     current_path.startswith('/recipients'), false),
-      ('/lists',       'Lists',      'list',      current_path.startswith('/lists'),      false),
-      ('/ldap',        'LDAP',       'server',    current_path.startswith('/ldap'),       true),
+      ('/recipients',    'Recipients',     'users',       current_path.startswith('/recipients') or current_path.startswith('/lists'), false),
     ]),
     ('Content', [
-      ('/templates',   'Templates',  'file',      current_path.startswith('/templates'),  false),
-      ('/campaigns',   'Campaigns',  'campaign',  current_path.startswith('/campaigns'),  false),
+      ('/templates',     'Templates',      'file',        current_path.startswith('/templates'),  false),
+      ('/campaigns',     'Campaigns',      'campaign',    current_path.startswith('/campaigns'),  false),
     ]),
     ('Admin', [
-      ('/users',       'Users',      'shield',    current_path.startswith('/users'),      true),
-      ('/settings',    'Settings',   'settings',  current_path.startswith('/settings'),   true),
+      ('/users',         'Users',          'shield',      current_path.startswith('/users'),      true),
+      ('/settings/auth',   'Authentication', 'shield-auth', current_path.startswith('/settings/auth'), true),
+      ('/settings/email',  'Email delivery', 'mail',        current_path.startswith('/settings/email'), true),
+      ('/settings/system', 'System',         'gauge',       current_path.startswith('/settings/system'), true),
     ]),
 ] %}
 {% set is_admin = user and user.is_admin %}
@@ -78,7 +78,7 @@
                 <span class="d-block fw-semibold text-truncate">{{ user.name if user else '' }}</span>
                 <small class="text-secondary">
                   {%- if user and user.is_admin %}Administrator{% else %}Member{% endif -%}
-                  {%- if user and user.auth_source == 'ldap' %} &middot; LDAP{% endif -%}
+                  {%- if user and user.auth_source == 'ldap' %} &middot; LDAP{% elif user and user.auth_source == 'oidc' %} &middot; SSO{% endif -%}
                 </small>
               </span>
             </a>
@@ -149,6 +149,11 @@
       </div>
     </div>
   </div>
+</div>
+
+{# Forms opened from a link with data-modal are loaded into this (app.js). #}
+<div class="modal modal-blur fade" id="app-modal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered" role="document"></div>
 </div>
 
 <script src="/static/vendor/tabler/tabler.min.js" defer></script>

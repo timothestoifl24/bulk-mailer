@@ -1,12 +1,16 @@
-"""SMTP / sender settings and the SMTP test message."""
+"""Email delivery: the SMTP server, sender identity, sending defaults, and the test message.
+
+Lives at /settings/email; /settings itself redirects here, so links to the
+page as it was called before 2.0 keep working.
+"""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Form, Request
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from ..config import settings as env_settings
-from ..db import engine, get_db
+from ..db import get_db
 from ..security import require_user
 from ..services import settings_store
 from ..services.mailer import MailError, test_smtp
@@ -16,26 +20,22 @@ from ..web import flash, redirect, render
 
 router = APIRouter(prefix="/settings", dependencies=[Depends(require_user)])
 
+PAGE = "/settings/email"
+
 
 @router.get("")
+def old_settings_page():
+    return RedirectResponse(PAGE, status_code=308)
+
+
+@router.get("/email")
 def index(request: Request, db: Session = Depends(get_db)):
     values = settings_store.get_all(db)
     values["smtp_password"] = "" if not values["smtp_password"] else "********"
-    return render(
-        request,
-        "settings.html",
-        {
-            "values": values,
-            "public_base_url": env_settings.public_base_url,
-            "database_backend": (
-                f"{engine.dialect.name} "
-                f"({engine.url.render_as_string(hide_password=True)})"
-            ),
-        },
-    )
+    return render(request, "email_settings.html", {"values": values})
 
 
-@router.post("")
+@router.post("/email")
 def save(
     request: Request,
     smtp_host: str = Form(""),
@@ -67,20 +67,20 @@ def save(
     if smtp_password and smtp_password != "********":
         settings_store.set_value(db, "smtp_password", smtp_password)
     db.commit()
-    flash(request, "Settings saved. Send yourself a test email to check them.", "success")
-    return redirect("/settings")
+    flash(request, "Email delivery saved. Send yourself a test email to check it.", "success")
+    return redirect(PAGE)
 
 
-@router.post("/test-connection")
+@router.post("/email/test-connection")
 def test_connection(request: Request, db: Session = Depends(get_db)):
     try:
         flash(request, test_smtp(settings_store.get_smtp_config(db)), "success")
     except MailError as exc:
         flash(request, str(exc), "error")
-    return redirect("/settings")
+    return redirect(PAGE)
 
 
-@router.post("/test-email")
+@router.post("/email/test-email")
 def test_email(request: Request, to_email: str = Form(...), db: Session = Depends(get_db)):
     try:
         send_single_email(
@@ -95,4 +95,4 @@ def test_email(request: Request, to_email: str = Form(...), db: Session = Depend
         flash(request, f"Test message sent to {to_email}.", "success")
     except (MailError, RenderError, OSError) as exc:
         flash(request, f"Could not send: {exc}", "error")
-    return redirect("/settings")
+    return redirect(PAGE)

@@ -45,20 +45,30 @@ def authenticate(db: Session, username: str, password: str) -> tuple[User | None
         db.commit()
         return user, "local"
 
-    if not ldap_auth.is_enabled(db):
+    profiles = ldap_auth.login_profiles(db)
+    if not profiles:
         return None, "no local account and LDAP sign-in is disabled"
 
-    try:
-        identity = ldap_auth.authenticate_ldap(db, username, password)
-    except KeyError:
-        return None, "directory rejected the credentials"
-    except ldap_auth.LdapAuthError as exc:
-        # Configuration or connectivity problem: worth an operator's attention.
-        logger.error("LDAP sign-in failed for %r: %s", username[:80], exc)
-        return None, f"ldap error: {exc}"
+    # Someone who signed in before is tried against their own directory first.
+    if user is not None and user.auth_source == "ldap" and user.auth_provider_id:
+        profiles.sort(key=lambda p: p.id != user.auth_provider_id)
 
-    user = ldap_auth.sync_user(db, identity)
-    if user is None:
-        return None, "authenticated but no local profile could be used"
-    db.commit()
-    return user, "ldap"
+    reason = "directory rejected the credentials"
+    for profile in profiles:
+        try:
+            identity = ldap_auth.authenticate_ldap(profile, username, password)
+        except KeyError:
+            continue
+        except ldap_auth.LdapAuthError as exc:
+            # Configuration or connectivity problem: worth an operator's
+            # attention, but the next directory may still know the account.
+            logger.error("LDAP sign-in via %r failed for %r: %s", profile.name, username[:80], exc)
+            reason = f"ldap error: {exc}"
+            continue
+
+        user = ldap_auth.sync_user(db, identity, profile)
+        if user is None:
+            return None, "authenticated but no local profile could be used"
+        db.commit()
+        return user, "ldap"
+    return None, reason
