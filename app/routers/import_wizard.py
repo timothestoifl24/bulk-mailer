@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from sqlalchemy import delete, func, select
@@ -29,14 +29,17 @@ from ..security import require_user
 from ..services import ldap_client
 from ..services.importer import (
     CORE_FIELDS,
+    DRAFT_LIFETIME,
     FIELD_LABELS,
     apply_mapping,
     default_mapping,
+    first_per_email,
     import_rows,
     ldap_entries_to_rows,
     parse_email_list,
     preview_rows,
     read_csv,
+    sweep_expired_drafts,
 )
 from ..services.ldap_import import dubious_dn_warning, effective_filter
 from ..web import flash, redirect, render
@@ -45,7 +48,6 @@ logger = logging.getLogger("mailer.import")
 router = APIRouter(prefix="/recipients/import", dependencies=[Depends(require_user)])
 
 BASE = "/recipients/import"
-DRAFT_LIFETIME = timedelta(hours=1)
 SAMPLE_ROWS = 20
 SOURCES = {"csv": "csv", "paste": "manual", "ldap": "ldap"}
 
@@ -69,22 +71,24 @@ def _list_id(raw: str | None) -> str:
     return raw if raw and raw.isdigit() else ""
 
 
-def _sweep(db: Session) -> None:
-    cutoff = datetime.now(timezone.utc) - DRAFT_LIFETIME
-    db.execute(delete(ImportDraft).where(ImportDraft.created_at < cutoff))
-
-
 def _save_draft(
     db: Session, user: User, source: str, headers: list[str], rows: list[list[str]], meta: dict
 ) -> ImportDraft:
-    _sweep(db)
+    # The background worker sweeps too (ldap_sync); this keeps the table tidy
+    # between its passes.
+    sweep_expired_drafts(db)
+    # Only a file has column names to interpret. A directory's names come from
+    # the administrator's attribute mapping and pasted rows from the parser:
+    # those are taken as they are, so a custom field such as "name" is not
+    # turned into display_name and a template variable keeps its spelling.
+    mapping = default_mapping(headers, rows) if source == "csv" else list(headers)
     draft = ImportDraft(
         token=secrets.token_urlsafe(24),
         user_id=user.id,
         source=source,
         headers_json=json.dumps(headers),
         rows_json=json.dumps(rows),
-        meta_json=json.dumps({"mapping": default_mapping(headers, rows), **meta}),
+        meta_json=json.dumps({"mapping": mapping, **meta}),
         created_at=datetime.now(timezone.utc),
     )
     db.add(draft)
@@ -308,10 +312,25 @@ def _mapping_from_form(form, width: int) -> list[str]:
     return mapping
 
 
-def _review(request: Request, db: Session, draft: ImportDraft, overwrite: bool = True, status_code: int = 200):
+def _choices_from_form(form) -> dict:
+    """The review step's own settings, kept with the draft so a preview refresh keeps them."""
+    return {
+        "list_id": _list_id(form.get("list_id")),
+        "new_list_name": (form.get("new_list_name") or "").strip()[:200],
+        "overwrite": form.get("overwrite") == "1",
+        "keep_in_sync": form.get("keep_in_sync") == "1",
+    }
+
+
+def _review(request: Request, db: Session, draft: ImportDraft, status_code: int = 200):
     meta = draft.meta
     mapping = meta["mapping"]
-    rows = apply_mapping(draft.headers, draft.rows, mapping)
+    choices = {
+        "list_id": meta.get("list_id", ""), "new_list_name": "", "overwrite": True, "keep_in_sync": False,
+        **meta.get("choices", {}),
+    }
+    overwrite = choices["overwrite"]
+    rows = first_per_email(apply_mapping(draft.headers, draft.rows, mapping))
     source = SOURCES[draft.source]
     return render(
         request,
@@ -325,14 +344,18 @@ def _review(request: Request, db: Session, draft: ImportDraft, overwrite: bool =
             "raw_rows": draft.rows[:SAMPLE_ROWS],
             "mapping": mapping,
             "sample": rows[:SAMPLE_ROWS],
-            "row_count": len(rows),
-            "preview": preview_rows(db, rows, source=source, overwrite=overwrite),
+            "row_count": len(draft.rows),
+            "preview": preview_rows(
+                db, apply_mapping(draft.headers, draft.rows, mapping), source=source, overwrite=overwrite
+            ),
             "has_email": "email" in mapping,
             "field_labels": FIELD_LABELS,
             "core_fields": [f for f in FIELD_LABELS if f in CORE_FIELDS],
             "lists": _lists(db),
-            "list_id": meta.get("list_id", ""),
+            "list_id": choices["list_id"],
+            "new_list_name": choices["new_list_name"],
             "overwrite": overwrite,
+            "keep_in_sync": choices["keep_in_sync"],
         },
         status_code=status_code,
     )
@@ -353,12 +376,15 @@ async def update_mapping(
     draft = _draft(db, token, user)
     if draft is None:
         return _expired(request)
+    form = await request.form()
+    meta = draft.meta
     if draft.source == "csv":
-        form = await request.form()
-        meta = draft.meta
         meta["mapping"] = _mapping_from_form(form, len(draft.headers))
-        draft.meta_json = json.dumps(meta)
-        db.commit()
+    # Everything else chosen on the page survives the refresh too - in
+    # particular "update existing", which must not quietly switch back on.
+    meta["choices"] = _choices_from_form(form)
+    draft.meta_json = json.dumps(meta)
+    db.commit()
     return redirect(f"{BASE}/{token}#review")
 
 
@@ -373,22 +399,36 @@ async def finish(request: Request, token: str, user: User = Depends(require_user
         # The mapping on screen is what gets imported, even if "Update preview"
         # was never pressed after the last change.
         meta["mapping"] = _mapping_from_form(form, len(draft.headers))
-    overwrite = form.get("overwrite") == "1"
+    choices = _choices_from_form(form)
+    meta["choices"] = choices
     if "email" not in meta["mapping"]:
         draft.meta_json = json.dumps(meta)
         db.commit()
         flash(request, "Tell us which column holds the email address.", "error")
-        return _review(request, db, draft, overwrite, status_code=422)
+        return _review(request, db, draft, status_code=422)
 
+    source, headers, raw_rows = draft.source, draft.headers, draft.rows
+    # Claim the draft before anything is written. With several instances a
+    # double submit can reach two of them; only the one whose DELETE removes
+    # the row goes on (on PostgreSQL the second blocks on the row, then finds
+    # it gone). Anything failing below rolls the claim back with the import.
+    claimed = db.execute(
+        delete(ImportDraft).where(ImportDraft.token == draft.token, ImportDraft.user_id == user.id)
+    ).rowcount
+    if claimed != 1:
+        db.rollback()
+        return _expired(request)
+
+    overwrite = choices["overwrite"]
     target = None
-    new_name = (form.get("new_list_name") or "").strip()
-    list_id = form.get("list_id") or ""
+    new_name = choices["new_list_name"]
+    list_id = choices["list_id"]
     if new_name:
         target = db.scalar(select(RecipientList).where(func.lower(RecipientList.name) == new_name.lower()))
         if target is None:
             description = (
-                f"Imported from the directory '{meta['provider_name']}'" if draft.source == "ldap"
-                else f"Imported from {meta['filename']}" if draft.source == "csv" else ""
+                f"Imported from the directory '{meta['provider_name']}'" if source == "ldap"
+                else f"Imported from {meta['filename']}" if source == "csv" else ""
             )
             target = RecipientList(name=new_name, description=description)
             db.add(target)
@@ -396,11 +436,12 @@ async def finish(request: Request, token: str, user: User = Depends(require_user
     elif list_id.isdigit():
         target = db.get(RecipientList, int(list_id))
 
-    rows = apply_mapping(draft.headers, draft.rows, meta["mapping"])
-    result = import_rows(db, rows, source=SOURCES[draft.source], target_list=target, overwrite=overwrite)
+    # The same rows the preview counted: the first one for each address.
+    rows = first_per_email(apply_mapping(headers, raw_rows, meta["mapping"]))
+    result = import_rows(db, rows, source=SOURCES[source], target_list=target, overwrite=overwrite)
 
-    wants_sync = draft.source == "ldap" and form.get("keep_in_sync") == "1"
-    if draft.source == "ldap" and target is not None:
+    wants_sync = source == "ldap" and choices["keep_in_sync"]
+    if source == "ldap" and target is not None:
         provider = db.get(LdapProfile, meta["provider_id"])
         if provider is not None:
             # Remember the query on every import, not only when sync is asked
@@ -410,11 +451,10 @@ async def finish(request: Request, token: str, user: User = Depends(require_user
             target.ldap_search_filter = meta["used_filter"]
             target.ldap_base_dn = meta["used_base_dn"]
             target.sync_enabled = wants_sync
-    db.delete(draft)
     db.commit()
 
     where = f" into '{target.name}'" if target else ""
-    message = f"Imported {result.total} of {len(rows)}{where}: {result.summary()}."
+    message = f"Imported {result.total} of {len(raw_rows)}{where}: {result.summary()}."
     if result.invalid:
         message += " Skipped invalid: " + ", ".join(result.invalid[:10])
     flash(request, message, "warning" if result.invalid else "success")

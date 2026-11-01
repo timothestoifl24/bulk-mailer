@@ -14,6 +14,7 @@ import json
 
 from fastapi import APIRouter, Depends, Form, Request
 from sqlalchemy import func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.orm import Session
 
 from ..db import get_db
@@ -386,11 +387,26 @@ def delete(request: Request, kind: str, provider_id: int, db: Session = Depends(
         # profile would keep its sync flag and fail on every pass instead of
         # saying plainly that the thing it synced from is gone.
         orphaned = ldap_sync.detach_profile(db, provider.id)
+    # Cut the accounts loose before the id goes. On SQLite a later provider can
+    # be given the same id, and it must not inherit these people (an LDAP
+    # username or an OIDC sub only means something within one provider).
+    # Unlinked accounts cannot sign in through any provider; an admin can
+    # delete them, or they stay for the campaigns they created.
+    detached = db.execute(
+        sql_update(User)
+        .where(User.auth_source == provider.kind, User.auth_provider_id == provider.id)
+        .values(auth_provider_id=None)
+    ).rowcount
     db.delete(provider)
     db.flush()
     _keep_a_way_in(db)
     db.commit()
-    flash(request, f"Provider '{name}' deleted. Its users stay, but can no longer sign in through it.", "success")
+    flash(
+        request,
+        f"Provider '{name}' deleted. Its {detached} user(s) stay, but can no longer sign in."
+        if detached else f"Provider '{name}' deleted.",
+        "success",
+    )
     if orphaned:
         flash(
             request,

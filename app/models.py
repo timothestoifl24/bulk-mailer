@@ -346,6 +346,10 @@ class OidcProvider(Base):
     """An OpenID Connect (or plain OAuth2) identity provider for sign-in."""
 
     __tablename__ = "oidc_providers"
+    # Never hand out a deleted provider's id again (SQLite reuses the highest
+    # rowid otherwise). Accounts are detached on delete as well; this is the
+    # second line of defence for tables created from now on.
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), unique=True)

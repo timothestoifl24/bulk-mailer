@@ -321,7 +321,7 @@ john@example.com;John;Smith;Example Ltd;IT</pre>
             <option value="{{ item.id }}" {{ 'selected' if list_id == item.id|string }}>{{ item.name }}</option>
           {% endfor %}
         </select>
-        <input type="text" class="form-control" name="new_list_name" placeholder="&hellip;or name a new list" aria-label="New list name">
+        <input type="text" class="form-control" name="new_list_name" value="{{ new_list_name }}" placeholder="&hellip;or name a new list" aria-label="New list name">
 
         <label class="form-check mt-3 mb-0">
           <input type="checkbox" class="form-check-input" name="overwrite" value="1" {{ 'checked' if overwrite }}>
@@ -332,7 +332,7 @@ john@example.com;John;Smith;Example Ltd;IT</pre>
 
         {% if source == 'ldap' %}
         <label class="form-check mt-3 mb-0">
-          <input type="checkbox" class="form-check-input" name="keep_in_sync" value="1">
+          <input type="checkbox" class="form-check-input" name="keep_in_sync" value="1" {{ 'checked' if keep_in_sync }}>
           <span class="form-check-label">Keep the list in sync with this search
             <small class="d-block text-secondary">
               The search re-runs on a schedule: new matches are added, and people who no longer match are

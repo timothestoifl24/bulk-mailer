@@ -413,3 +413,37 @@ def test_legacy_settings_move_onto_the_profile(logged_in):
         settings_store.set_value(db, "auth_ldap_enabled", "0")
         profile.enabled = False
         db.commit()
+
+
+# --------------------------------------------------------------------------- #
+# Deleted providers
+# --------------------------------------------------------------------------- #
+def test_an_account_from_a_deleted_provider_is_not_adopted(ldap_directory):
+    """A provider added later (possibly given the same id on SQLite) must not
+    take over an account whose provider is gone."""
+    with SessionLocal() as db:
+        db.add(User(username="outsider", auth_source="ldap", auth_provider_id=None, is_admin=True))
+        db.commit()
+    try:
+        assert _auth("outsider", "outsider-pw")[0] is None
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.scalar(select(User).where(User.username == "outsider")))
+            db.commit()
+
+
+def test_deleting_a_provider_detaches_its_accounts(logged_in):
+    with SessionLocal() as db:
+        provider = LdapProfile(name="soon-gone", host="dc.gone.example")
+        db.add(provider)
+        db.flush()
+        db.add(User(username="gone-user", auth_source="ldap", auth_provider_id=provider.id))
+        db.commit()
+        provider_id = provider.id
+    page = logged_in.post(f"/settings/auth/ldap/{provider_id}/delete", follow_redirects=True).text
+    assert "1 user(s) stay" in page
+    with SessionLocal() as db:
+        user = db.scalar(select(User).where(User.username == "gone-user"))
+        assert user.auth_provider_id is None
+        db.delete(user)
+        db.commit()

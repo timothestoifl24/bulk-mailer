@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import re
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -181,7 +182,10 @@ def directories(logged_in, monkeypatch):
     monkeypatch.setattr(
         ldap_client, "search",
         lambda *a, **k: [LdapEntry(dn="CN=Dir,DC=example,DC=com", email="wiz.dir@example.com",
-                                   first_name="Dir", last_name="Ectory", extra={"office": "Graz"})],
+                                   first_name="Dir", last_name="Ectory",
+                                   # "name" would be guessed to display_name on a CSV;
+                                   # from a directory it is an admin-chosen field name.
+                                   extra={"office": "Graz", "name": "Nick"})],
     )
     yield ids
     with SessionLocal() as db:
@@ -207,6 +211,7 @@ def test_a_member_can_import_from_an_import_enabled_directory(member, directorie
         recipient = db.scalar(select(Recipient).where(Recipient.email == "wiz.dir@example.com"))
         assert recipient.source == "ldap" and recipient.ldap_dn == "CN=Dir,DC=example,DC=com"
         assert recipient.extra.get("office") == "Graz"
+        assert recipient.extra.get("name") == "Nick"
         target = db.scalar(select(RecipientList).where(RecipientList.name == "Wizard dir list"))
         assert target.sync_enabled and target.ldap_profile_id == directories["Import AD"]
 
@@ -280,3 +285,51 @@ def test_a_failing_directory_does_not_show_members_the_server(member, directorie
     ).text
     assert "could not be searched right now" in page
     assert "dc.example.com" not in page
+
+
+# --------------------------------------------------------------------------- #
+# Review fixes
+# --------------------------------------------------------------------------- #
+def test_update_preview_keeps_the_other_choices(logged_in):
+    review = _upload(logged_in, "email\nwiz.keep@example.com\n")
+    # "Update existing" unticked (absent), a new list named, sync ticked.
+    logged_in.post(review + "/mapping", data={"map_0": "email", "new_list_name": "Kept list", "keep_in_sync": "1"})
+    page = logged_in.get(review).text
+    assert 'value="Kept list"' in page
+    assert not re.search(r'name="overwrite" value="1"\s+checked', page)
+
+
+def test_preview_and_import_agree_on_duplicates(logged_in):
+    with SessionLocal() as db:
+        if not db.scalar(select(Recipient).where(Recipient.email == "wiz.dup@example.com")):
+            db.add(Recipient(email="wiz.dup@example.com", first_name="Same", source="manual"))
+            db.commit()
+    review = _upload(logged_in, "email,first_name\nwiz.dup@example.com,Same\nwiz.dup@example.com,Changed\n")
+    page = logged_in.get(review).text
+    assert "appear more than once" in page
+    logged_in.post(review, data={"map_0": "email", "map_1": "first_name", "overwrite": "1"})
+    with SessionLocal() as db:
+        # The preview said "unchanged": the second row does not sneak a change in.
+        assert db.scalar(select(Recipient).where(Recipient.email == "wiz.dup@example.com")).first_name == "Same"
+
+
+def test_an_import_cannot_be_finished_twice(logged_in):
+    review = _upload(logged_in, "email\nwiz.twice@example.com\n")
+    first = logged_in.post(review, data={"map_0": "email", "new_list_name": "Twice list"}, follow_redirects=False)
+    second = logged_in.post(review, data={"map_0": "email", "new_list_name": "Twice list"}, follow_redirects=True)
+    assert first.status_code == 303
+    assert "expired or was already finished" in second.text
+
+
+def test_expired_drafts_are_swept_without_a_new_import(logged_in):
+    from app.services.importer import sweep_expired_drafts
+
+    review = _upload(logged_in, "email\nwiz.sweep@example.com\n")
+    token = review.rsplit("/", 1)[1]
+    with SessionLocal() as db:
+        db.get(ImportDraft, token).created_at = datetime.now(timezone.utc) - timedelta(hours=2)
+        db.commit()
+        # What the background worker runs on every pass.
+        assert sweep_expired_drafts(db) >= 1
+        db.commit()
+        assert db.get(ImportDraft, token) is None

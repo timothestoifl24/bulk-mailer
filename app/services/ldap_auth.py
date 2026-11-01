@@ -324,10 +324,12 @@ def sync_user(db: Session, identity: LdapIdentity, profile: LdapProfile) -> User
             logger.info("Refused %s: a local account already owns that username.",
                         identity.username)
             return None
-        if user.auth_provider_id not in (None, profile.id):
+        if user.auth_provider_id != profile.id:
             # The same name in a second directory is a different person until
-            # an administrator says otherwise.
-            logger.info("Refused %s: the account belongs to another LDAP provider.",
+            # an administrator says otherwise. An account with no provider at
+            # all belonged to one that was deleted: a directory added later
+            # (possibly reusing its id) must not take it over either.
+            logger.info("Refused %s: the account belongs to another or a deleted LDAP provider.",
                         identity.username)
             return None
         if not user.is_active:

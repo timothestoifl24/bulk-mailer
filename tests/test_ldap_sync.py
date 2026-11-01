@@ -508,3 +508,22 @@ def test_a_list_another_instance_is_syncing_is_skipped(scenario):
 
         assert ldap_sync._lock_if_still_due(db, target) is False
         other.commit()
+
+
+def test_a_disabled_directory_is_not_searched_or_synced(scenario, monkeypatch):
+    """Switching a provider off pauses its lists: no query, no membership changes."""
+    db, target, returned = scenario
+    returned.append(_entry("would.be.added@example.com"))
+    profile = db.get(LdapProfile, target.ldap_profile_id)
+    profile.enabled = False
+    db.commit()
+
+    def must_not_search(*args, **kwargs):
+        raise AssertionError("a disabled directory was searched")
+
+    monkeypatch.setattr(ldap_client, "search", must_not_search)
+    with pytest.raises(ldap_sync.SyncError, match="switched off"):
+        ldap_sync.sync_list(db, target)
+    assert target.recipients == []
+    profile.enabled = True
+    db.commit()

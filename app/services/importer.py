@@ -6,11 +6,12 @@ import csv
 import io
 import re
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from ..models import Recipient, RecipientList
+from ..models import ImportDraft, Recipient, RecipientList
 from .ldap_client import LdapEntry
 
 EMAIL_RE = re.compile(r"^[^@\s,;<>]+@[^@\s,;<>]+\.[A-Za-z]{2,}$")
@@ -286,6 +287,34 @@ def _would_change(recipient: Recipient, values: dict, source: str) -> bool:
     if values.get("ldap_dn") and recipient.ldap_dn != values["ldap_dn"]:
         return True
     return source == "ldap" and recipient.source != "ldap"
+
+
+def first_per_email(rows: list[dict]) -> list[dict]:
+    """Keep the first row for each address, as the wizard's preview counts them.
+
+    Without this a later duplicate could still change a recipient the preview
+    had just reported as unchanged.
+    """
+    seen: set[str] = set()
+    kept = []
+    for row in rows:
+        email = normalise_email(row.get("email", ""))
+        if is_valid_email(email):
+            if email in seen:
+                continue
+            seen.add(email)
+        kept.append(row)
+    return kept
+
+
+# How long the import wizard keeps parsed rows between its steps.
+DRAFT_LIFETIME = timedelta(hours=1)
+
+
+def sweep_expired_drafts(db: Session) -> int:
+    """Delete wizard drafts past their lifetime. They hold people's data."""
+    cutoff = datetime.now(timezone.utc) - DRAFT_LIFETIME
+    return db.execute(delete(ImportDraft).where(ImportDraft.created_at < cutoff)).rowcount or 0
 
 
 def preview_rows(db: Session, rows: list[dict], *, source: str, overwrite: bool = True) -> ImportPreview:
