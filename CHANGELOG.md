@@ -18,6 +18,13 @@ pages no longer exist.
 ## [Unreleased]
 
 ### Added
+- **First-run setup**: a new installation opens a setup page where you create
+  the first administrator, instead of reading `ADMIN_USERNAME` /
+  `ADMIN_PASSWORD` from the environment. Until it is done, every page leads
+  there and each start logs a reminder.
+- That **initial administrator** cannot be deleted, disabled or demoted, so
+  there is always a way in. `python -m app.cli reset-initial-admin` gives it a
+  new password and restores its access.
 - **Single sign-on with OpenID Connect** (Microsoft Entra ID, Keycloak,
   Google, Authentik and others): add a provider, register the callback URL it
   shows, and a "Sign in with …" button appears on the sign-in page. An
@@ -62,6 +69,10 @@ pages no longer exist.
   sending speed, placeholders), with links to the guide.
 
 ### Changed
+- `ADMIN_USERNAME` and `ADMIN_PASSWORD` are no longer used; remove them from
+  your environment, compose file or Kubernetes secret. Existing accounts are
+  unaffected: on upgrade, the oldest local administrator becomes the initial
+  administrator. `create-admin` now only adds further administrators.
 - Recipients and lists are one *Audience* page with two tabs and a single
   **Import** button. Filters apply as you pick them, and the bulk actions
   appear in a bar at the bottom once people are selected.

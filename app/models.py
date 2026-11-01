@@ -67,6 +67,10 @@ class User(Base):
     # Admins manage users, sign-in settings, SMTP and LDAP profiles.
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # The account created on the first-run setup page. It is the guaranteed
+    # way in: it cannot be deleted, disabled or demoted in the UI, and
+    # `python -m app.cli reset-initial-admin` restores it.
+    is_initial_admin: Mapped[bool] = mapped_column(Boolean, default=False)
     last_login_at: Mapped[datetime | None] = mapped_column(TIMESTAMP_TZ, nullable=True)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP_TZ, default=utcnow)
 

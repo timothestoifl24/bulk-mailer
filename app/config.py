@@ -24,8 +24,10 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = False
 
-    admin_username: str = "admin"
-    admin_password: str = "admin"
+    # No longer used: the first administrator is created on the /setup page.
+    # Still read so a leftover value can be warned about at startup.
+    admin_username: str = ""
+    admin_password: str = ""
 
     smtp_host: str = "localhost"
     smtp_port: int = 25

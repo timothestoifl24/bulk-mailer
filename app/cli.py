@@ -1,7 +1,8 @@
 """Small admin CLI, mainly for getting back in when nobody can sign in.
 
     python -m app.cli list-users
-    python -m app.cli set-password admin
+    python -m app.cli reset-initial-admin
+    python -m app.cli set-password alice
     python -m app.cli create-admin alice --password ...
     python -m app.cli disable-ldap-login
     python -m app.cli disable-sso
@@ -21,6 +22,7 @@ from .db import session_scope
 from .models import LdapProfile, OidcProvider, User
 from .security import hash_password
 from .services import settings_store
+from .services import setup as first_run
 
 MIN_PASSWORD_LENGTH = 8
 
@@ -39,15 +41,16 @@ def list_users(_args) -> int:
     with session_scope() as db:
         users = list(db.scalars(select(User).order_by(User.username)))
         if not users:
-            print("No accounts exist. The next start will create one from ADMIN_PASSWORD.")
+            print("No accounts exist yet. Open the app's /setup page to create the first administrator.")
             return 0
         width = max(len(u.username) for u in users)
-        print(f"{'USERNAME'.ljust(width)}  SOURCE  RIGHTS  STATE     LAST SIGN-IN")
+        print(f"{'USERNAME'.ljust(width)}  SOURCE  RIGHTS   STATE     LAST SIGN-IN")
         for user in users:
+            rights = "initial" if user.is_initial_admin else ("admin" if user.is_admin else "-")
             print(
                 f"{user.username.ljust(width)}  "
                 f"{user.auth_source:<6}  "
-                f"{'admin' if user.is_admin else '-':<6}  "
+                f"{rights:<7}  "
                 f"{'active' if user.is_active else 'disabled':<8}  "
                 f"{user.last_login_at.strftime('%Y-%m-%d %H:%M') if user.last_login_at else 'never'}"
             )
@@ -70,8 +73,36 @@ def set_password(args) -> int:
     return 0
 
 
+def reset_initial_admin(args) -> int:
+    """The way back in: new password for the initial admin, and its access restored."""
+    with session_scope() as db:
+        user = first_run.initial_admin(db)
+        if user is None:
+            if db.scalar(select(func.count()).select_from(User)) == 0:
+                raise SystemExit(
+                    "No account exists yet. Open the app's /setup page to create the first administrator."
+                )
+            raise SystemExit(
+                "No account is marked as the initial administrator. Use set-password on a local "
+                "administrator, or create-admin to add one."
+            )
+        print(f"Initial administrator: {user.username!r}")
+        user.password_hash = hash_password(_read_password(args.password))
+        # Whatever was done to it, it comes back as a working local admin.
+        user.auth_source = "local"
+        user.is_admin = True
+        user.is_active = True
+        print(f"Password reset; {user.username!r} is an active administrator again.")
+    return 0
+
+
 def create_admin(args) -> int:
     with session_scope() as db:
+        if db.scalar(select(func.count()).select_from(User)) == 0:
+            # The first account is created on the setup page, never from here.
+            raise SystemExit(
+                "No account exists yet. Open the app's /setup page to create the first administrator."
+            )
         existing = db.scalar(select(User).where(func.lower(User.username) == args.username.lower()))
         if existing is not None:
             raise SystemExit(f"{args.username!r} already exists; use set-password.")
@@ -140,12 +171,19 @@ def main(argv: list[str] | None = None) -> int:
 
     sub.add_parser("list-users", help="show every account").set_defaults(func=list_users)
 
+    p = sub.add_parser(
+        "reset-initial-admin",
+        help="new password for the initial administrator, and its access restored",
+    )
+    p.add_argument("--password", help="read from the terminal if omitted")
+    p.set_defaults(func=reset_initial_admin)
+
     p = sub.add_parser("set-password", help="set a local account's password")
     p.add_argument("username")
     p.add_argument("--password", help="read from the terminal if omitted")
     p.set_defaults(func=set_password)
 
-    p = sub.add_parser("create-admin", help="create a local administrator")
+    p = sub.add_parser("create-admin", help="add another local administrator (after setup)")
     p.add_argument("username")
     p.add_argument("--password", help="read from the terminal if omitted")
     p.add_argument("--display-name", default="")

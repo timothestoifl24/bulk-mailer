@@ -12,13 +12,13 @@ The published image needs two things you must choose yourself, and one volume.
 ```bash
 docker run -d -p 8000:8000 \
   -e SECRET_KEY=$(openssl rand -base64 36) \
-  -e ADMIN_PASSWORD=choose-one \
   -v mailer-data:/data \
   docker.io/timothestoifl24/bulk-mailer:latest
 ```
 
-Open <http://127.0.0.1:8000> and sign in as `admin` with whatever
-`ADMIN_PASSWORD` resolved to.
+Open <http://127.0.0.1:8000>. On the first start there is no account yet: the app opens a **setup page**
+where you create the first administrator. Do this straight away — until then,
+anyone who can reach the address can create it.
 
 ::: danger `SECRET_KEY` is not decoration
 It signs session cookies **and** derives the key that encrypts stored SMTP
@@ -43,7 +43,6 @@ services:
       - "8000:8000"
     environment:
       SECRET_KEY: change-me-to-a-long-random-string
-      ADMIN_PASSWORD: change-me
       # DATABASE_URL: postgresql+psycopg://user:pass@host:5432/db   # optional
     volumes:
       - mailer-data:/data
@@ -58,24 +57,38 @@ docker compose up -d
 `DATABASE_URL` is optional and defaults to SQLite at `/data/mailer.db`. See
 [Database](/advanced-config#database) for when that is not the right choice.
 
-## The bootstrap admin password
+## The first administrator
 
-`ADMIN_PASSWORD` is read **only once, while the user table is empty**.
-Changing the environment variable afterwards does nothing at all — a common
-and confusing first stumble.
+There is no admin password in the environment. The first time the app starts
+with an empty database, every page leads to **/setup**, where you choose the
+username and password of the first administrator. Each start logs a warning
+until that is done.
 
-To change it after that first start, use *Account* in the UI, or a shell:
+::: warning Do it before anyone else can
+Until the first administrator exists, whoever opens the app first creates it.
+Complete setup as soon as the app is up, before exposing it more widely.
+:::
+
+That account is the **initial administrator**. It cannot be deleted, disabled
+or demoted in the UI, so there is always one way in. Change its password under
+*Account*; if it is lost, or the account was locked out, a shell resets it and
+restores its access:
 
 ```bash
-docker exec -it <container> python -m app.cli set-password admin
+docker exec -it <container> python -m app.cli reset-initial-admin
 ```
+
+Upgrading from a version that still used `ADMIN_USERNAME` / `ADMIN_PASSWORD`
+changes nothing for existing accounts: the oldest local administrator becomes
+the initial administrator, and the two variables can be removed.
 
 Other commands worth knowing before you need them:
 
 | Command | What it does |
 | --- | --- |
 | `python -m app.cli list-users` | Who exists, and how they authenticate |
-| `python -m app.cli create-admin` | Add another administrator |
+| `python -m app.cli reset-initial-admin` | New password for the initial administrator, and its access restored |
+| `python -m app.cli create-admin` | Add another administrator (after setup) |
 | `python -m app.cli disable-ldap-login` | The way back in when a directory setting locks everyone out |
 | `python -m app.cli disable-sso` | Switches every OpenID Connect provider off and shows the password form again |
 
@@ -98,7 +111,7 @@ Python 3.13.
 
 ```bash
 python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt
-cp .env.example .env   # set SECRET_KEY, ADMIN_PASSWORD, DATABASE_URL and the SMTP block
+cp .env.example .env   # set SECRET_KEY, DATABASE_URL and the SMTP block
 python run.py
 ```
 
@@ -107,7 +120,7 @@ python run.py
 ## The full stack
 
 From a checkout, one command brings up the app, PostgreSQL, and a throwaway
-SMTP sink. Compose reads `SECRET_KEY`, `ADMIN_PASSWORD` and friends from a
+SMTP sink. Compose reads `SECRET_KEY` and friends from a
 `.env` file next to `compose.yaml`:
 
 ```bash

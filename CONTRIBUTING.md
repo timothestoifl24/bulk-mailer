@@ -47,7 +47,7 @@ opening a PR:
 
 ```bash
 podman build --format docker -t bulk-mailer .
-podman run --rm -e SECRET_KEY=test-key-at-least-32-characters-long -e ADMIN_PASSWORD=test bulk-mailer python -m app.cli list-users
+podman run --rm -e SECRET_KEY=test-key-at-least-32-characters-long bulk-mailer python -m app.cli list-users
 ```
 
 ## Code style

@@ -69,11 +69,12 @@ def test_you_cannot_lock_yourself_out(logged_in):
     me = _user("admin")
     response = logged_in.post(f"/users/{me.id}/edit", data={"display_name": "Admin"}, headers=PARTIAL)
     assert response.status_code == 422
-    assert "your own admin rights" in response.text
+    # The test admin is also the initial administrator, which says so first.
+    assert "always keeps its admin rights" in response.text
     assert _user("admin").is_admin is True
 
     page = logged_in.post(f"/users/{me.id}/delete", follow_redirects=True).text
-    assert "cannot delete your own account" in page
+    assert "initial administrator cannot be deleted" in page
     assert _user("admin") is not None
 
 

@@ -15,8 +15,6 @@
       "env": {
         "DATABASE_URL": "sqlite:///./data/dev.db",
         "SECRET_KEY": "dev-only-not-secret",
-        "ADMIN_USERNAME": "admin",
-        "ADMIN_PASSWORD": "admin-dev-pass",
         "SMTP_HOST": "",
         "SMTP_FROM_EMAIL": ""
       }

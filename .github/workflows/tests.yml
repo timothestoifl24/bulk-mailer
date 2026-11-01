@@ -120,7 +120,6 @@ jobs:
         run: |
           docker run -d --name mailer-ci -p 8000:8000 \
             -e SECRET_KEY=ci-only-key-at-least-32-characters-long \
-            -e ADMIN_PASSWORD=ci-only-password \
             bulk-mailer:ci
 
       - name: Wait for it to answer

@@ -29,6 +29,7 @@ from .models import (
 )
 from .routers import (
     auth,
+    setup,
     auth_providers,
     campaigns,
     import_wizard,
@@ -40,8 +41,9 @@ from .routers import (
     system,
     users,
 )
-from .security import hash_password, origin_is_trusted, require_admin, require_user
+from .security import origin_is_trusted, require_admin, require_user
 from .services import ldap_auth, ldap_sync, settings_store
+from .services import setup as first_run
 from .services.sender import counts_by_status, start_worker, stop_worker
 from .web import redirect, render
 
@@ -68,9 +70,18 @@ def warn_about_weak_secrets() -> None:
         )
 
 
+def warn_about_removed_settings() -> None:
+    if settings.admin_username or settings.admin_password:
+        logger.warning(
+            "ADMIN_USERNAME / ADMIN_PASSWORD are no longer used and can be removed: the first "
+            "administrator is created on the /setup page. Existing accounts are unaffected."
+        )
+
+
 def bootstrap() -> None:
-    """Create the schema, the first admin account, and reset stale campaigns."""
+    """Create the schema, adopt an initial admin on upgrade, and reset stale campaigns."""
     warn_about_weak_secrets()
+    warn_about_removed_settings()
     with startup_lock():
         _bootstrap_schema_and_data()
 
@@ -80,25 +91,12 @@ def _bootstrap_schema_and_data() -> None:
     add_missing_columns(engine)
     with session_scope() as db:
         if db.scalar(select(func.count()).select_from(User)) == 0:
-            db.add(
-                User(
-                    username=settings.admin_username,
-                    password_hash=hash_password(settings.admin_password),
-                    is_admin=True,
-                    display_name="Administrator",
-                )
-            )
-            # Deliberately says nothing about the password itself, not even a
-            # masked excerpt: application logs get shipped to aggregators and
-            # read by people who have no business holding the admin credential,
-            # and first/last characters give away more than they look like they
-            # do. Naming the source answers "which password is it?" just as well.
+            # Said at every start until it is done: until then, whoever opens
+            # the app first becomes its administrator.
             logger.warning(
-                "Created the initial admin account %r. Its password is whatever "
-                "ADMIN_PASSWORD held at first start - not any default you may have "
-                "read elsewhere. Change it with: python -m app.cli set-password %s",
-                settings.admin_username,
-                settings.admin_username,
+                "No account exists yet. Open %s/setup to create the first administrator - "
+                "until you do, anyone who can reach this address can.",
+                settings.public_base_url.rstrip("/"),
             )
         elif db.scalar(select(func.count()).select_from(User).where(User.is_admin.is_(True))) == 0:
             # Upgraded database: nobody would be able to reach the admin pages.
@@ -106,6 +104,7 @@ def _bootstrap_schema_and_data() -> None:
             if first is not None:
                 first.is_admin = True
                 logger.info("Granted admin rights to the existing account '%s'.", first.username)
+        first_run.adopt_existing(db)
         ldap_auth.migrate_legacy_settings(db)
         # A campaign left mid-flight by a crash goes back to the queue. Only on
         # SQLite, which is always a single instance: with several instances
@@ -140,6 +139,22 @@ app.add_middleware(
 )
 
 
+# Paths that work before the first account exists.
+SETUP_OPEN_PATHS = ("/setup", "/static/", "/healthz", "/favicon")
+
+
+@app.middleware("http")
+async def first_run_setup(request: Request, call_next):
+    """Until the first administrator exists, every page leads to /setup."""
+    path = request.url.path
+    if not path.startswith(SETUP_OPEN_PATHS):
+        with session_scope() as db:
+            done = first_run.is_done(db)
+        if not done:
+            return redirect("/setup")
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def csrf_guard(request: Request, call_next):
     """Reject cross-site state-changing requests (origin/referer check)."""
@@ -170,6 +185,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+app.include_router(setup.router)
 app.include_router(auth.router)
 app.include_router(public.router)
 # Before recipients: /recipients/import would otherwise be read as a recipient id.

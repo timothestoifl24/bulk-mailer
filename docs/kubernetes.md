@@ -42,7 +42,6 @@ Fill in `secret.env`:
 
 ```ini
 SECRET_KEY=<output of: openssl rand -base64 36>
-ADMIN_PASSWORD=<the first admin's password>
 SMTP_PASSWORD=<only if your mail server needs one>
 ```
 
@@ -83,8 +82,9 @@ Everything goes into the namespace `bulk-mailer`.
 kubectl -n bulk-mailer port-forward service/bulk-mailer 8000:80
 ```
 
-Open `http://localhost:8000` and sign in as `admin` with the `ADMIN_PASSWORD`
-you chose. The CSRF check accepts the address the browser actually used, so a
+Open `http://localhost:8000`. On the first start it shows a setup page where
+you create the first administrator — do it right away, since until then anyone
+who can reach the app could. The CSRF check accepts the address the browser actually used, so a
 port-forward works even though it is not `PUBLIC_BASE_URL`. One catch: an
 `https://` `PUBLIC_BASE_URL` marks the session cookie `Secure`, and a browser
 that will not keep such a cookie over plain HTTP sends you straight back to the
@@ -167,13 +167,12 @@ The admin CLI runs inside the pod:
 
 ```bash
 kubectl -n bulk-mailer exec -it deploy/bulk-mailer -- python -m app.cli list-users
-kubectl -n bulk-mailer exec -it deploy/bulk-mailer -- python -m app.cli set-password admin
+kubectl -n bulk-mailer exec -it deploy/bulk-mailer -- python -m app.cli reset-initial-admin
 kubectl -n bulk-mailer exec -it deploy/bulk-mailer -- python -m app.cli disable-ldap-login
 ```
 
-`ADMIN_PASSWORD` is read **only while the user table is empty**. Changing it in
-`secret.env` afterwards does nothing — use *Account* in the UI or
-`set-password` above.
+`reset-initial-admin` gives the administrator created on the setup page a new
+password and restores its access. There is no admin password in `secret.env`.
 
 Logs go to stdout:
 
