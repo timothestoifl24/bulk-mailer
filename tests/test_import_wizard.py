@@ -271,6 +271,38 @@ def test_deleting_a_directory_discards_its_open_imports(logged_in, directories):
         assert db.scalar(select(RecipientList).where(RecipientList.name == "Doomed list")) is None
 
 
+def test_a_search_outliving_its_directory_cannot_land_in_a_replacement(logged_in, monkeypatch):
+    """Deleted mid-search, then replaced under the same id: the late draft is refused."""
+    with SessionLocal() as db:
+        doomed = LdapProfile(name="Short-lived AD", host="dc.example.com", base_dn="DC=example,DC=com",
+                             enabled=True, allow_import=True)
+        db.add(doomed)
+        db.commit()
+        doomed_id = doomed.id
+
+    def deleted_and_replaced_meanwhile(*a, **k):
+        logged_in.post(f"/settings/auth/ldap/{doomed_id}/delete")
+        with SessionLocal() as db:
+            db.add(LdapProfile(id=doomed_id, name="Replacement AD", host="other.example.com",
+                               base_dn="DC=other,DC=com", enabled=True, allow_import=True))
+            db.commit()
+        return [LdapEntry(dn="CN=Late,DC=example,DC=com", email="late.search@example.com")]
+
+    monkeypatch.setattr(ldap_client, "search", deleted_and_replaced_meanwhile)
+    review = logged_in.post(
+        "/recipients/import/ldap", data={"provider_id": str(doomed_id)}, follow_redirects=False
+    ).headers["location"]
+    page = logged_in.post(
+        review, data={"new_list_name": "Late list", "keep_in_sync": "1"}, follow_redirects=True
+    ).text
+    assert "no longer available for import" in page
+    with SessionLocal() as db:
+        assert db.scalar(select(RecipientList).where(RecipientList.name == "Late list")) is None
+        assert db.scalar(select(Recipient).where(Recipient.email == "late.search@example.com")) is None
+        db.delete(db.get(LdapProfile, doomed_id))
+        db.commit()
+
+
 def test_without_import_directories_the_choice_explains_why(member, logged_in):
     with SessionLocal() as db:
         for profile in db.scalars(select(LdapProfile)):

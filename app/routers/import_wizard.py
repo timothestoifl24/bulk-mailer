@@ -63,6 +63,16 @@ def import_providers(db: Session) -> list[LdapProfile]:
     )
 
 
+def _provider_stamp(provider: LdapProfile) -> str:
+    """Tells this provider apart from a later one given the same id (SQLite reuses them)."""
+    created = provider.created_at
+    if created is None:
+        return ""
+    if created.tzinfo is None:  # SQLite hands timestamps back naive
+        created = created.replace(tzinfo=timezone.utc)
+    return created.astimezone(timezone.utc).isoformat()
+
+
 def _lists(db: Session) -> list[RecipientList]:
     return list(db.scalars(select(RecipientList).order_by(RecipientList.name)))
 
@@ -288,6 +298,7 @@ def ldap_search(
         {
             "list_id": _list_id(list_id),
             "provider_id": provider.id,
+            "provider_stamp": _provider_stamp(provider),
             "provider_name": provider.name,
             # What actually ran, group conditions folded in, is what a synced
             # list re-runs; what was typed is what goes back in the form.
@@ -409,11 +420,18 @@ async def finish(request: Request, token: str, user: User = Depends(require_user
 
     provider = None
     if draft.source == "ldap":
-        # Deleting a provider discards its drafts, so an id that still resolves
-        # is the directory the search ran against (not a later one given the
-        # same id). It may since have been switched off or closed to import.
+        # The id alone is not enough: a search still running when its provider
+        # was deleted saves its draft after the delete discarded the others,
+        # and on SQLite a later provider can be given the same id. The stamp
+        # only matches the provider the search actually ran against. It may
+        # also since have been switched off or closed to import.
         provider = db.get(LdapProfile, meta["provider_id"])
-        if provider is None or not provider.enabled or not provider.allow_import:
+        if (
+            provider is None
+            or meta.get("provider_stamp") != _provider_stamp(provider)
+            or not provider.enabled
+            or not provider.allow_import
+        ):
             db.delete(draft)
             db.commit()
             flash(
