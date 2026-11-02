@@ -83,18 +83,9 @@ few conventions worth keeping:
 A clear, imperative subject line (`Add LDAP group caching`, not `fixed
 stuff`), with the body explaining *why* where that is not obvious.
 
-Commit subjects are not the changelog. If a change is worth telling users
-about, add a line under `## [Unreleased]` in `CHANGELOG.md` in the same
-commit, written for someone deciding whether to upgrade:
-
-```markdown
-## [Unreleased]
-
-### Fixed
-- Bulk actions on recipients applied to only the 50 rows on the current page.
-```
-
-Not every commit needs one — a refactor with no visible effect does not.
+Don't edit `CHANGELOG.md`: the maintainer writes it when releasing, from
+the pull request titles and descriptions. A clear title and description (see
+below) is all a change needs to make it into the release notes.
 
 ## Before opening a pull request
 
@@ -109,8 +100,14 @@ Not every commit needs one — a refactor with no visible effect does not.
 
 ## Describing your pull request
 
-Pull requests go to `develop`. The pull request template asks two short
-questions; tick every box that applies:
+Pull requests go to `develop`. The **title** says what changed, written for
+someone running Bulk Mailer (`Fix bulk actions applying to only the current
+page`, not `Update recipients.py`): it appears as is in the GitHub release
+notes. The **description** says what users will notice and why the change is
+needed; the maintainer writes the changelog from it.
+
+The pull request template also asks two short questions; tick every box that
+applies:
 
 - **Type of change** (at least one): bug fix, new feature, breaking change,
   documentation, refactoring, API changes, performance, tests.

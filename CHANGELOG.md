@@ -4,12 +4,11 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/) (`vMAJOR.MINOR.PATCH` tags).
 
-Write anything worth calling out under `## [Unreleased]` as you go, from the
-reader's point of view — what they can now do, or what stopped being broken.
-Every beta built from `develop` shows these notes. `tools/release.py` folds
-them into a dated section when you prepare a release, so the entry is part of
+This file is written by the maintainer when releasing, from the pull
+requests that went in; contributors don't edit it. `tools/release.py` folds
+the notes under `## [Unreleased]` into a dated section, so the entry is part of
 the commit the release tag points at; CI refuses to release from `main`
-without it.
+without it. See [RELEASING.md](RELEASING.md).
 
 `v1.0.0-beta` and `v1.0.1-beta` are not linked below: they were tagged
 against an earlier incarnation of the GitHub repository and their release

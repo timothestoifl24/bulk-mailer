@@ -9,7 +9,8 @@ This template is for pull requests into `develop`. Releases (develop → main) a
 
 ## What and why
 
-<!-- What does this change, and why is it needed? Link the issue: "Closes #123". -->
+<!-- What does this change, what will users notice, and why is it needed? Link the issue: "Closes #123".
+     No need to edit CHANGELOG.md: the maintainer writes it from this description and the title. -->
 
 ## Type of change
 
@@ -39,7 +40,6 @@ This template is for pull requests into `develop`. Releases (develop → main) a
 
 - [ ] `python -m pytest -q` passes, and new behaviour has a test (a bug fix has one that fails without the fix)
 - [ ] If models, queries or the sending worker changed: the suite also passes against PostgreSQL
-- [ ] A line under `## [Unreleased]` in `CHANGELOG.md` if users notice the change
 - [ ] `README.md` and `docs/` are updated if a documented setting, endpoint or workflow changed
 - [ ] No secrets, `.env` or local database files are committed
 
