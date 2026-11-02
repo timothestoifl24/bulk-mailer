@@ -407,6 +407,22 @@ async def finish(request: Request, token: str, user: User = Depends(require_user
         flash(request, "Tell us which column holds the email address.", "error")
         return _review(request, db, draft, status_code=422)
 
+    provider = None
+    if draft.source == "ldap":
+        # Deleting a provider discards its drafts, so an id that still resolves
+        # is the directory the search ran against (not a later one given the
+        # same id). It may since have been switched off or closed to import.
+        provider = db.get(LdapProfile, meta["provider_id"])
+        if provider is None or not provider.enabled or not provider.allow_import:
+            db.delete(draft)
+            db.commit()
+            flash(
+                request,
+                "The directory this search ran against is no longer available for import. Nothing was imported.",
+                "error",
+            )
+            return redirect(BASE)
+
     source, headers, raw_rows = draft.source, draft.headers, draft.rows
     # Claim the draft before anything is written. With several instances a
     # double submit can reach two of them; only the one whose DELETE removes
@@ -441,16 +457,14 @@ async def finish(request: Request, token: str, user: User = Depends(require_user
     result = import_rows(db, rows, source=SOURCES[source], target_list=target, overwrite=overwrite)
 
     wants_sync = source == "ldap" and choices["keep_in_sync"]
-    if source == "ldap" and target is not None:
-        provider = db.get(LdapProfile, meta["provider_id"])
-        if provider is not None:
-            # Remember the query on every import, not only when sync is asked
-            # for: it costs nothing, and it lets sync be turned on later from
-            # the Lists tab without rebuilding the search.
-            target.ldap_profile_id = provider.id
-            target.ldap_search_filter = meta["used_filter"]
-            target.ldap_base_dn = meta["used_base_dn"]
-            target.sync_enabled = wants_sync
+    if provider is not None and target is not None:
+        # Remember the query on every import, not only when sync is asked
+        # for: it costs nothing, and it lets sync be turned on later from
+        # the Lists tab without rebuilding the search.
+        target.ldap_profile_id = provider.id
+        target.ldap_search_filter = meta["used_filter"]
+        target.ldap_base_dn = meta["used_base_dn"]
+        target.sync_enabled = wants_sync
     db.commit()
 
     where = f" into '{target.name}'" if target else ""

@@ -301,6 +301,53 @@ def test_a_local_account_with_the_same_name_is_not_taken_over(browser, idp):
         assert local.auth_source == "local" and local.external_id == ""
 
 
+def test_overlapping_first_sign_ins_share_one_account(idp, monkeypatch):
+    """The second of two racing first sign-ins reuses the account the first one made."""
+    identity = oidc_auth.OidcIdentity(external_id="racer-1", username="racer", email="racer@corp.example")
+    original = oidc_auth._unique_username
+    winner_id = None
+
+    def the_other_request_commits_first(db, wanted):
+        nonlocal winner_id
+        with SessionLocal() as other:
+            winner = User(username="racer", auth_source="oidc", auth_provider_id=idp.provider_id,
+                          external_id="racer-1", password_hash="", is_active=True, is_admin=False)
+            other.add(winner)
+            other.commit()
+            winner_id = winner.id
+        monkeypatch.setattr(oidc_auth, "_unique_username", original)
+        return original(db, wanted)  # "racer-2": the username alone would not clash
+
+    monkeypatch.setattr(oidc_auth, "_unique_username", the_other_request_commits_first)
+    with SessionLocal() as db:
+        provider = db.get(OidcProvider, idp.provider_id)
+        user = oidc_auth.provision_user(db, provider, identity)
+        db.commit()
+        assert user.id == winner_id
+    with SessionLocal() as db:
+        rows = db.scalars(select(User).where(User.auth_source == "oidc", User.external_id == "racer-1")).all()
+        assert [row.id for row in rows] == [winner_id]
+
+
+def test_the_database_refuses_a_second_account_for_one_identity(idp):
+    from sqlalchemy.exc import IntegrityError
+
+    with SessionLocal() as db:
+        for name in ("twin", "twin-2"):
+            db.add(User(username=name, auth_source="oidc", auth_provider_id=idp.provider_id,
+                        external_id="twin-1", password_hash=""))
+        with pytest.raises(IntegrityError):
+            db.flush()
+
+
+def test_the_account_page_points_sso_users_to_their_provider(browser, idp):
+    _sign_in(browser, idp)
+    page = browser.get("/account").text
+    assert "Single sign-on account" in page
+    assert "Corp IdP" in page
+    assert 'action="/account/password"' not in page
+
+
 def test_a_disabled_account_cannot_sign_in(browser, idp):
     idp.claims = {"sub": "disabled-1", "preferred_username": "dora"}
     _sign_in(browser, idp)

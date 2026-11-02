@@ -11,6 +11,7 @@
         <h2 class="page-title">
           {{ user.name }}
           {% if user.auth_source == 'ldap' %}<span class="badge bg-blue-lt ms-2">{{ icon('server') }} LDAP</span>{% endif %}
+          {% if user.auth_source == 'oidc' %}<span class="badge bg-blue-lt ms-2">{{ icon('id-badge') }} SSO</span>{% endif %}
           {% if user.is_admin %}<span class="badge bg-purple-lt ms-1">{{ icon('shield') }} admin</span>{% endif %}
         </h2>
       </div>
@@ -45,6 +46,32 @@
           <div class="datagrid-item">
             <div class="datagrid-title">Directory DN</div>
             <div class="datagrid-content mono">{{ user.ldap_dn }}</div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% elif user.auth_source == 'oidc' %}
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">{{ icon('id-badge') }} Single sign-on account</h3></div>
+      <div class="card-body">
+        <p class="text-secondary">
+          You sign in through {{ oidc_provider.name if oidc_provider else 'single sign-on' }}, so there is
+          no password stored here. Change it with that identity provider.
+        </p>
+        <div class="datagrid">
+          <div class="datagrid-item">
+            <div class="datagrid-title">Identity provider</div>
+            <div class="datagrid-content">{{ oidc_provider.name if oidc_provider else 'No longer set up here' }}</div>
+          </div>
+          <div class="datagrid-item">
+            <div class="datagrid-title">Username</div>
+            <div class="datagrid-content mono">{{ user.username }}</div>
+          </div>
+          {% if user.email %}
+          <div class="datagrid-item">
+            <div class="datagrid-title">Email</div>
+            <div class="datagrid-content mono">{{ user.email }}</div>
           </div>
           {% endif %}
         </div>

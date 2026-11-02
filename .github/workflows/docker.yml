@@ -389,12 +389,22 @@ jobs:
     permissions:
       contents: write # push the branch
       pull-requests: write # open the pull request
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
+      # A push or pull request made with github.token starts no workflows, so the pull request
+      # would get none of its required checks. A GitHub App token does start them; see "Setup" in
+      # RELEASING.md. Without the app this falls back to github.token and says what to do.
+      - name: Get a token that starts the pull request's checks
+        id: app-token
+        if: vars.RELEASE_APP_ID != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
       - uses: actions/checkout@v7
         with:
           ref: develop
+          # The push below uses the credentials checkout leaves behind.
+          token: ${{ steps.app-token.outputs.token || github.token }}
       - name: Bump __version__ (and make sure CHANGELOG.md has an Unreleased section)
         id: bump
         env:
@@ -403,6 +413,8 @@ jobs:
       - name: Open the pull request
         if: steps.bump.outputs.bump == 'true'
         env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || github.token }}
+          HAS_APP_TOKEN: ${{ steps.app-token.outputs.token != '' }}
           RELEASED: ${{ needs.version.outputs.version }}
           VERSION: ${{ steps.bump.outputs.version }}
           BRANCH: ${{ steps.bump.outputs.branch }}
@@ -427,6 +439,13 @@ jobs:
             exit 0
           fi
           if ! gh pr create --base develop --head "$BRANCH" --title "Open $VERSION for development" --body-file body.md; then
-            echo "::error::Could not open the pull request; $BRANCH is pushed. If this is a permission error, turn on Settings -> Actions -> General -> 'Allow GitHub Actions to create and approve pull requests'."
+            if [ "$HAS_APP_TOKEN" = "true" ]; then
+              echo "::error::Could not open the pull request; $BRANCH is pushed. Check that the release app has Contents and Pull requests write access to this repository."
+            else
+              echo "::error::Could not open the pull request; $BRANCH is pushed. If this is a permission error, turn on Settings -> Actions -> General -> 'Allow GitHub Actions to create and approve pull requests'."
+            fi
             exit 1
+          fi
+          if [ "$HAS_APP_TOKEN" != "true" ]; then
+            echo "::warning::The pull request was opened with github.token, so its checks have not started. Close and reopen it to start them, or set up the release app (RELEASING.md, Setup)."
           fi

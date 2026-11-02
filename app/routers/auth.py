@@ -139,8 +139,11 @@ def logout(request: Request):
 
 
 @router.get("/account")
-def account(request: Request, user: User = Depends(require_user)):
-    return render(request, "account.html", {"user": user})
+def account(request: Request, user: User = Depends(require_user), db: Session = Depends(get_db)):
+    oidc_provider = None
+    if user.auth_source == "oidc" and user.auth_provider_id is not None:
+        oidc_provider = db.get(OidcProvider, user.auth_provider_id)
+    return render(request, "account.html", {"user": user, "oidc_provider": oidc_provider})
 
 
 @router.post("/account/password")

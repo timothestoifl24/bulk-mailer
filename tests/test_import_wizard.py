@@ -227,6 +227,50 @@ def test_a_directory_not_enabled_for_import_is_refused(member, directories):
         assert db.scalar(select(ImportDraft).where(ImportDraft.source == "ldap", ImportDraft.user_id != 1)) is None
 
 
+def test_a_directory_closed_to_import_meanwhile_cannot_be_finished(member, directories):
+    response = member.post(
+        "/recipients/import/ldap", data={"provider_id": str(directories["Import AD"])}, follow_redirects=False
+    )
+    review = response.headers["location"]
+    with SessionLocal() as db:
+        db.get(LdapProfile, directories["Import AD"]).allow_import = False
+        db.commit()
+    page = member.post(
+        review, data={"new_list_name": "Closed dir list", "keep_in_sync": "1"}, follow_redirects=True
+    ).text
+    assert "no longer available for import" in page
+    with SessionLocal() as db:
+        assert db.scalar(select(RecipientList).where(RecipientList.name == "Closed dir list")) is None
+        assert db.get(ImportDraft, review.rsplit("/", 1)[1]) is None
+        db.get(LdapProfile, directories["Import AD"]).allow_import = True
+        db.commit()
+
+
+def test_deleting_a_directory_discards_its_open_imports(logged_in, directories):
+    with SessionLocal() as db:
+        doomed = LdapProfile(name="Doomed AD", host="dc.example.com", base_dn="DC=example,DC=com",
+                             enabled=True, allow_import=True)
+        db.add(doomed)
+        db.commit()
+        doomed_id = doomed.id
+    response = logged_in.post(
+        "/recipients/import/ldap", data={"provider_id": str(doomed_id)}, follow_redirects=False
+    )
+    review = response.headers["location"]
+    other = logged_in.post(
+        "/recipients/import/ldap", data={"provider_id": str(directories["Import AD"])}, follow_redirects=False
+    ).headers["location"]
+
+    logged_in.post(f"/settings/auth/ldap/{doomed_id}/delete")
+    with SessionLocal() as db:
+        assert db.get(ImportDraft, review.rsplit("/", 1)[1]) is None
+        assert db.get(ImportDraft, other.rsplit("/", 1)[1]) is not None
+    page = logged_in.post(review, data={"new_list_name": "Doomed list", "keep_in_sync": "1"}, follow_redirects=True).text
+    assert "expired or was already finished" in page
+    with SessionLocal() as db:
+        assert db.scalar(select(RecipientList).where(RecipientList.name == "Doomed list")) is None
+
+
 def test_without_import_directories_the_choice_explains_why(member, logged_in):
     with SessionLocal() as db:
         for profile in db.scalars(select(LdapProfile)):

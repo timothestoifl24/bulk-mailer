@@ -81,6 +81,9 @@ The docs are built from both branches: `main` at
    beta build on `develop` fails with a reminder, because `develop` still
    holds the version that was just released. If the next release will be a
    minor or major one, change the version on that pull request before merging.
+   Its checks start on their own when the release app is set up (see
+   [Setup](#setup)); without it, close and reopen the pull request to start
+   them.
 
 ## Hotfixes
 
@@ -138,3 +141,18 @@ Actions):
 - `DOCKERHUB_TOKEN`: a Docker Hub personal access token with **Read, Write,
   Delete** access (the cleanup jobs delete beta and pull request tags), not the
   account password.
+
+Opening the **Open X.Y.Z+1 for development** pull request with checks needs a
+GitHub App, because GitHub starts no workflows for a push or pull request made
+with the workflow's own `github.token`:
+
+1. Create a GitHub App owned by your account (Settings → Developer settings →
+   GitHub Apps), with no webhook and these repository permissions:
+   **Contents: Read and write** and **Pull requests: Read and write**.
+2. Install it on this repository only, and generate a private key.
+3. Add the App ID as the repository **variable** `RELEASE_APP_ID`, and the
+   private key (the whole `.pem` file) as the repository **secret**
+   `RELEASE_APP_PRIVATE_KEY`.
+
+Without them the pull request is still opened, with `github.token`, and the
+run warns that its checks have to be started by closing and reopening it.

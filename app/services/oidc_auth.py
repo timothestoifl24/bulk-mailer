@@ -31,6 +31,7 @@ from joserfc import jwt
 from joserfc.errors import JoseError
 from joserfc.jwk import KeySet
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -251,14 +252,16 @@ def _unique_username(db: Session, wanted: str) -> str:
 
 def provision_user(db: Session, provider: OidcProvider, identity: OidcIdentity) -> User:
     """Find or create the local row for this identity. Raises OidcError if refused."""
-    user = db.scalar(
-        select(User).where(
-            User.auth_source == "oidc",
-            User.auth_provider_id == provider.id,
-            User.external_id == identity.external_id,
+    for _attempt in range(3):
+        user = db.scalar(
+            select(User).where(
+                User.auth_source == "oidc",
+                User.auth_provider_id == provider.id,
+                User.external_id == identity.external_id,
+            )
         )
-    )
-    if user is None:
+        if user is not None:
+            break
         if not provider.auto_create:
             raise OidcError("Your account is not registered here. Ask an administrator to add you.")
         # Column defaults are applied on INSERT, so set the flags explicitly.
@@ -272,7 +275,19 @@ def provision_user(db: Session, provider: OidcProvider, identity: OidcIdentity) 
             is_admin=False,
         )
         db.add(user)
-    elif not user.is_active:
+        try:
+            db.flush()
+            break
+        except IntegrityError:
+            # Another sign-in committed first: the same person's (the unique
+            # index on the identity) or someone taking the same username.
+            # Nothing else is written in this transaction yet, so roll it back
+            # and look again - the next pass finds the winner's row, or picks
+            # another name.
+            db.rollback()
+    else:
+        raise OidcError("Signing in did not work this time. Please try again.")
+    if not user.is_active:
         raise OidcError("Your account is disabled here. Ask an administrator.")
 
     user.display_name = identity.display_name or user.display_name

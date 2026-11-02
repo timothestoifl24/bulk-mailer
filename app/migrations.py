@@ -5,10 +5,11 @@ that already exists, so a new column would silently be absent on an upgraded
 deployment. This walks the models and issues `ALTER TABLE ... ADD COLUMN` for
 anything missing.
 
-Deliberately narrow: it only ever adds nullable-or-defaulted columns. It does
-not drop, rename, retype, or add constraints - a column added here carries no
-foreign key even when the model declares one. That is the point at which this
-should be replaced by Alembic; see the README.
+Deliberately narrow: it only ever adds nullable-or-defaulted columns and the
+indexes the models declare. It does not drop, rename, retype, or add other
+constraints - a column added here carries no foreign key even when the model
+declares one. That is the point at which this should be replaced by Alembic;
+see the README.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from __future__ import annotations
 import logging
 
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.engine import Engine
 from sqlalchemy.schema import Column
 
@@ -76,5 +78,40 @@ def add_missing_columns(engine: Engine) -> list[str]:
                 connection.execute(text(statement))
                 applied.append(f"{table.name}.{column.name}")
                 logger.info("Schema updated: %s", statement)
+
+    return applied
+
+
+def add_missing_indexes(engine: Engine) -> list[str]:
+    """Create indexes present in the models but missing in the database.
+
+    A unique index that existing rows already violate cannot be created; that
+    is logged and skipped, so startup goes on and the others still apply.
+    """
+    inspector = inspect(engine)
+    applied: list[str] = []
+
+    for table in Base.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            continue
+        existing = {index["name"] for index in inspector.get_indexes(table.name)}
+        for index in table.indexes:
+            if index.name in existing:
+                continue
+            try:
+                # One transaction each: on PostgreSQL a failed statement
+                # would abort every index after it.
+                with engine.begin() as connection:
+                    index.create(connection)
+            except DBAPIError as exc:
+                logger.warning(
+                    "Cannot create index %s on %s: %s. Resolve the conflicting rows by hand.",
+                    index.name,
+                    table.name,
+                    exc.orig,
+                )
+                continue
+            applied.append(index.name)
+            logger.info("Schema updated: created index %s on %s", index.name, table.name)
 
     return applied
