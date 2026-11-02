@@ -12,7 +12,7 @@
 # needed at build time. The venv is built in a separate stage purely to keep
 # pip and its cache out of the final image.
 
-FROM python:3.14-slim AS builder
+FROM python:3.15-slim AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
@@ -25,14 +25,20 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 
-FROM python:3.14-slim
+FROM python:3.15-slim
+
+# Set by CI to the exact build (1.5.2, 1.5.2-beta.3, 1.5.2-pr.12) so /healthz
+# and the UI report it; empty means __version__ from app/__init__.py.
+ARG BULK_MAILER_BUILD_VERSION=""
 
 LABEL org.opencontainers.image.title="Bulk Mailer" \
       org.opencontainers.image.description="Send email to many recipients, with LDAP import" \
-      org.opencontainers.image.source="https://github.com/example/python-email" \
-      org.opencontainers.image.licenses="MIT"
+      org.opencontainers.image.source="https://github.com/timothestoifl24/bulk-mailer" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${BULK_MAILER_BUILD_VERSION}"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
+    BULK_MAILER_BUILD_VERSION="${BULK_MAILER_BUILD_VERSION}" \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
     # 0.0.0.0 so the port is reachable from outside the container.

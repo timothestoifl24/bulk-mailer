@@ -9,12 +9,12 @@ kustomize built in.
 | [`overlays/postgres/`](overlays/postgres/) | The base plus a PostgreSQL StatefulSet; the starting point for more than one replica |
 
 ```bash
-cp base/secret.env.example base/secret.env   # fill in SECRET_KEY and ADMIN_PASSWORD
+cp base/secret.env.example base/secret.env   # fill in SECRET_KEY
 $EDITOR base/config.env                      # PUBLIC_BASE_URL and SMTP
 kubectl apply -k base                        # or: kubectl apply -k overlays/postgres
 ```
 
 The full guide - PostgreSQL, Ingress, administration, upgrades, backups,
 scaling out, troubleshooting - is at
-[bulkmailer.stoifl.app/kubernetes](https://bulkmailer.stoifl.app/kubernetes)
+[bulkmailer.timothestoifl24.dev/kubernetes](https://bulkmailer.timothestoifl24.dev/kubernetes)
 ([source](../../docs/kubernetes.md)).

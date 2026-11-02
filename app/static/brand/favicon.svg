@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <!-- logo.svg tuned for a browser tab: the trails thin out to nothing at 16px,
+       so they go, and the plane grows to fill the tile. -->
+  <rect y="5" width="96" height="91" rx="24" fill="#3730A3"/>
+  <rect width="96" height="90" rx="24" fill="#4F46E5"/>
+  <polygon points="84,14 12,46 44,56" fill="#FFFFFF"/>
+  <polygon points="84,14 44,56 56,84" fill="#C7D2FE"/>
+  <polygon points="44,56 36,74 56,84" fill="#818CF8"/>
+</svg>

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_header, help %}
+{% block title %}System - Bulk Mailer{% endblock %}
+
+{% macro source_pill(row) -%}
+  {%- if row.source == 'saved' %}<span class="status-pill status-blue" title="Changed in the app; the environment no longer matters">{{ icon('check') }} {{ row.source_label }}</span>
+  {%- elif row.source == 'environment' %}<span class="status-pill" title="From an environment variable or the .env file">{{ icon('code') }} {{ row.source_label }}</span>
+  {%- elif row.source %}<span class="status-pill text-secondary">{{ row.source_label }}</span>{% endif -%}
+{%- endmacro %}
+
+{% macro rows_table(rows, show_source=true) -%}
+<div class="table-responsive">
+  <table class="table card-table table-vcenter system-table">
+    <tbody>
+    {% for row in rows %}
+      <tr>
+        <td class="text-secondary system-label">
+          {{ row.label }}
+          {% if row.name and row.name != row.label %}<div class="mono small">{{ row.name }}</div>{% endif %}
+        </td>
+        <td class="system-value">
+          <span class="{{ 'mono' if row.value and (row.value.startswith('http') or '/' in row.value) }}">{{ row.value }}</span>
+          {% if show_source and row.source %}<span class="ms-1">{{ source_pill(row) }}</span>{% endif %}
+          {% if row.note %}
+            <div class="small {{ 'text-warning' if 'ignored' in row.note else 'text-secondary' }}">
+              {% if 'ignored' in row.note %}{{ icon('alert') }} {% endif %}{{ row.note }}
+            </div>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{%- endmacro %}
+
+{% block page_header %}
+{% call page_header('How this instance is set up, and where each value comes from', 'System', 'gauge') %}
+  <textarea class="visually-hidden" id="system-text" readonly aria-hidden="true" tabindex="-1">{{ as_text }}</textarea>
+  <button class="btn" type="button" data-copy="#system-text" title="Copy this summary for a support ticket. Contains no passwords.">
+    {{ icon('copy') }} Copy as text
+  </button>
+{% endcall %}
+{% endblock %}
+
+{% block content %}
+{% if info.warnings %}
+<div class="card mb-3 border-warning">
+  <div class="card-header"><h3 class="card-title">{{ icon('alert') }} Needs attention</h3>
+    <div class="card-actions"><span class="badge bg-yellow-lt">{{ info.warnings | length }}</span></div>
+  </div>
+  <div class="list-group list-group-flush">
+    {% for notice in info.warnings %}
+      <div class="list-group-item d-flex align-items-start gap-2">
+        <span class="text-warning">{{ icon('alert') }}</span>
+        <span class="flex-fill">{{ notice.text }}</span>
+        {% if notice.href %}<a class="btn btn-sm" href="{{ notice.href }}">Fix {{ icon('arrow-right') }}</a>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% else %}
+<div class="alert alert-success">
+  <div class="d-flex"><span class="alert-icon">{{ icon('check-circle') }}</span><div>Nothing needs attention.</div></div>
+</div>
+{% endif %}
+
+<div class="row row-cards">
+  <div class="col-xl-6">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">{{ icon('server') }} Instance</h3></div>
+      {{ rows_table(info.instance, show_source=false) }}
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">
+        <h3 class="card-title">{{ icon('shield-auth') }} Sign-in</h3>
+        <div class="card-actions"><a href="/settings/auth" class="btn btn-sm">{{ icon('settings') }} Authentication</a></div>
+      </div>
+      {{ rows_table(info.sign_in, show_source=false) }}
+      {% if info.providers %}
+      <div class="card-body border-top py-2"><div class="text-secondary small">Providers</div></div>
+      <div class="list-group list-group-flush">
+        {% for provider in info.providers %}
+          <a href="{{ provider.href }}" class="list-group-item list-group-item-action d-flex align-items-center gap-2">
+            <span class="flex-fill" style="min-width:0">
+              <span class="fw-semibold">{{ provider.name }}</span>
+              <span class="text-secondary small">· {{ provider.kind }}</span>
+              <span class="d-block small text-secondary mono text-truncate">{{ provider.detail }}</span>
+            </span>
+            <span class="text-secondary small text-nowrap">{{ provider.used_for | join(', ') or 'not used' }}</span>
+            {% if provider.enabled %}<span class="status-pill status-green">{{ icon('check') }} enabled</span>
+            {% else %}<span class="status-pill">{{ icon('pause') }} disabled</span>{% endif %}
+          </a>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">{{ icon('sync') }} Background work</h3></div>
+      {{ rows_table(info.background) }}
+    </div>
+  </div>
+
+  <div class="col-xl-6">
+    <div class="card" id="email">
+      <div class="card-header">
+        <h3 class="card-title">{{ icon('mail') }} Email delivery</h3>
+        <div class="card-actions"><a href="/settings/email" class="btn btn-sm">{{ icon('pen') }} Change</a></div>
+      </div>
+      {{ rows_table(info.email) }}
+      <div class="card-footer text-secondary small">
+        {{ icon('info') }} The <span class="mono">SMTP_*</span> variables only fill these in while nothing has been
+        saved in the app. Once a value is saved there, it wins over the environment.
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header">
+        <h3 class="card-title">{{ icon('code') }} Environment</h3>
+        <div class="card-actions">{{ help("Set as environment variables or in the .env file. Changing them needs a restart.") }}</div>
+      </div>
+      {{ rows_table(info.environment) }}
+      <div class="card-footer text-secondary small">
+        {{ icon('lock') }} Secrets are shown as set or not set, never their value.
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

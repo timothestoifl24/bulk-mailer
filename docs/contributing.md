@@ -1,6 +1,6 @@
 ---
 title: Contributing
-description: Development setup, running the tests against both databases, the conventions this codebase keeps, and how releases are cut.
+description: Development setup, running the tests against both databases, and the conventions this codebase keeps.
 ---
 
 # Contributing
@@ -25,7 +25,7 @@ python run.py
 
 The full setup, including running the whole stack in containers and a
 throwaway SMTP sink so nothing reaches real addresses while you work, is in
-[Setup](/setup).
+[Docker and Podman](/setup/docker#the-full-stack).
 
 ## Running the tests
 
@@ -38,7 +38,7 @@ or anything database-specific, also run it against PostgreSQL — SQLite has no
 row locking, so it cannot catch a bug in the multi-instance send locking:
 
 ```bash
-podman run -d --name mailer-test-pg \
+docker run -d --name mailer-test-pg \
   -e POSTGRES_USER=mailer -e POSTGRES_PASSWORD=mailer_ci_pw -e POSTGRES_DB=mailer_test \
   -p 5432:5432 docker.io/library/postgres:17-alpine
 
@@ -55,8 +55,8 @@ If you are changing the container image, rebuild and smoke-test it before
 opening a PR:
 
 ```bash
-podman build --format docker -t bulk-mailer .
-podman run --rm -e SECRET_KEY=test-key-at-least-32-characters-long -e ADMIN_PASSWORD=test \
+docker build -t bulk-mailer .
+docker run --rm -e SECRET_KEY=test-key-at-least-32-characters-long \
   bulk-mailer python -m app.cli list-users
 ```
 
@@ -83,18 +83,9 @@ few conventions worth keeping:
 A clear, imperative subject line (`Add LDAP group caching`, not `fixed
 stuff`), with the body explaining *why* where that is not obvious.
 
-Commit subjects are not the changelog. If a change is worth telling users
-about, add a line under `## [Unreleased]` in `CHANGELOG.md` in the same
-commit, written for someone deciding whether to upgrade:
-
-```markdown
-## [Unreleased]
-
-### Fixed
-- Bulk actions on recipients applied to only the 50 rows on the current page.
-```
-
-Not every commit needs one — a refactor with no visible effect does not.
+Don't edit `CHANGELOG.md`: the maintainer writes it when releasing, from
+the pull request titles and descriptions. A clear title and description (see
+below) is all a change needs to make it into the release notes.
 
 ## Before opening a pull request
 
@@ -106,6 +97,70 @@ Not every commit needs one — a refactor with no visible effect does not.
 - [ ] `README.md` and these docs are updated if you changed a documented
       setting, endpoint or workflow.
 - [ ] No secrets, `.env`, or local database files are staged.
+
+## Describing your pull request
+
+Pull requests go to `develop`. The **title** says what changed, written for
+someone running Bulk Mailer (`Fix bulk actions applying to only the current
+page`, not `Update recipients.py`): it appears as is in the GitHub release
+notes. The **description** says what users will notice and why the change is
+needed; the maintainer writes the changelog from it.
+
+The pull request template also asks two short questions; tick every box that
+applies:
+
+- **Type of change** (at least one): bug fix, new feature, breaking change,
+  documentation, refactoring, API changes, performance, tests.
+- **AI usage:** whether AI was used to write or to review the change. Leave
+  both empty if it wasn't. Using AI is fine; reviews just take it into account.
+
+The pull request is **labelled automatically** from these boxes (`bug`,
+`enhancement`, `breaking-change`, …, `ai-written`, `ai-reviewed`), and the
+labels follow when you change the boxes later. They sort the change into the
+right section of the GitHub release notes, so pick **Breaking change** for
+anything that needs action when upgrading.
+
+Other labels are added for you: `area: …` and `chore` from the files you
+change, `security` from a `security/…` branch or a title that mentions
+security or a CVE, and `hotfix` / `release` from the branch.
+
+## Trying your pull request's image
+
+Every pull request into `develop` from a branch of this repository gets its
+own container image, `docker.io/timothestoifl24/bulk-mailer:develop-pr-N` (N
+is the pull request number). A comment on the pull request shows how to pull
+it. Each push rebuilds it and replaces the previous one: the comment is
+removed when the new build starts and posted again once its image is
+published, so it always describes the current image. The image is deleted
+when the pull request is merged or closed. Pull requests from forks are
+built and tested, but get no published image.
+
+A pull request that only changes documentation (`docs/`, `screenshots/`,
+`assets/`, Markdown files, the docs' `package.json`) skips the tests and the
+image build entirely, and gets no image; the docs check builds the site
+instead. The same goes for a push to `develop` that only changes
+documentation: it publishes no beta. Pull requests into `main` and pushes to
+`main` always run everything.
+
+## Accepting these guidelines
+
+The pull request template ends with this checkbox:
+
+> - [x] I have read and accept the contributing guidelines, including that my contribution is licensed under the MIT License.
+
+Tick it when you open the pull request, together with at least one **Type of
+change**. The **Guidelines accepted** check stays red, and the pull request
+can't be merged, until both are done; editing the description re-runs the
+check.
+
+By ticking it, you confirm that:
+
+1. you have read these guidelines and will follow them;
+2. your contribution is your own work, or you have the right to submit it,
+   and any third-party code in it is identified together with its license;
+3. your contribution is licensed under the project's [MIT License](https://github.com/timothestoifl24/bulk-mailer/blob/develop/LICENSE), the same
+   license everyone else receives Bulk Mailer under. You keep the copyright in
+   your work.
 
 ## Working on the documentation site
 
@@ -123,7 +178,7 @@ npm run docs:preview    # serves that build
 No Node installed? A container works, and is how this site was first built:
 
 ```bash
-podman run --rm -v "$PWD:/app" -w /app -p 5173:5173 docker.io/library/node:22-alpine \
+docker run --rm -v "$PWD:/app" -w /app -p 5173:5173 docker.io/library/node:22-alpine \
   sh -c "apk add --no-cache git && git config --global --add safe.directory /app && npm ci && npm run docs:dev -- --host 0.0.0.0"
 ```
 
@@ -146,6 +201,29 @@ A few structural things worth knowing before you move files around:
   would make that URL ambiguous.
 - `ignoreDeadLinks` is `false`, so a dead internal link fails the build rather
   than shipping. CI builds the site on every pull request that touches it.
+
+### Retaking the screenshots
+
+The images in `screenshots/` (used by the README and the
+[Screenshots](/screenshots) page) are made by a script, so they can be
+retaken whenever the UI changes:
+
+```bash
+pip install playwright && python -m playwright install chromium
+python tools/screenshots.py --version 2.0.0
+```
+
+It starts the app on a throwaway SQLite database in a temporary directory,
+seeds it to look like an installation in use, and captures every screen with
+headless Chromium: light theme, 1440px wide, same file names as before. The
+data is fixed and entirely fictional — example domains, made-up people,
+nothing queued — so a retake only changes what the UI changed. `--out` writes
+somewhere else, to compare before overwriting. Playwright is left out of
+`requirements-dev.txt` on purpose: it downloads a browser that only this
+script needs.
+
+If you add or rename a screen, update `PAGES` in the script and the matching
+section in `docs/screenshots.md`.
 
 ### The `vite` override in `package.json`
 
@@ -175,30 +253,7 @@ and adopted, delete it rather than raising it.
 
 ## Releasing (maintainers)
 
-From a clean default branch:
-
-```bash
-python tools/release.py 1.5.0
-```
-
-That folds everything under `## [Unreleased]` into a dated section, bumps
-`__version__`, then commits and tags — signed, if you have `tag.gpgsign` set.
-Add `--dry-run` first to see the diff without touching anything. It refuses to
-run on a dirty tree, a version that is not semver, a tag that already exists,
-or an empty `[Unreleased]` unless you pass `--allow-empty`.
-
-Nothing is pushed. Publish deliberately:
-
-```bash
-git push origin main && git push origin v1.5.0
-```
-
-The changelog goes in *before* the tag on purpose: the entry then lives in the
-commit the tag points at, so the tag describes itself and CI never needs write
-access to the repository.
-
-Pushing the tag runs the release workflow, which checks the changelog
-documents the tag and `__version__` agrees, runs the suite on both databases,
-and only then builds the image, pushes it to Docker Hub and creates a GitHub
-Release. A release missing its notes fails before an image exists rather than
-after one is public.
+Releases from `develop` to `main` are done by the maintainer and are mostly
+automated; see
+[RELEASING.md](https://github.com/timothestoifl24/bulk-mailer/blob/develop/RELEASING.md)
+for how.

@@ -1,11 +1,14 @@
 {% extends "base_auth.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Not found - Bulk Mailer{% endblock %}
 {% block content %}
 <div class="card card-md">
   <div class="card-body text-center py-4">
-    <div class="display-4 fw-bold text-secondary">404</div>
-    <p class="text-secondary mt-2">That page does not exist.</p>
-    <a href="/" class="btn btn-primary mt-2">Back to the dashboard</a>
+    <div class="hero-icon">{{ icon('compass') }}</div>
+    <div class="text-secondary small fw-semibold">Error 404</div>
+    <h2 class="h2 mt-1">We couldn't find that page</h2>
+    <p class="text-secondary mt-2">The link may be old, or the item may have been deleted.</p>
+    <a href="/" class="btn btn-primary mt-2">{{ icon('arrow-left') }} Back to the dashboard</a>
   </div>
 </div>
 {% endblock %}

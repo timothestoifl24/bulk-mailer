@@ -1,0 +1,25 @@
+{#
+  A form shown in the shared modal (#app-modal in base.html). Templates pick
+  this or _modal_page.html with
+      {% extends "_modal_partial.html" if partial else "_modal_page.html" %}
+  so the same URL works as a modal and, without JavaScript, as a page.
+#}
+{% from "_icons.html" import icon %}
+<div class="modal-content">
+  <form method="post" action="{% block form_action %}{% endblock %}" data-modal-form autocomplete="off">
+    <div class="modal-header">
+      <h5 class="modal-title">{% block modal_title %}{% endblock %}</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      {% for flash in flashes %}
+        <div class="alert alert-{{ flash_classes.get(flash.category, 'info') }} mb-3" role="alert">{{ flash.message }}</div>
+      {% endfor %}
+      {% block modal_body %}{% endblock %}
+    </div>
+    <div class="modal-footer">
+      {% block modal_footer %}{% endblock %}
+    </div>
+  </form>
+  {% block modal_after %}{% endblock %}
+</div>

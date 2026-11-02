@@ -1,110 +1,47 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="" width="96" height="96">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-wordmark-dark.svg">
+    <img src="assets/logo-wordmark.svg" alt="Bulk Mailer" height="72">
+  </picture>
+  <br><br>
+  <a href="https://github.com/timothestoifl24/bulk-mailer/releases/latest"><img src="https://img.shields.io/github/v/release/timothestoifl24/bulk-mailer?sort=semver&display_name=tag&style=for-the-badge&label=version&color=4F46E5&logo=github&logoColor=white" alt="Latest release"></a>
+  <a href="https://hub.docker.com/r/timothestoifl24/bulk-mailer"><img src="https://img.shields.io/docker/pulls/timothestoifl24/bulk-mailer?style=for-the-badge&color=4338CA&logo=docker&logoColor=white" alt="Docker pulls"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/timothestoifl24/bulk-mailer?style=for-the-badge&color=0F172A" alt="License"></a>
 </p>
+
+Bulk Mailer sends one message to many recipients: typed in, pasted, uploaded as CSV, or pulled straight
+from LDAP / Active Directory. It comes as one container image on SQLite or PostgreSQL, renders every page
+on the server, and runs fully offline on an isolated network.
+
+- [Quick Setup](#quick-setup)
+- [Full Setup](https://bulkmailer.timothestoifl24.dev/setup/)
+- [Guide](https://bulkmailer.timothestoifl24.dev/guide)
+- [Screenshots](https://bulkmailer.timothestoifl24.dev/screenshots)
 
 <p align="center">
-  <b>Bulk Mailer</b><br>
-  Send one message to many recipients — typed in, pasted, uploaded as CSV, or pulled straight from LDAP / Active Directory.
+  <img src="screenshots/02-dashboard.png" alt="Bulk Mailer dashboard" width="820">
 </p>
 
-<p align="center">
-  <a href="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker-publish.yml">
-    <img alt="Docker publish" src="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker-publish.yml/badge.svg">
-  </a>
-  <a href="https://hub.docker.com/r/timothestoifl24/bulk-mailer">
-    <img alt="Docker Hub" src="https://img.shields.io/docker/v/timothestoifl24/bulk-mailer?label=docker%20hub&sort=semver">
-  </a>
-  <a href="https://github.com/timothestoifl24/bulk-mailer/releases">
-    <img alt="Latest release" src="https://img.shields.io/github/v/release/timothestoifl24/bulk-mailer">
-  </a>
-  <a href="LICENSE">
-    <img alt="License" src="https://img.shields.io/github/license/timothestoifl24/bulk-mailer">
-  </a>
-  <img alt="Python 3.13" src="https://img.shields.io/badge/python-3.13-blue">
-</p>
+<a href="https://ko-fi.com/Z4F028KJ68"><img src="https://img.shields.io/badge/Buy_me_a_coffee-4F46E5?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Buy me a coffee on Ko-fi"></a>
 
-<p align="center">
-  <b><a href="https://bulkmailer.stoifl.app">📖 Documentation — bulkmailer.stoifl.app</a></b><br>
-  <sub>
-    <a href="https://bulkmailer.stoifl.app/guide/">Guide</a> ·
-    <a href="https://bulkmailer.stoifl.app/screenshots/">Screenshots</a> ·
-    <a href="https://bulkmailer.stoifl.app/setup/">Setup</a> ·
-    <a href="https://bulkmailer.stoifl.app/kubernetes/">Kubernetes</a> ·
-    <a href="https://bulkmailer.stoifl.app/advanced-config/">Advanced config</a> ·
-    <a href="https://bulkmailer.stoifl.app/upgrading/">Upgrading</a> ·
-    <a href="https://bulkmailer.stoifl.app/faq/">FAQ</a>
-  </sub>
-</p>
+## <img src="assets/icons/star.svg" alt="" height="20" align="top"> Features
 
-- [Features](#features)
-- [Quick start](#quick-start)
-- [Typical run](#typical-run)
-- [Configuration](#configuration)
-- [Contributing](#contributing) · [Security](#security) · [Changelog](#changelog) · [License](#license)
+- Recipients typed in, pasted, uploaded as CSV or imported from LDAP / Active Directory, with a review before anything is written
+- Lists that stay in sync with the directory search or group that filled them
+- Templates with per-recipient placeholders, rendered in a sandbox, and a live preview on real data
+- A dry run that renders and checks every message without delivering anything
+- Throttled sending with live progress, pause, resume, cancel and retry-only-the-failures
+- One-click unsubscribe and `List-Unsubscribe` headers, honoured by every later campaign
+- Admin interface based on [Tabler](https://tabler.io), with sign-in through local accounts, LDAP or OpenID Connect
 
-Built with FastAPI + Jinja2 + SQLAlchemy, a [Tabler](https://tabler.io)
-(Bootstrap 5) UI vendored locally rather than pulled from a CDN, and either
-SQLite or PostgreSQL. No JavaScript build step — it's server-rendered pages
-you can run on a workstation, a small VPS, or fully offline on an isolated
-network.
+<a id="quick-setup"></a>
 
-## Features
+## <img src="assets/icons/rocket.svg" alt="" height="20" align="top"> Quick Setup
 
-**Recipients**
-- Add one by one, paste a block of addresses (`Jane Doe <jane@example.com>` is
-  understood), or upload a CSV — delimiter and column names are detected,
-  unknown columns are kept as extra template variables.
-- Group them into lists; filter and search; bulk add/remove/suppress/delete;
-  export to CSV.
-
-**LDAP / Active Directory**
-- Named connection profiles (LDAPS, StartTLS or plain; simple or anonymous
-  bind). Bind passwords are stored encrypted with the app `SECRET_KEY`.
-- Configurable attribute mapping; only the address is required — attributes
-  your directory doesn't define (`company` and `department` are Active
-  Directory–specific) are skipped with a note instead of failing the import.
-- Paged search for large directories, with a preview before importing.
-- Import everyone in a group by DN, including nested groups.
-- Optionally **keep a list in sync** with the search that filled it: new
-  matches are added and people who have left are removed from the list, on a
-  schedule and on demand. Off by default, so an import stays a snapshot.
-
-**Composing**
-- Reusable templates, or write directly in the campaign.
-- HTML body with an auto-generated plain-text part, file attachments.
-- Per-recipient placeholders (`{{ first_name }}`, `{{ company }}`,
-  `{{ unsubscribe_url }}`, …) rendered by a **sandboxed** Jinja environment.
-  Missing values render empty instead of failing the run.
-- Live preview against a real recipient's data, and a `[TEST]` send to
-  yourself.
-
-**Sending**
-- A background worker reuses one SMTP connection and reconnects if the
-  server drops it.
-- Throttle in messages/minute, live progress, pause/resume/cancel, retry
-  only the failures.
-- **Dry run**: renders and validates every message without delivering
-  anything.
-- Progress lives in the database, so a restart resumes where it stopped.
-
-**Users & sign-in**
-- Local accounts, or sign in against LDAP / Active Directory so a team
-  shares the tool with their own profiles. The directory password is
-  verified by binding as the user and is never stored.
-- Optional group restrictions: one group to allow sign-in at all, another to
-  grant admin rights. Campaigns record who created them.
-
-**Compliance & safety**
-- One-click unsubscribe link plus `List-Unsubscribe` headers; unsubscribed
-  addresses are skipped automatically by every later campaign.
-- PBKDF2 password hashing, CSRF protection on state-changing requests.
-
-## Quick start
-
-### Docker (recommended)
+1. [Install Docker](https://docs.docker.com/get-docker/)
+2. Create a `compose.yaml` file similar to this:
 
 ```yaml
-# compose.yaml
 services:
   app:
     image: docker.io/timothestoifl24/bulk-mailer:latest
@@ -113,372 +50,37 @@ services:
       - "8000:8000"
     environment:
       SECRET_KEY: change-me-to-a-long-random-string
-      ADMIN_PASSWORD: change-me
-      # DATABASE_URL: postgresql+psycopg://user:pass@host:5432/db   # optional; defaults to SQLite
     volumes:
       - mailer-data:/data
 volumes:
   mailer-data:
 ```
 
+3. Bring up your stack by running
+
 ```bash
 docker compose up -d
 ```
 
-Or without Compose:
+4. Open [http://127.0.0.1:8000](http://127.0.0.1:8000) and create the first administrator on the setup page
 
-```bash
-docker run -d -p 8000:8000 \
-  -e SECRET_KEY=$(openssl rand -base64 36) \
-  -e ADMIN_PASSWORD=choose-one \
-  -v mailer-data:/data \
-  docker.io/timothestoifl24/bulk-mailer:latest
-```
+This is the bare minimum, on SQLite. See the [documentation](https://bulkmailer.timothestoifl24.dev/setup/) for
+PostgreSQL, Kubernetes, HTTPS and the [configuration reference](https://bulkmailer.timothestoifl24.dev/advanced-config).
 
-Open <http://127.0.0.1:8000> and sign in with `admin` / whatever
-`ADMIN_PASSWORD` resolved to. **That password is read only once, while the
-account table is empty** — changing the environment variable afterwards does
-nothing. Change it under *Account*, or from a shell in the container:
+## <img src="assets/icons/code-pull-request.svg" alt="" height="20" align="top"> Contributing
 
-```bash
-docker exec -it <container> python -m app.cli set-password admin
-```
+Pull requests are welcome against the `develop` branch; official releases are made from `main`.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 
-`python -m app.cli list-users` shows who exists, `create-admin` adds another
-administrator, and `disable-ldap-login` is the way back in if a directory
-setting locks everyone out.
+Documentation for `develop` is available for preview at
+[bulkmailer.timothestoifl24.dev/dev](https://bulkmailer.timothestoifl24.dev/dev/).
 
-A full stack with PostgreSQL and a throwaway SMTP sink for trying it out
-without touching a real mail server — plus every detail of the image
-(non-root user, read-only code, health check, what `/data` holds) — is in
-[Running in containers](#running-in-containers) below.
+## <img src="assets/icons/life-ring.svg" alt="" height="20" align="top"> Getting Support
 
-### Kubernetes
+1. [Found a bug?](https://github.com/timothestoifl24/bulk-mailer/issues)
+2. [Have a question?](https://github.com/timothestoifl24/bulk-mailer/discussions)
+3. [Found a vulnerability?](https://github.com/timothestoifl24/bulk-mailer/security/advisories/new) See [SECURITY.md](SECURITY.md).
 
-Ready-made [kustomize](https://kustomize.io/) manifests live in
-[`deploy/kubernetes/`](deploy/kubernetes/) — `kubectl` has kustomize built
-in, so nothing else is needed. From a checkout:
+## <img src="assets/icons/scale-balanced.svg" alt="" height="20" align="top"> License
 
-```bash
-cp deploy/kubernetes/base/secret.env.example deploy/kubernetes/base/secret.env
-#   fill in SECRET_KEY (openssl rand -base64 36) and ADMIN_PASSWORD, then set
-#   PUBLIC_BASE_URL and the SMTP block in deploy/kubernetes/base/config.env
-kubectl apply -k deploy/kubernetes/base
-kubectl -n bulk-mailer port-forward service/bulk-mailer 8000:80
-```
-
-That is one pod on SQLite, in the namespace `bulk-mailer`.
-`deploy/kubernetes/overlays/postgres` adds a PostgreSQL StatefulSet and is
-the starting point for more than one replica. Ingress, upgrades, backups and
-scaling out are covered in the
-[Kubernetes guide](https://bulkmailer.stoifl.app/kubernetes/)
-([source](docs/kubernetes.md)).
-
-### From source
-
-```bash
-python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt
-cp .env.example .env   # set SECRET_KEY, ADMIN_PASSWORD, DATABASE_URL, and the SMTP block
-python run.py
-```
-
-## Typical run
-
-1. **Settings** — enter the SMTP server, press *Test SMTP connection*, then
-   send yourself a test email.
-2. **LDAP** — create a profile, *Test connection*, then search. Check the
-   preview and *Import all N* into a new list. (Or **Recipients → Import**
-   for CSV/paste.)
-3. **Templates** — write the message once, using `{{ first_name }}` and
-   friends.
-4. **Campaigns → New** — pick the lists, load the template, *Preview*.
-5. Send with **Dry run** ticked first. Every recipient ends up `skipped`,
-   and any template mistake shows up in the log without anything being
-   delivered.
-6. Untick it and send for real. Watch the progress bar; pause or cancel at
-   any time.
-
-## Configuration
-
-Environment variables (see `.env.example`); everything under *Settings* in
-the UI is stored in the database and overrides the SMTP defaults below
-without a restart.
-
-| Variable | Meaning |
-| --- | --- |
-| `SECRET_KEY` | Signs session cookies **and** derives the key encrypting stored SMTP/LDAP passwords. Changing it logs everyone out and invalidates those stored passwords. |
-| `DATABASE_URL` | `sqlite:////data/mailer.db` by default in the Docker image (`./data` from source). Any SQLAlchemy URL works — see [Database](#database) below. |
-| `PUBLIC_BASE_URL` | Base for unsubscribe links inside messages — must be reachable **by recipients**. |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Bootstrap account, used only while the user table is empty. |
-| `SMTP_*` | Initial mail server settings. |
-| `DEFAULT_THROTTLE_PER_MINUTE` | Pre-filled throttle for new campaigns (0 = unlimited). |
-
-<a id="database"></a>
-<details>
-<summary><strong>Database</strong> — SQLite vs. PostgreSQL</summary>
-
-Either backend works; the app detects which from `DATABASE_URL` and creates
-the schema on first start.
-
-```
-DATABASE_URL=postgresql+psycopg://mailer:mailer_dev_pw@127.0.0.1:5432/mailer   # PostgreSQL
-DATABASE_URL=sqlite:///./data/mailer.db                                        # or SQLite
-```
-
-**SQLite** needs no setup and is fine for one process on one machine.
-**PostgreSQL** is the choice when the data matters or more than one instance
-runs — see [Deployment notes](#deployment-notes).
-
-```bash
-docker run -d --name mailer-pg -e POSTGRES_USER=mailer -e POSTGRES_PASSWORD=mailer_dev_pw -e POSTGRES_DB=mailer -p 5432:5432 postgres:17-alpine
-```
-</details>
-
-<a id="running-in-containers"></a>
-<details>
-<summary><strong>Running in containers</strong> — full Compose stack, image details</summary>
-
-The whole stack — app, PostgreSQL, and a throwaway SMTP sink — comes up with
-one command from a checkout of this repository. Compose substitutes
-`SECRET_KEY`, `ADMIN_PASSWORD` and friends from a `.env` file next to
-`compose.yaml`:
-
-```bash
-docker compose --profile dev up -d --build
-```
-
-Drop `--profile dev` to leave the SMTP sink out and point `SMTP_HOST` at a
-real server. The app is then on <http://127.0.0.1:8000>; captured mail lands
-in `/data/sent` inside the sink container.
-
-Notes on the published image:
-
-- Runs as the unprivileged user `app` (uid 1000). The code is root-owned and
-  read-only to that user; `/data` is the only writable path, so the
-  container also runs fine with `--read-only --tmpfs /tmp`.
-- `/data` holds attachments and — on SQLite — the database file. Mount a
-  volume there or the data disappears with the container.
-- `HOST` defaults to `0.0.0.0` inside the image so the port is reachable;
-  `DATABASE_URL` defaults to SQLite at `/data/mailer.db`.
-- Ships a `HEALTHCHECK` (`tools/healthcheck.py`, stdlib only — no curl in the
-  image) that polls `/healthz`.
-- One container = one sender worker. Scaling beyond one replica requires
-  PostgreSQL — see [Deployment notes](#deployment-notes).
-- Declares its user numerically (`USER 1000:1000`), so Kubernetes'
-  `runAsNonRoot` can verify it.
-- Built for `linux/amd64` and `linux/arm64` (Apple Silicon, ARM cloud
-  instances) from 1.5.1 on; earlier releases are `amd64` only.
-- Published to [Docker Hub](https://hub.docker.com/r/timothestoifl24/bulk-mailer)
-  on every tagged release (`.github/workflows/docker-publish.yml`).
-
-Building it yourself instead of pulling from the registry:
-
-```bash
-docker build --pull -t bulk-mailer .
-```
-
-(With Podman instead of Docker, add `--format docker` — Podman defaults to
-the OCI image format, which silently drops the `HEALTHCHECK`.)
-</details>
-
-<details>
-<summary><strong>Try it without a mail server</strong></summary>
-
-A throwaway SMTP sink is included. Start it in a second terminal:
-
-```bash
-python tools/dev_smtp.py --port 8025 --out ./data/sent
-```
-
-Point *Settings → SMTP* at `127.0.0.1:8025` with security `none`. Every
-message is printed and written to `./data/sent/*.eml` instead of being
-delivered.
-</details>
-
-<details>
-<summary><strong>Signing in with LDAP</strong></summary>
-
-*Users & access* (admin only) turns it on. It reuses an existing **LDAP
-profile**, so create one under *LDAP* first — the same server and service
-credentials used for importing recipients.
-
-| Setting | What it does |
-| --- | --- |
-| Bind mode | *Search* (recommended) looks the account up with the service credentials, then binds as its DN. *Template* builds the bind name straight from the username, e.g. `{username}@corp.example.com` — no service account needed. |
-| Login attribute | `sAMAccountName` on Active Directory, `uid` on OpenLDAP. |
-| Required group DN | Only members may sign in. Empty means any directory account can. |
-| Administrator group DN | Members get admin rights on sign-in. |
-| Create a profile automatically | Off means an administrator must create the account first; the directory then only verifies the password. |
-
-Group membership is resolved from the user's `memberOf` when the directory
-publishes it (Active Directory does), and otherwise by reading the group
-entry and checking `member`, `uniqueMember` or `memberUid` — a stock
-OpenLDAP has no `memberOf` unless the overlay is enabled, so both paths
-matter.
-
-Press **Test a sign-in** before signing out — it checks the settings against
-the directory without touching your session. Keep at least one **local**
-account: it still works when the directory is unreachable, and
-`python -m app.cli disable-ldap-login` turns directory sign-in off from the
-command line if a setting locks everyone out.
-
-Use LDAPS or StartTLS — with plain LDAP every user's password crosses the
-network in the clear on each sign-in, not just the service account's.
-
-**Active Directory filter**, excluding disabled accounts and objects without
-a mailbox:
-
-```
-(&(objectCategory=person)(objectClass=user)(mail=*)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))
-```
-
-**No `company` or `department` on your directory?** The default mapping is
-written for Active Directory, which defines both. A directory built on plain
-`inetOrgPerson` (a stock OpenLDAP, for instance) does not — the app asks only
-for attributes the directory's schema actually advertises and tells you
-which it skipped. Those fields just stay empty; point the mapping at what
-your directory does have, e.g. `"department": "departmentNumber"` or
-`"company": "o"`.
-</details>
-
-<details>
-<summary><strong>Keeping a list in sync with a group</strong></summary>
-
-An import is a snapshot. Tick **Keep the list in sync with this search** on
-the import form and the list instead tracks the query that filled it: the
-search is re-run on a schedule, new matches are added, and members who no
-longer match are **removed from the list**.
-
-Removal is from the list only. The recipient record, its other lists and its
-send history are all left alone, so a group edited by mistake costs a re-sync
-rather than data.
-
-The *Lists* page shows which lists sync, which profile each came from, when
-each last ran, and why the last run failed if it did. **Sync now** re-runs one
-immediately; **Turn sync off** freezes a list exactly as it is without
-forgetting the query, so it can be turned back on later.
-
-The interval is on the *LDAP* page — default 60 minutes, floored at 5 so a
-stray `0` cannot turn the worker into a busy loop against the directory.
-
-Two things it deliberately refuses to do:
-
-- **Empty a populated list.** A search returning nothing is indistinguishable
-  from a filter that broke, a renamed group, or a directory mid-replication,
-  and acting on it would clear the list in one pass. The run fails with an
-  explanation instead. A group that really is empty can be cleared by hand.
-- **Sync a list it has no query for.** A hand-made list has nothing to re-run,
-  so the toggle refuses rather than showing "on" for something that will never
-  change.
-
-Deleting an LDAP profile turns sync off for the lists that used it and says
-so. The lists and their members are untouched.
-</details>
-
-<a id="deployment-notes"></a>
-<details>
-<summary><strong>Deployment notes</strong></summary>
-
-- The app speaks plain HTTP and holds a session cookie. Put it behind a
-  reverse proxy with TLS if it's reachable by more than localhost, and set
-  `PUBLIC_BASE_URL` to the https URL (the session cookie then gets the
-  `Secure` flag automatically).
-- **Running more than one instance requires PostgreSQL.** The sending
-  worker lives inside the web process, and instances coordinate through the
-  database: a campaign is claimed with `SELECT … FOR UPDATE SKIP LOCKED` and
-  held under a lease the sending instance renews before every message, so
-  exactly one worker sends it. A cleanly stopped instance hands its campaign
-  back at once; a crashed one loses it to another instance when the lease
-  expires (at most five minutes). SQLite has no row locks, so with SQLite
-  run a single instance — two would each send the whole campaign.
-- Instances may start together — on PostgreSQL they take turns creating or
-  upgrading the schema under an advisory lock. On startup the app adds any
-  columns a newer model expects (`app/migrations.py`) so an upgrade doesn't
-  need a wipe — but that only ever *adds* nullable-or-defaulted columns, and
-  adds no constraints. Anything beyond that needs Alembic.
-- LDAP list sync runs in every instance; each list is locked while one
-  instance syncs it, and the others skip it.
-- Attachments are stored under `DATA_DIR/attachments` on local disk. With
-  several instances, put that directory on shared storage — the sending
-  instance is not necessarily the one that received the upload. On
-  Kubernetes that means a `ReadWriteMany` volume; see
-  [More than one replica](https://bulkmailer.stoifl.app/kubernetes/#more-than-one-replica).
-</details>
-
-## Sending responsibly
-
-This tool will happily send to every address a directory returns. Before a
-large run: check the throttle against your server's rate limit, do a dry
-run, send a test to yourself, and make sure the recipients actually expect
-the message. The unsubscribe link is included in the default template for a
-reason — keep it.
-
-## Project layout
-
-<details>
-<summary>Expand</summary>
-
-```
-app/
-  main.py                 app wiring, dashboard, CSRF guard, startup
-  cli.py                  password reset / user admin from the command line
-  migrations.py           adds columns a newer model expects (stopgap for Alembic)
-  config.py  db.py  models.py  security.py  web.py
-  routers/                auth, recipients+lists, ldap, mail_templates, campaigns, users, settings, public
-  services/
-    auth.py               local-then-directory sign-in
-    ldap_auth.py          bind-as-user authentication, group checks
-    ldap_client.py        directory search and attribute mapping
-    mailer.py             MIME construction + SMTP connection
-    sender.py             background worker, single/test sends
-    rendering.py          sandboxed templating, HTML→text
-    importer.py           CSV/paste parsing, recipient upsert
-    settings_store.py     DB-backed settings
-  templates/               server-rendered Jinja pages (Tabler UI)
-  static/vendor/tabler/    vendored Tabler dist (MIT) - no CDN, no npm
-tools/
-  dev_smtp.py             local SMTP sink for testing
-  healthcheck.py          container health probe
-deploy/kubernetes/
-  base/                   one pod on SQLite (kustomize)
-  overlays/postgres/      adds a PostgreSQL StatefulSet
-docs/                     documentation site (VitePress)
-Dockerfile  compose.yaml  .github/workflows/
-tests/
-```
-</details>
-
-## Testing
-
-```bash
-pip install -r requirements-dev.txt && python -m pytest -q
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full test setup, including
-running the suite against PostgreSQL and rebuilding the image before opening
-a PR.
-
-## Contributing
-
-Bug reports, fixes, and feature ideas are welcome — see
-[CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, test
-requirements, and how releases are cut.
-
-## Security
-
-Please don't open a public issue for a security problem — see
-[SECURITY.md](SECURITY.md) for how to report one privately.
-
-## Changelog
-
-Release notes live in [CHANGELOG.md](CHANGELOG.md), updated automatically on
-every tagged release, and as [GitHub Releases](https://github.com/timothestoifl24/bulk-mailer/releases).
-
-## Getting help
-
-- [Report a bug](https://github.com/timothestoifl24/bulk-mailer/issues)
-- [Ask a question](https://github.com/timothestoifl24/bulk-mailer/discussions)
-
-## License
-
-[MIT](LICENSE) © Timothé Stoifl
+Bulk Mailer is released under the [MIT License](LICENSE).

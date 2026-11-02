@@ -25,7 +25,13 @@ from sqlalchemy.orm import Session, selectinload
 from ..db import IS_SQLITE, SessionLocal
 from ..models import LdapProfile, RecipientList
 from . import ldap_client, settings_store
-from .importer import ImportResult, import_rows, ldap_entries_to_rows, normalise_email
+from .importer import (
+    ImportResult,
+    import_rows,
+    ldap_entries_to_rows,
+    normalise_email,
+    sweep_expired_drafts,
+)
 
 logger = logging.getLogger("mailer.ldap_sync")
 
@@ -87,6 +93,13 @@ def sync_list(db: Session, target: RecipientList) -> SyncResult:
     if profile is None:
         raise SyncError(
             f"The LDAP profile list '{target.name}' was imported from no longer exists."
+        )
+    if not profile.enabled:
+        # Checked before the search, so a paused directory is neither queried
+        # nor allowed to change anyone's list membership.
+        raise SyncError(
+            f"The directory '{profile.name}' is switched off on the Authentication page, "
+            "so this list is not synced until it is switched back on."
         )
 
     try:
@@ -223,6 +236,12 @@ class SyncWorker(threading.Thread):
 
     def _pass(self) -> None:
         with SessionLocal() as db:
+            # Housekeeping that has to happen even if nobody imports again:
+            # abandoned wizard drafts hold the uploaded rows. Committed even
+            # when nothing was deleted: on SQLite the DELETE alone takes the
+            # write lock, which must not stay held through a slow LDAP search.
+            sweep_expired_drafts(db)
+            db.commit()
             targets = due_lists(db)
             for target in targets:
                 if self._stop.is_set():
@@ -245,6 +264,12 @@ class SyncWorker(threading.Thread):
 _worker: SyncWorker | None = None
 _worker_lock = threading.Lock()
 
+
+
+def is_running() -> bool:
+    """Whether this process's sync thread is alive (for the System page)."""
+    worker = _worker
+    return worker is not None and worker.is_alive()
 
 def start_worker() -> None:
     """Start the sync thread. Safe to call again after a shutdown."""

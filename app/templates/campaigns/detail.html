@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_icons.html" import icon %}
+{% from "_ui.html" import status_badge, confirm, help %}
 {% block title %}{{ campaign.name }} - Bulk Mailer{% endblock %}
 {% set running = campaign.status in ('queued', 'sending') %}
 {% set done = counts.sent + counts.failed + counts.skipped %}
@@ -13,20 +14,19 @@
           {{ counts.total }} recipients &middot; created {{ campaign.created_at.strftime('%Y-%m-%d %H:%M') }}
           {%- if campaign.created_by %} by {{ campaign.created_by.name }}{% endif %}
         </div>
-        <h2 class="page-title">
-          {{ campaign.name }}
-          <span class="badge bg-{{ status_colors.get(campaign.status, 'secondary') }}-lt ms-2"
-                id="status-badge">{{ campaign.status }}</span>
-          {% if campaign.dry_run %}<span class="badge bg-yellow-lt">dry run</span>{% endif %}
+        <h2 class="page-title d-flex flex-wrap align-items-center gap-2">
+          <span class="page-title-icon">{{ icon('campaign') }}</span>{{ campaign.name }}
+          {{ status_badge(campaign.status, 'status-badge') }}
+          {% if campaign.dry_run %}<span class="status-pill status-yellow">{{ icon('flask') }} dry run</span>{% endif %}
         </h2>
       </div>
       <div class="col-auto ms-auto d-print-none">
         <div class="btn-list">
-          <a class="btn" href="/campaigns/{{ campaign.id }}/preview">{{ icon('eye', 20) }} Preview</a>
+          <a class="btn" href="/campaigns/{{ campaign.id }}/preview">{{ icon('eye') }} Preview</a>
           <form method="post" action="/campaigns/{{ campaign.id }}/duplicate">
-            <button class="btn" type="submit">Duplicate</button>
+            <button class="btn" type="submit" title="Copy into a new draft">{{ icon('file') }} Duplicate</button>
           </form>
-          <a class="btn" href="/campaigns">All campaigns</a>
+          <a class="btn btn-ghost-secondary" href="/campaigns">{{ icon('arrow-left') }} All campaigns</a>
         </div>
       </div>
     </div>
@@ -36,14 +36,43 @@
 
 {% block content %}
 {% if campaign.error %}
-  <div class="alert alert-danger" role="alert">{{ campaign.error }}</div>
+  <div class="alert alert-danger" role="alert">
+    <div class="d-flex"><span class="alert-icon">{{ icon('error') }}</span><div>{{ campaign.error }}</div></div>
+  </div>
 {% endif %}
 
+{# Where this campaign is on its way out. Derived from what exists, nothing
+   extra is stored: a message, an audience, then the send itself. #}
+{# Same rule the send route checks: a subject, plus an HTML or a plain-text body. #}
+{% set has_message = campaign.subject | trim and (campaign.body_html | trim or campaign.body_text | trim) %}
+{% set has_audience = counts.total > 0 %}
+{% set sent_phase = campaign.status in ('queued', 'sending', 'paused', 'failed') %}
+{% set finished = campaign.status in ('completed', 'cancelled') %}
+{% set stages = [
+    ('Write the message', 'pen',   has_message),
+    ('Choose who gets it', 'users', has_audience),
+    ('Preview and test',  'flask', sent_phase or finished),
+    ('Send',              'send',  finished),
+    ('Done',              'flag',  campaign.status == 'completed'),
+] %}
+{% set ns = namespace(current_found=false) %}
 <div class="card mb-3">
-  <div class="card-body">
+  <div class="card-body pb-2">
+    <ol class="stepper mb-3">
+      {% for label, icon_name, is_done in stages %}
+        {% set is_current = not is_done and not ns.current_found %}
+        {% if is_current %}{% set ns.current_found = true %}{% endif %}
+        <li class="{{ 'done' if is_done }}{{ ' current' if is_current }}"{% if is_current %} aria-current="step"{% endif %}>
+          <span class="step-dot">{{ icon('check' if is_done else icon_name) }}</span>
+          {{ label }}
+        </li>
+      {% endfor %}
+    </ol>
+  </div>
+  <div class="card-body border-top">
     <div class="row g-3 align-items-center">
       <div class="col-md">
-        <div class="progress mb-2">
+        <div class="progress progress-thin mb-2">
           <div class="progress-bar" id="progress-bar" role="progressbar"
                style="width: {{ (100 * done / counts.total) if counts.total else 0 }}%"
                aria-valuenow="{{ done }}" aria-valuemin="0" aria-valuemax="{{ counts.total }}"></div>
@@ -57,34 +86,36 @@
         <div class="btn-list">
           {% if running %}
             <form method="post" action="/campaigns/{{ campaign.id }}/pause">
-              <button class="btn" type="submit">Pause</button>
+              <button class="btn" type="submit">{{ icon('pause') }} Pause</button>
             </form>
             <form method="post" action="/campaigns/{{ campaign.id }}/cancel"
-                  onsubmit="return confirm('Cancel this campaign? Messages already sent cannot be recalled.')">
-              <button class="btn btn-danger" type="submit">Cancel</button>
+                  {{ confirm('Stop this campaign?', 'Nobody else will get it. Messages already sent can\'t be recalled.', 'Stop campaign') }}>
+              <button class="btn btn-danger" type="submit">{{ icon('ban') }} Stop</button>
             </form>
           {% elif campaign.status in ('paused', 'failed') %}
             <form method="post" action="/campaigns/{{ campaign.id }}/resume">
-              <button class="btn btn-primary" type="submit">Resume</button>
+              <button class="btn btn-primary" type="submit">{{ icon('play') }} Resume</button>
             </form>
-            <form method="post" action="/campaigns/{{ campaign.id }}/cancel">
-              <button class="btn btn-danger" type="submit">Cancel</button>
+            <form method="post" action="/campaigns/{{ campaign.id }}/cancel"
+                  {{ confirm('Stop this campaign?', 'The remaining ' ~ counts.pending ~ ' people will not get it.', 'Stop campaign') }}>
+              <button class="btn btn-danger" type="submit">{{ icon('ban') }} Stop</button>
             </form>
           {% else %}
-            <form method="post" action="/campaigns/{{ campaign.id }}/send" class="d-flex gap-2 align-items-center">
+            <form method="post" action="/campaigns/{{ campaign.id }}/send" class="d-flex gap-2 align-items-center"
+                  {{ confirm('Send to ' ~ '{:,}'.format(counts.pending) ~ ' people now?', 'Each person gets their own personalised copy. Once it starts, sent messages can\'t be recalled.', 'Send now', 'primary') }}
+                  data-confirm-skip-if="dry_run">
               <label class="form-check form-check-inline mb-0">
                 <input type="checkbox" class="form-check-input" name="dry_run" value="1">
-                <span class="form-check-label">Dry run</span>
+                <span class="form-check-label">Dry run {{ help("Goes through every recipient and renders each message, but sends nothing. A safe rehearsal.") }}</span>
               </label>
-              <button class="btn btn-primary" type="submit"
-                      onclick="return this.form.dry_run.checked || confirm('Send this message to {{ counts.pending }} recipients?')">
-                {{ icon('send', 20) }} Send now
+              <button class="btn btn-primary" type="submit">
+                {{ icon('send') }} Send now
               </button>
             </form>
           {% endif %}
           {% if counts.failed and not running %}
             <form method="post" action="/campaigns/{{ campaign.id }}/retry-failed">
-              <button class="btn" type="submit">Retry {{ counts.failed }} failed</button>
+              <button class="btn" type="submit">{{ icon('refresh') }} Retry {{ counts.failed }} failed</button>
             </form>
           {% endif %}
         </div>
@@ -96,7 +127,7 @@
 <div class="row row-cards mb-3">
   <div class="col-lg-7">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Message</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('pen') }} Message</h3></div>
       <div class="card-body">
         <form method="post" action="/campaigns/{{ campaign.id }}">
           <fieldset {{ 'disabled' if not campaign.is_editable }} class="border-0 p-0 m-0">
@@ -115,7 +146,7 @@
             <div class="mb-3">
               <label class="form-label" for="body_text">Plain-text body</label>
               <textarea class="form-control code" id="body_text" name="body_text" rows="5">{{ campaign.body_text }}</textarea>
-              <small class="form-hint">Empty = generated from the HTML.</small>
+              <small class="form-hint">Leave empty to create it from the HTML.</small>
             </div>
             <div class="row g-2">
               <div class="col-md-6 mb-3">
@@ -129,22 +160,22 @@
                        value="{{ campaign.from_email }}" placeholder="{{ smtp.from_email }}">
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label" for="reply_to">Reply-To</label>
+                <label class="form-label" for="reply_to">Replies go to</label>
                 <input type="email" class="form-control" id="reply_to" name="reply_to"
                        value="{{ campaign.reply_to }}" placeholder="{{ smtp.reply_to }}">
               </div>
               <div class="col-md-6 mb-3">
-                <label class="form-label" for="throttle_per_minute">Throttle (msg/min)</label>
+                <label class="form-label" for="throttle_per_minute">Messages per minute {{ help("Many mail servers block senders who send too fast. 0 means no limit.") }}</label>
                 <input type="number" class="form-control" id="throttle_per_minute"
                        name="throttle_per_minute" value="{{ campaign.throttle_per_minute }}" min="0">
               </div>
             </div>
-            <button class="btn btn-primary" type="submit">Save draft</button>
+            <button class="btn btn-primary" type="submit">{{ icon('check') }} Save draft</button>
           </fieldset>
           {% if not campaign.is_editable %}
             <div class="text-secondary mt-2">
-              A campaign in state <strong>{{ campaign.status }}</strong> is read-only.
-              Pause it, or duplicate it into a new draft.
+              {{ icon('lock') }} This campaign is <strong>{{ campaign.status }}</strong>, so it can't be edited.
+              Pause it first, or duplicate it into a new draft.
             </div>
           {% endif %}
         </form>
@@ -153,7 +184,7 @@
         <div class="hr-text">or load a template</div>
         <form method="post" action="/campaigns/{{ campaign.id }}/load-template"
               class="row g-2 align-items-end"
-              onsubmit="return confirm('Replace the current subject and body with the template?')">
+              {{ confirm('Replace the message with this template?', 'Your current subject and body will be overwritten.', 'Replace message', 'primary') }}>
           <div class="col">
             <select class="form-select" id="template_id" name="template_id" aria-label="Template">
               {% for item in templates_list %}
@@ -161,7 +192,7 @@
               {% endfor %}
             </select>
           </div>
-          <div class="col-auto"><button class="btn" type="submit">Load</button></div>
+          <div class="col-auto"><button class="btn" type="submit">{{ icon('download') }} Load</button></div>
         </form>
         {% endif %}
       </div>
@@ -170,7 +201,7 @@
 
   <div class="col-lg-5">
     <div class="card mb-3">
-      <div class="card-header"><h3 class="card-title">Send a test</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('mail-check') }} Send yourself a test</h3></div>
       <div class="card-body">
         <form method="post" action="/campaigns/{{ campaign.id }}/test" class="row g-2 align-items-end">
           <div class="col">
@@ -178,16 +209,16 @@
             <input type="email" class="form-control" id="to_email" name="to_email"
                    placeholder="you@example.com" required>
           </div>
-          <div class="col-auto"><button class="btn" type="submit">Send test</button></div>
+          <div class="col-auto"><button class="btn" type="submit">{{ icon('send') }} Send test</button></div>
         </form>
         <small class="form-hint mt-2 d-block">
-          Rendered with the first recipient's data, subject prefixed with [TEST].
+          Filled in with the first recipient's details, with [TEST] in front of the subject.
         </small>
       </div>
     </div>
 
     <div class="card mb-3">
-      <div class="card-header"><h3 class="card-title">Attachments</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('file') }} Attachments</h3></div>
       {% if campaign.attachments %}
         <div class="table-responsive">
           <table class="table card-table table-vcenter">
@@ -199,7 +230,7 @@
                 <td class="text-end">
                   {% if campaign.is_editable %}
                   <form method="post" action="/campaigns/{{ campaign.id }}/attachments/{{ attachment.id }}/delete">
-                    <button class="btn btn-sm btn-ghost-danger" type="submit">Remove</button>
+                    <button class="btn btn-sm btn-ghost-danger" type="submit">{{ icon('trash') }} Remove</button>
                   </form>
                   {% endif %}
                 </td>
@@ -209,25 +240,25 @@
           </table>
         </div>
       {% else %}
-        <div class="card-body text-secondary py-3">None.</div>
+        <div class="card-body text-secondary py-3">No attachments.</div>
       {% endif %}
       {% if campaign.is_editable %}
       <div class="card-footer">
         <form method="post" action="/campaigns/{{ campaign.id }}/attachments"
               enctype="multipart/form-data" class="row g-2 align-items-end">
           <div class="col"><input type="file" class="form-control" name="file" required></div>
-          <div class="col-auto"><button class="btn" type="submit">Attach</button></div>
+          <div class="col-auto"><button class="btn" type="submit">{{ icon('upload') }} Attach</button></div>
         </form>
         <small class="form-hint mt-2 d-block">
-          Max 15 MB per file. Every recipient gets a copy &mdash; large files are a good way
-          to get rate-limited.
+          Up to 15 MB per file. Everyone gets a copy, so large files can get you rate-limited &mdash;
+          a link is often better.
         </small>
       </div>
       {% endif %}
     </div>
 
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Audience</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('users') }} Who gets it</h3></div>
       <div class="card-body">
         {% if campaign.is_editable %}
         <form method="post" action="/campaigns/{{ campaign.id }}/audience">
@@ -239,11 +270,11 @@
                 <span class="form-check-label">{{ item.name }}</span>
               </label>
             {% else %}
-              <span class="text-secondary">No lists defined.</span>
+              <span class="text-secondary">No lists yet. <a href="/lists">Create one</a>.</span>
             {% endfor %}
           </div>
           <div class="mb-3">
-            <label class="form-label" for="extra_emails">Additional addresses</label>
+            <label class="form-label" for="extra_emails">Other addresses</label>
             <textarea class="form-control code" id="extra_emails" name="extra_emails" rows="3"></textarea>
           </div>
           <div class="row g-2 align-items-end">
@@ -254,12 +285,12 @@
               </select>
             </div>
             <div class="col-auto">
-              <button class="btn btn-primary" type="submit">Update</button>
+              <button class="btn btn-primary" type="submit">{{ icon('check') }} Update</button>
             </div>
           </div>
         </form>
         {% else %}
-          <div class="text-secondary">Locked while the campaign is {{ campaign.status }}.</div>
+          <div class="text-secondary">{{ icon('lock') }} Locked while the campaign is {{ campaign.status }}.</div>
         {% endif %}
         {% if variables %}
           <div class="mt-3">
@@ -274,7 +305,7 @@
 
 <div class="card mb-3">
   <div class="card-header">
-    <h3 class="card-title">Recipients</h3>
+    <h3 class="card-title">{{ icon('users') }} Delivery log</h3>
     <div class="card-actions"><span class="badge bg-secondary-lt">{{ entry_total }}</span></div>
   </div>
   <div class="card-body border-bottom-0 py-2">
@@ -298,9 +329,7 @@
         <tr>
           <td class="mono">{{ entry.email }}</td>
           <td>
-            <span class="badge bg-{{ status_colors.get(entry.status, 'secondary') }}-lt">
-              {{ entry.status }}
-            </span>
+            {{ status_badge(entry.status) }}
           </td>
           <td class="mono text-secondary">
             {{ entry.sent_at.strftime('%Y-%m-%d %H:%M:%S') if entry.sent_at else '-' }}
@@ -309,13 +338,13 @@
           <td class="text-end">
             {% if campaign.is_editable %}
             <form method="post" action="/campaigns/{{ campaign.id }}/entries/{{ entry.id }}/delete">
-              <button class="btn btn-sm btn-ghost-danger" type="submit">Remove</button>
+              <button class="btn btn-sm btn-ghost-danger" type="submit" title="Remove from this campaign">{{ icon('trash') }}</button>
             </form>
             {% endif %}
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="5" class="text-secondary text-center py-4">No recipients in this view.</td></tr>
+        <tr><td colspan="5" class="text-secondary text-center py-4">{{ icon('search') }} Nobody in this view.</td></tr>
       {% endfor %}
       </tbody>
     </table>
@@ -340,11 +369,11 @@
 </div>
 
 <div class="card border-danger">
-  <div class="card-header"><h3 class="card-title text-danger">Danger zone</h3></div>
+  <div class="card-header"><h3 class="card-title text-danger">{{ icon('alert') }} Danger zone</h3></div>
   <div class="card-body">
     <form method="post" action="/campaigns/{{ campaign.id }}/delete"
-          onsubmit="return confirm('Delete this campaign and its send log?')">
-      <button class="btn btn-danger btn-sm" type="submit">Delete campaign</button>
+          {{ confirm('Delete this campaign?', 'The campaign and its delivery log are removed for good. Recipients are kept.', 'Delete campaign') }}>
+      <button class="btn btn-danger btn-sm" type="submit">{{ icon('trash') }} Delete campaign</button>
     </form>
   </div>
 </div>
@@ -352,6 +381,11 @@
 
 {% block scripts %}
 {% if running %}
+{# One ready-made pill per status the run can move into, so the poller swaps
+   in the right icon and colour rather than only changing the word. #}
+<template id="status-pills">
+  {% for status in ('queued', 'sending', 'paused', 'completed', 'cancelled', 'failed') %}{{ status_badge(status) }}{% endfor %}
+</template>
 <script>
   // Poll while the campaign is running, and reload once it settles.
   (function () {
@@ -362,7 +396,18 @@
         .then(function (data) {
           if (!data) return;
           document.getElementById('progress-bar').style.width = data.percent + '%';
-          document.getElementById('status-badge').textContent = data.status;
+          var badge = document.getElementById('status-badge');
+          var pill = null;
+          document.getElementById('status-pills').content.querySelectorAll('.status-pill').forEach(function (candidate) {
+            if (candidate.querySelector('.status-text').textContent === data.status) pill = candidate;
+          });
+          if (pill) {
+            var fresh = pill.cloneNode(true);
+            fresh.id = 'status-badge';
+            badge.replaceWith(fresh);
+          } else {
+            badge.querySelector('.status-text').textContent = data.status;
+          }
           document.getElementById('progress-text').textContent =
             data.counts.sent + ' sent · ' + data.counts.failed + ' failed · ' +
             data.counts.skipped + ' skipped · ' + data.counts.pending + ' pending';

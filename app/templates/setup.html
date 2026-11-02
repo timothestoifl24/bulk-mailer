@@ -1,0 +1,62 @@
+{% extends "base_auth.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import help %}
+{% block title %}Set up Bulk Mailer{% endblock %}
+{% block content %}
+<div class="card card-md">
+  <div class="card-body">
+    <h2 class="h2 text-center mb-1">Welcome to Bulk Mailer</h2>
+    <p class="text-secondary text-center mb-4">
+      Create the first administrator to get started. This account can always sign in
+      locally, even when your directory or single sign-on is unavailable.
+    </p>
+    <form method="post" action="/setup" autocomplete="off">
+      <div class="mb-3">
+        <label class="form-label required" for="username">Username</label>
+        <div class="input-icon">
+          <span class="input-icon-addon">{{ icon('user') }}</span>
+          <input type="text" class="form-control" id="username" name="username" value="{{ values.username or '' }}"
+                 autocomplete="username" pattern="[A-Za-z0-9._@\-]+" maxlength="120" autofocus required>
+        </div>
+      </div>
+      <div class="row g-2">
+        <div class="col-sm-6 mb-3">
+          <label class="form-label" for="display_name">Your name</label>
+          <input type="text" class="form-control" id="display_name" name="display_name" value="{{ values.display_name or '' }}" autocomplete="name" maxlength="255">
+        </div>
+        <div class="col-sm-6 mb-3">
+          <label class="form-label" for="email">Email</label>
+          <input type="email" class="form-control" id="email" name="email" value="{{ values.email or '' }}" autocomplete="email" maxlength="320">
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label required" for="password">Password</label>
+        <div class="input-icon">
+          <span class="input-icon-addon">{{ icon('lock') }}</span>
+          <input type="password" class="form-control" id="password" name="password" minlength="{{ min_password }}"
+                 autocomplete="new-password" placeholder="At least {{ min_password }} characters" required>
+        </div>
+      </div>
+      <div class="mb-2">
+        <label class="form-label required" for="confirm_password">Repeat the password</label>
+        <div class="input-icon">
+          <span class="input-icon-addon">{{ icon('lock') }}</span>
+          <input type="password" class="form-control" id="confirm_password" name="confirm_password"
+                 minlength="{{ min_password }}" autocomplete="new-password" required>
+        </div>
+      </div>
+      <div class="form-footer">
+        <button type="submit" class="btn btn-primary w-100">{{ icon('user-plus') }} Create administrator</button>
+      </div>
+    </form>
+  </div>
+  <div class="card-footer text-secondary small">
+    {{ icon('shield') }} The initial administrator cannot be deleted, disabled or demoted.
+    If you ever lose its password, reset it with
+    <span class="mono">python -m app.cli reset-initial-admin</span>.
+  </div>
+</div>
+<div class="text-secondary text-center mt-3 small">
+  {{ icon('lock') }} Until this is done, anyone who can open this page can create the administrator.
+</div>
+{% endblock %}

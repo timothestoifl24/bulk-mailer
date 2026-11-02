@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import page_header, confirm, help %}
+{% set p = provider %}
+{% block title %}{{ 'New OpenID Connect provider' if is_new else p.name }} - Bulk Mailer{% endblock %}
+
+{% block page_header %}
+{% call page_header('Authentication · OpenID Connect', 'New OpenID Connect provider' if is_new else p.name, 'id-badge') %}
+  <a class="btn" href="/settings/auth">{{ icon('arrow-left') }} All providers</a>
+  {% if not is_new %}
+  <form method="post" action="/settings/auth/oidc/{{ p.id }}/test" class="d-inline">
+    <button class="btn btn-outline-primary" type="submit">{{ icon('plug') }} Test connection</button>
+  </form>
+  {% endif %}
+{% endcall %}
+{% endblock %}
+
+{% block content %}
+<form method="post" action="{{ '/settings/auth/new/oidc' if is_new else '/settings/auth/oidc/' ~ p.id }}" autocomplete="off">
+<div class="row row-cards">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">{{ icon('plug') }} Connection</h3></div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label" for="discovery_url">Discovery URL {{ help("The provider's .well-known/openid-configuration address. It fills in every endpoint below.") }}</label>
+          <input type="url" class="form-control mono" id="discovery_url" name="discovery_url" value="{{ p.discovery_url or '' }}"
+                 placeholder="https://login.microsoftonline.com/<tenant>/v2.0/.well-known/openid-configuration">
+          <small class="form-hint">
+            Keycloak: <span class="mono">https://&lt;host&gt;/realms/&lt;realm&gt;/.well-known/openid-configuration</span> ·
+            Google: <span class="mono">https://accounts.google.com/.well-known/openid-configuration</span>
+          </small>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-6 mb-3">
+            <label class="form-label required" for="client_id">Client ID</label>
+            <input type="text" class="form-control mono" id="client_id" name="client_id" value="{{ p.client_id or '' }}" required>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="client_secret">Client secret</label>
+            <input type="password" class="form-control" id="client_secret" name="client_secret" autocomplete="new-password"
+                   placeholder="{{ 'Stored — leave empty to keep' if has_secret else '' }}">
+            <small class="form-hint">{{ icon('lock') }} Stored encrypted with the app SECRET_KEY.</small>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="scopes">Scopes</label>
+          <input type="text" class="form-control mono" id="scopes" name="scopes" value="{{ p.scopes or '' }}">
+          <small class="form-hint">Add <span class="mono">groups</span> or <span class="mono">roles</span> if your provider needs a scope for the groups claim.</small>
+        </div>
+
+        <details class="mb-0" {{ 'open' if p.authorize_url or p.token_url or p.userinfo_url }}>
+          <summary class="text-secondary mb-2">Endpoints by hand (plain OAuth2, or to override discovery)</summary>
+          <div class="mb-3">
+            <label class="form-label" for="authorize_url">Authorization endpoint</label>
+            <input type="url" class="form-control mono" id="authorize_url" name="authorize_url" value="{{ p.authorize_url or '' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="token_url">Token endpoint</label>
+            <input type="url" class="form-control mono" id="token_url" name="token_url" value="{{ p.token_url or '' }}">
+          </div>
+          <div class="mb-0">
+            <label class="form-label" for="userinfo_url">Userinfo endpoint</label>
+            <input type="url" class="form-control mono" id="userinfo_url" name="userinfo_url" value="{{ p.userinfo_url or '' }}">
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">{{ icon('id-badge') }} Claims</h3></div>
+      <div class="card-body">
+        <p class="text-secondary">Which fields of the provider's answer hold what. The defaults suit most providers. Dotted paths reach nested claims, e.g. <span class="mono">realm_access.roles</span>.</p>
+        <div class="row g-2">
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="username_claim">Username</label>
+            <input type="text" class="form-control mono" id="username_claim" name="username_claim" value="{{ p.username_claim or '' }}">
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="form-label" for="email_claim">Email</label>
+            <input type="text" class="form-control mono" id="email_claim" name="email_claim" value="{{ p.email_claim or '' }}">
+          </div>
+          <div class="col-md-6 mb-0">
+            <label class="form-label" for="name_claim">Display name</label>
+            <input type="text" class="form-control mono" id="name_claim" name="name_claim" value="{{ p.name_claim or '' }}">
+          </div>
+          <div class="col-md-6 mb-0">
+            <label class="form-label" for="groups_claim">Groups</label>
+            <input type="text" class="form-control mono" id="groups_claim" name="groups_claim" value="{{ p.groups_claim or '' }}">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">{{ icon('settings') }} General</h3></div>
+      <div class="card-body">
+        <div class="mb-3">
+          <label class="form-label required" for="name">Name</label>
+          <input type="text" class="form-control" id="name" name="name" value="{{ p.name or '' }}" placeholder="Microsoft Entra ID" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="button_label">Sign-in button label</label>
+          <input type="text" class="form-control" id="button_label" name="button_label" value="{{ p.button_label or '' }}"
+                 placeholder="Sign in with {{ p.name or 'your company account' }}">
+        </div>
+        <label class="form-check form-switch mb-0">
+          <input type="checkbox" class="form-check-input" name="enabled" value="1" {{ 'checked' if p.enabled }}>
+          <span class="form-check-label">Show on the sign-in page</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">{{ icon('shield') }} Accounts and rights</h3></div>
+      <div class="card-body">
+        <label class="form-check mb-3">
+          <input type="checkbox" class="form-check-input" name="auto_create" value="1" {{ 'checked' if p.auto_create }}>
+          <span class="form-check-label">Create the account on first sign-in
+            <small class="d-block text-secondary">New accounts are members. Off means an administrator adds people first.</small>
+          </span>
+        </label>
+        <div class="mb-0">
+          <label class="form-label" for="admin_group">Administrator group {{ help("A value of the groups claim. Members are administrators; with a group set, leaving it removes the rights at the next sign-in.") }}</label>
+          <input type="text" class="form-control mono" id="admin_group" name="admin_group" value="{{ p.admin_group or '' }}" placeholder="mailer-admins">
+          <small class="form-hint">Compared without regard to case. Empty: rights are managed on the Users page.</small>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-header"><h3 class="card-title">{{ icon('copy') }} For your identity provider</h3></div>
+      <div class="card-body">
+        {% if callback_url %}
+          <label class="form-label" for="callback_url">Redirect / callback URL</label>
+          <div class="input-group">
+            <input type="text" class="form-control mono" id="callback_url" value="{{ callback_url }}" readonly>
+            <button class="btn" type="button" data-copy="#callback_url" title="Copy">{{ icon('copy') }}</button>
+          </div>
+          <small class="form-hint">Register this exact address with the client. It follows <span class="mono">PUBLIC_BASE_URL</span>.</small>
+        {% else %}
+          <p class="text-secondary mb-0">The callback URL to register appears here once the provider is saved.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex align-items-center gap-2 mt-3">
+  <button class="btn btn-primary" type="submit">{{ icon('check') }} {{ 'Add provider' if is_new else 'Save' }}</button>
+  <a class="btn btn-link link-secondary" href="/settings/auth">Cancel</a>
+</div>
+</form>
+
+{% if not is_new %}
+<div class="card card-danger-zone mt-3">
+  <div class="card-body d-flex flex-wrap align-items-center gap-3">
+    <div class="flex-fill">
+      <h3 class="card-title mb-1">{{ icon('trash') }} Delete provider</h3>
+      <p class="text-secondary mb-0">{{ user_count }} user(s) sign in through it. They stay, but can no longer sign in this way.</p>
+    </div>
+    <form method="post" action="/settings/auth/oidc/{{ p.id }}/delete"
+          {{ confirm('Delete ' ~ p.name ~ '?', 'Its users stay but can no longer sign in through it.', 'Delete provider') }}>
+      <button class="btn btn-outline-danger" type="submit">{{ icon('trash') }} Delete provider</button>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,12 @@
+{
+  "name": "Bulk Mailer",
+  "short_name": "Bulk Mailer",
+  "icons": [
+    { "src": "/static/brand/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/static/brand/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ],
+  "theme_color": "#4F46E5",
+  "background_color": "#F8FAFC",
+  "display": "standalone",
+  "start_url": "/"
+}

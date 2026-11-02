@@ -59,7 +59,9 @@ def test_full_campaign_flow_as_a_dry_run(logged_in):
     # A list...
     assert client.post("/lists", data={"name": "QA list", "description": "test"}, follow_redirects=True).status_code == 200
     page = client.get("/lists").text
-    list_id = int(re.search(r'/recipients\?list_id=(\d+)">QA list', page).group(1))
+    assert "QA list" in page
+    with SessionLocal() as db:
+        list_id = db.scalar(select(RecipientList.id).where(RecipientList.name == "QA list"))
 
     # ...with three members added by pasting.
     response = client.post(
@@ -571,11 +573,11 @@ def test_footer_external_links_cannot_reach_back_into_this_tab(logged_in, anon_c
             assert "noopener" in anchor, anchor
 
 
-def test_ldap_profile_page_offers_group_include_and_exclude(logged_in):
+def test_the_import_wizard_offers_group_include_and_exclude(logged_in):
     """The membership builder has to actually render, and start in a sane state."""
     client = logged_in
     client.post(
-        "/ldap",
+        "/settings/auth/new/ldap",
         data={
             "name": "Group filter profile",
             "host": "ldap.example.com",
@@ -587,6 +589,8 @@ def test_ldap_profile_page_offers_group_include_and_exclude(logged_in):
             "search_filter": "(&(objectClass=person)(mail=*))",
             "attr_map": "",
             "page_size": "500",
+            "enabled": "1",
+            "allow_import": "1",
         },
         follow_redirects=True,
     )
@@ -596,15 +600,17 @@ def test_ldap_profile_page_offers_group_include_and_exclude(logged_in):
         )
     assert profile_id is not None
 
-    page = client.get(f"/ldap/{profile_id}")
+    page = client.get(f"/recipients/import/ldap?provider_id={profile_id}")
     assert page.status_code == 200
     assert 'name="include_groups"' in page.text
     assert 'name="exclude_groups"' in page.text
     assert 'name="group_match"' in page.text
     # Nested lookups default on, matching the previous single-group behaviour.
-    assert 'id="nested_groups"' in page.text and "checked" in page.text
+    assert re.search(r'id="nested_groups"[^>]*checked', page.text)
     # The editable filter box shows the profile's own filter, never a combined one.
     assert "(&amp;(objectClass=person)(mail=*))" in page.text
+    # The connection's secrets are not on the page members see.
+    assert 'name="bind_password"' not in page.text
 
 
 def test_ldap_search_form_does_not_compound_group_conditions(logged_in):
@@ -615,7 +621,7 @@ def test_ldap_search_form_does_not_compound_group_conditions(logged_in):
     filter rather than the combined one. Echoing the combined filter back is
     how a search silently narrows on every click.
     """
-    from app.routers.ldap import _effective_filter
+    from app.services.ldap_import import effective_filter as _effective_filter
 
     class _Profile:
         search_filter = "(&(objectClass=person)(mail=*))"
@@ -646,7 +652,7 @@ def test_ldap_search_form_does_not_compound_group_conditions(logged_in):
 
 def test_ldap_search_warns_about_a_bare_common_name(logged_in):
     """'cn=group1' matches nothing and reports no error - so we report one."""
-    from app.routers.ldap import _effective_filter
+    from app.services.ldap_import import effective_filter as _effective_filter
 
     class _Profile:
         search_filter = "(&(objectClass=person)(mail=*))"

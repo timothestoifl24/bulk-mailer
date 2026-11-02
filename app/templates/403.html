@@ -1,12 +1,15 @@
 {% extends "base_auth.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Not allowed - Bulk Mailer{% endblock %}
 {% block content %}
 <div class="card card-md">
   <div class="card-body text-center py-4">
-    <div class="display-4 fw-bold text-secondary">403</div>
-    <p class="text-secondary mt-2">{{ detail or "You do not have access to this page." }}</p>
-    <p class="text-secondary">Ask an administrator if you need it.</p>
-    <a href="/" class="btn btn-primary mt-2">Back to the dashboard</a>
+    <div class="hero-icon">{{ icon('lock') }}</div>
+    <div class="text-secondary small fw-semibold">Error 403</div>
+    <h2 class="h2 mt-1">This area is for administrators</h2>
+    <p class="text-secondary mt-2">{{ detail or "Your account doesn't have access to this page." }}</p>
+    <p class="text-secondary">If you need it, ask an administrator to give you access.</p>
+    <a href="/" class="btn btn-primary mt-2">{{ icon('arrow-left') }} Back to the dashboard</a>
   </div>
 </div>
 {% endblock %}

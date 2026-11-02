@@ -7,14 +7,25 @@ description: Bootstrap passwords, SECRET_KEY, SQLite versus PostgreSQL, delivera
 
 ## Getting in
 
-### I set `ADMIN_PASSWORD` but the password did not change
+### Where do I set the admin password?
 
-It is read **only once, while the user table is empty**. After the first
-start, changing the environment variable does nothing.
+Nowhere in the environment. On the first start the app shows a setup page
+where you create the first administrator. `ADMIN_USERNAME` and
+`ADMIN_PASSWORD` are no longer read; the System page reminds you to remove
+them if they are still set.
+
+### I lost the administrator's password
+
+The initial administrator — the account created on the setup page — can
+always be recovered:
 
 ```bash
-docker exec -it <container> python -m app.cli set-password admin
+docker exec -it <container> python -m app.cli reset-initial-admin
 ```
+
+It asks for a new password, and also re-enables the account and restores its
+admin rights. For any other local account, `set-password <username>` does the
+same for the password alone.
 
 ### I locked everyone out with an LDAP setting
 
@@ -24,6 +35,31 @@ docker exec -it <container> python -m app.cli disable-ldap-login
 
 This is why the docs suggest keeping one local account: it still works when
 the directory is unreachable or misconfigured.
+
+### Single sign-on is broken and the password form is hidden
+
+Open `/login?local=1`: it always shows the username and password form, and a
+local administrator can sign in there. Or, from the command line:
+
+```bash
+docker exec -it <container> python -m app.cli disable-sso
+```
+
+which switches every OpenID Connect provider off and shows the form again.
+
+### Single sign-on says "The sign-in took too long or was started elsewhere"
+
+The sign-in started and finished in different browser sessions. Check that
+`PUBLIC_BASE_URL` is the address people actually use, scheme included, and
+that the callback URL registered at the identity provider is the one shown on
+the provider's page.
+
+### I changed SMTP_HOST in .env and nothing happened
+
+The `SMTP_*` variables only fill in *Email delivery* until something is saved
+there; after that the saved value wins. Change it on *Email delivery*
+instead. *System* shows, for each value, whether it comes from the app or the
+environment, and flags an environment value that is being ignored.
 
 ### Can I change `SECRET_KEY` later?
 
@@ -122,7 +158,7 @@ and its send history are kept. See
 
 ### My synced list stopped updating and says the run failed
 
-Read the message on the *Lists* page. The most common cause is a directory that
+Read the message on the *Lists* tab. The most common cause is a directory that
 did not answer. A deliberate one: if the search returns **nothing** while the
 list has members, the sync refuses rather than emptying it — an empty result is
 indistinguishable from a filter that broke.
@@ -138,7 +174,7 @@ network.
 ### Can I run it on Kubernetes?
 
 Yes — kustomize manifests ship in `deploy/kubernetes/`, for one pod on SQLite
-or for PostgreSQL with several replicas. See [Kubernetes](/kubernetes).
+or for PostgreSQL with several replicas. See [Kubernetes](/setup/kubernetes).
 
 ### Is there an API?
 

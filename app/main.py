@@ -15,22 +15,35 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import __version__
-from .config import settings
+from .config import secret_key_is_weak, settings
 from .db import IS_SQLITE, Base, engine, get_db, session_scope, startup_lock
-from .migrations import add_missing_columns
-from .models import Campaign, CampaignRecipient, LdapProfile, Recipient, RecipientList, User
+from .migrations import add_missing_columns, add_missing_indexes
+from .models import (
+    Campaign,
+    CampaignRecipient,
+    LdapProfile,
+    EmailTemplate,
+    Recipient,
+    RecipientList,
+    User,
+)
 from .routers import (
     auth,
+    setup,
+    auth_providers,
     campaigns,
+    import_wizard,
     ldap,
     mail_templates,
     public,
     recipients,
     settings_router,
+    system,
     users,
 )
-from .security import hash_password, origin_is_trusted, require_admin, require_user
-from .services import ldap_sync, settings_store
+from .security import origin_is_trusted, require_admin, require_user
+from .services import ldap_auth, ldap_sync, settings_store
+from .services import setup as first_run
 from .services.sender import counts_by_status, start_worker, stop_worker
 from .web import redirect, render
 
@@ -43,17 +56,13 @@ logger = logging.getLogger("mailer")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
-WEAK_SECRETS = ("dev-insecure-secret-key-change-me", "CHANGE-ME", "change-me")
-
-
 def warn_about_weak_secrets() -> None:
     """A placeholder SECRET_KEY lets anyone forge a session cookie.
 
     The container images and compose file ship obvious placeholders so the stack
     starts out of the box; say so loudly rather than let one reach production.
     """
-    key = settings.secret_key
-    if any(marker in key for marker in WEAK_SECRETS) or len(key) < 32:
+    if secret_key_is_weak():
         logger.warning(
             "SECRET_KEY is a placeholder or too short. Session cookies can be forged and "
             "stored SMTP/LDAP passwords are not meaningfully protected. Set a long random "
@@ -61,9 +70,18 @@ def warn_about_weak_secrets() -> None:
         )
 
 
+def warn_about_removed_settings() -> None:
+    if settings.admin_username or settings.admin_password:
+        logger.warning(
+            "ADMIN_USERNAME / ADMIN_PASSWORD are no longer used and can be removed: the first "
+            "administrator is created on the /setup page. Existing accounts are unaffected."
+        )
+
+
 def bootstrap() -> None:
-    """Create the schema, the first admin account, and reset stale campaigns."""
+    """Create the schema, adopt an initial admin on upgrade, and reset stale campaigns."""
     warn_about_weak_secrets()
+    warn_about_removed_settings()
     with startup_lock():
         _bootstrap_schema_and_data()
 
@@ -71,27 +89,15 @@ def bootstrap() -> None:
 def _bootstrap_schema_and_data() -> None:
     Base.metadata.create_all(bind=engine)
     add_missing_columns(engine)
+    add_missing_indexes(engine)
     with session_scope() as db:
         if db.scalar(select(func.count()).select_from(User)) == 0:
-            db.add(
-                User(
-                    username=settings.admin_username,
-                    password_hash=hash_password(settings.admin_password),
-                    is_admin=True,
-                    display_name="Administrator",
-                )
-            )
-            # Deliberately says nothing about the password itself, not even a
-            # masked excerpt: application logs get shipped to aggregators and
-            # read by people who have no business holding the admin credential,
-            # and first/last characters give away more than they look like they
-            # do. Naming the source answers "which password is it?" just as well.
+            # Said at every start until it is done: until then, whoever opens
+            # the app first becomes its administrator.
             logger.warning(
-                "Created the initial admin account %r. Its password is whatever "
-                "ADMIN_PASSWORD held at first start - not any default you may have "
-                "read elsewhere. Change it with: python -m app.cli set-password %s",
-                settings.admin_username,
-                settings.admin_username,
+                "No account exists yet. Open %s/setup to create the first administrator - "
+                "until you do, anyone who can reach this address can.",
+                settings.public_base_url.rstrip("/"),
             )
         elif db.scalar(select(func.count()).select_from(User).where(User.is_admin.is_(True))) == 0:
             # Upgraded database: nobody would be able to reach the admin pages.
@@ -99,6 +105,11 @@ def _bootstrap_schema_and_data() -> None:
             if first is not None:
                 first.is_admin = True
                 logger.info("Granted admin rights to the existing account '%s'.", first.username)
+        # SessionLocal does not autoflush: make a promotion just above visible
+        # to the adoption query, or it would find no administrator to adopt.
+        db.flush()
+        first_run.adopt_existing(db)
+        ldap_auth.migrate_legacy_settings(db)
         # A campaign left mid-flight by a crash goes back to the queue. Only on
         # SQLite, which is always a single instance: with several instances
         # sharing PostgreSQL, "sending" may mean another one is sending it right
@@ -132,6 +143,22 @@ app.add_middleware(
 )
 
 
+# Paths that work before the first account exists.
+SETUP_OPEN_PATHS = ("/setup", "/static/", "/healthz", "/favicon")
+
+
+@app.middleware("http")
+async def first_run_setup(request: Request, call_next):
+    """Until the first administrator exists, every page leads to /setup."""
+    path = request.url.path
+    if not path.startswith(SETUP_OPEN_PATHS):
+        with session_scope() as db:
+            done = first_run.is_done(db)
+        if not done:
+            return redirect("/setup")
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def csrf_guard(request: Request, call_next):
     """Reject cross-site state-changing requests (origin/referer check)."""
@@ -162,14 +189,19 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+app.include_router(setup.router)
 app.include_router(auth.router)
 app.include_router(public.router)
+# Before recipients: /recipients/import would otherwise be read as a recipient id.
+app.include_router(import_wizard.router)
 app.include_router(recipients.router)
 app.include_router(mail_templates.router)
 app.include_router(campaigns.router)
 
 # Admin-only: these hold stored credentials, or can lock everyone out.
 app.include_router(ldap.router, dependencies=[Depends(require_admin)])
+app.include_router(auth_providers.router, dependencies=[Depends(require_admin)])
+app.include_router(system.router, dependencies=[Depends(require_admin)])
 app.include_router(settings_router.router, dependencies=[Depends(require_admin)])
 app.include_router(users.router)
 
@@ -199,8 +231,23 @@ def dashboard(request: Request, user: User = Depends(require_user), db: Session 
             "recent": recent,
             "stats": {campaign.id: counts_by_status(db, campaign.id) for campaign in recent},
             "smtp_ready": bool(smtp.host and smtp.from_email),
+            # Setup checklist: each step ticks itself off from what already exists.
+            "template_count": db.scalar(select(func.count()).select_from(EmailTemplate)) or 0,
+            "has_completed_campaign": db.scalar(
+                select(func.count())
+                .select_from(Campaign)
+                .where(Campaign.status == "completed", Campaign.dry_run.is_(False))
+            )
+            > 0,
         },
     )
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    # Browsers and feed readers ask for this path on their own, ignoring the
+    # <link rel="icon"> tags; point them at the real icon instead of a 404.
+    return redirect("/static/brand/favicon-32.png", status_code=301)
 
 
 @app.get("/healthz", include_in_schema=False)

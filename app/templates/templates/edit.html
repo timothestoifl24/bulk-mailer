@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% from "_icons.html" import icon %}
+{% from "_ui.html" import confirm, help %}
 {% block title %}{{ item.name if item else 'New template' }} - Bulk Mailer{% endblock %}
 
 {% block head %}
@@ -7,7 +9,7 @@
 
 {% block scripts %}
 <script src="/static/vendor/quill/quill.js" defer></script>
-<script src="/static/editor.js" defer></script>
+<script src="/static/editor.js?v={{ version }}" defer></script>
 {% endblock %}
 
 {% block page_header %}
@@ -15,15 +17,15 @@
   <div class="container-xl">
     <div class="row g-2 align-items-center">
       <div class="col">
-        <div class="page-pretitle">Rendered once per recipient</div>
-        <h2 class="page-title">{{ item.name if item else 'New template' }}</h2>
+        <div class="page-pretitle">Personalised for every person who receives it</div>
+        <h2 class="page-title"><span class="page-title-icon">{{ icon('file') }}</span> {{ item.name if item else 'New template' }}</h2>
       </div>
       <div class="col-auto ms-auto d-print-none">
         <div class="btn-list">
           {% if item %}
-            <a class="btn btn-primary" href="/campaigns/new?template_id={{ item.id }}">Use in a campaign</a>
+            <a class="btn btn-primary" href="/campaigns/new?template_id={{ item.id }}">{{ icon('send') }} Use in a campaign</a>
           {% endif %}
-          <a class="btn" href="/templates">All templates</a>
+          <a class="btn" href="/templates">{{ icon('arrow-left') }} All templates</a>
         </div>
       </div>
     </div>
@@ -37,38 +39,37 @@
     <div class="card-body">
       <div class="row g-2">
         <div class="col-md-5 mb-3">
-          <label class="form-label" for="name">Template name *</label>
+          <label class="form-label required" for="name">Template name</label>
           <input type="text" class="form-control" id="name" name="name"
                  value="{{ item.name if item else '' }}" required>
         </div>
         <div class="col-md-7 mb-3">
-          <label class="form-label" for="subject">Subject</label>
+          <label class="form-label" for="subject">Subject {{ help("Placeholders work here too, for example: News for {{ first_name }}") }}</label>
           <input type="text" class="form-control" id="subject" name="subject"
                  value="{{ item.subject if item else '' }}">
         </div>
       </div>
 
       <div class="mb-3">
-        <label class="form-label" for="body_html">HTML body</label>
+        <label class="form-label" for="body_html">Message</label>
         {# data-rich-editor mounts the Visual/HTML toggle from editor.js. The
            textarea keeps its name and stays what the form posts, so with
            JavaScript off this is exactly the plain textarea it always was. #}
         <textarea class="form-control code" id="body_html" name="body_html" rows="16"
                   data-rich-editor>{{ item.body_html if item else sample_html }}</textarea>
         <small class="form-hint">
-          Visual editing supports headings, lists, links and emphasis. Tables and inline styles
-          are kept intact in the HTML view, but the visual editor cannot represent them &mdash;
-          it will say so before stripping anything.
+          The visual editor handles headings, lists, links and emphasis. For tables or inline
+          styles, switch to the HTML view &mdash; the editor warns you before removing anything it can't show.
         </small>
       </div>
 
       <div class="mb-3">
-        <label class="form-label" for="body_text">Plain-text body (optional)</label>
+        <label class="form-label" for="body_text">Plain-text version <span class="text-secondary fw-normal">(optional)</span> {{ help("Some mail apps show only plain text. Leave it empty and we create it from your message.") }}</label>
         <textarea class="form-control code" id="body_text" name="body_text" rows="7">{{ item.body_text if item else '' }}</textarea>
-        <small class="form-hint">Leave empty to auto-generate the plain-text part from the HTML.</small>
+        <small class="form-hint">Leave empty to create it automatically from the message above.</small>
       </div>
 
-      <button class="btn btn-primary" type="submit">Save template</button>
+      <button class="btn btn-primary" type="submit">{{ icon('check') }} Save template</button>
     </div>
   </div>
 </form>
@@ -76,7 +77,7 @@
 <div class="row row-cards">
   <div class="col-lg-{{ 6 if item else 12 }}">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Available placeholders</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('code') }} Placeholders you can use</h3></div>
       <div class="card-body">
         <p>
           {% for name in ['name', 'first_name', 'last_name', 'display_name', 'email',
@@ -85,8 +86,8 @@
           {% endfor %}
         </p>
         <p class="text-secondary mb-0">
-          Plus any extra column from a CSV import or attribute from LDAP. Fallbacks work too:
-          <code class="var">{{ '{{ first_name or "there" }}' }}</code>. Missing values render as empty.
+          Plus any extra CSV column or LDAP attribute. Add a fallback for missing values:
+          <code class="var">{{ '{{ first_name or "there" }}' }}</code> &mdash; otherwise they're left blank.
         </p>
       </div>
     </div>
@@ -94,7 +95,7 @@
   {% if item %}
   <div class="col-lg-6">
     <div class="card">
-      <div class="card-header"><h3 class="card-title">Used in this template</h3></div>
+      <div class="card-header"><h3 class="card-title">{{ icon('check') }} Used in this template</h3></div>
       <div class="card-body">
         {% for name in variables %}
           <code class="var me-1">{{ name }}</code>
@@ -104,8 +105,8 @@
       </div>
       <div class="card-footer">
         <form method="post" action="/templates/{{ item.id }}/delete"
-              onsubmit="return confirm('Delete the template {{ item.name }}?')">
-          <button class="btn btn-ghost-danger btn-sm" type="submit">Delete template</button>
+              {{ confirm('Delete the template ' ~ item.name ~ '?', 'Campaigns already made from it keep their own copy of the message.', 'Delete template') }}>
+          <button class="btn btn-ghost-danger btn-sm" type="submit">{{ icon('trash') }} Delete template</button>
         </form>
       </div>
     </div>

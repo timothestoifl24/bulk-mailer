@@ -29,7 +29,13 @@ DEFAULTS: dict[str, str] = {
     "reply_to": "",
     "default_throttle_per_minute": str(env_settings.default_throttle_per_minute),
     "add_unsubscribe_header": "1",
-    # --- LDAP sign-in (see services/ldap_auth.py) ---
+    # --- Sign-in page ---
+    # Hiding the username/password form only makes sense with another way in;
+    # /login?local=1 always shows it regardless (see routers/auth.py).
+    "auth_show_local_form": "1",
+    # --- LDAP sign-in before 2.0 ---
+    # Read once by ldap_auth.migrate_legacy_settings, which moves them onto the
+    # chosen LdapProfile. Nothing else reads them any more; drop them in 2.1.
     "auth_ldap_enabled": "0",
     "auth_ldap_profile_id": "",
     # search: find the account with the service credentials, then bind as its DN
@@ -63,7 +69,7 @@ SMTP_KEYS = [
     "add_unsubscribe_header",
 ]
 
-AUTH_KEYS = [key for key in DEFAULTS if key.startswith("auth_")]
+LEGACY_LDAP_AUTH_KEYS = [key for key in DEFAULTS if key.startswith("auth_ldap_")]
 
 
 @dataclass

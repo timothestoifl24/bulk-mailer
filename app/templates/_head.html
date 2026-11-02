@@ -3,9 +3,17 @@
 <meta name="referrer" content="same-origin">
 {# The <title> lives in the layouts: a block inside an include cannot be
    overridden by the child template. #}
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>&#9993;</text></svg>">
+<link rel="icon" href="/static/brand/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/static/brand/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/static/brand/apple-touch-icon.png">
+<link rel="manifest" href="/static/brand/site.webmanifest">
+<meta name="theme-color" content="#4F46E5">
+{# ?v= makes browsers fetch our own CSS/JS again after an upgrade instead of
+   running a cached copy from the previous version. #}
+<link rel="stylesheet" href="/static/fonts.css?v={{ version }}">
 <link rel="stylesheet" href="/static/vendor/tabler/tabler.min.css">
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+<link rel="stylesheet" href="/static/style.css?v={{ version }}">
 <script>
   // Applied before first paint so the page never flashes the wrong theme.
   (function () {

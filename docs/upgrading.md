@@ -18,24 +18,12 @@ docker pull docker.io/timothestoifl24/bulk-mailer:1.4.0
 ```
 
 On Kubernetes, change `newTag` in `deploy/kubernetes/base/kustomization.yaml`
-and apply again — see [Kubernetes](/kubernetes#upgrading).
+and apply again — see [Kubernetes](/setup/kubernetes#upgrading).
 
 ::: info Image tags have no `v`
 The git tag is `v1.4.0`; the image is published as `1.4.0`. `1.4` follows
 the latest patch in that minor series, and `latest` follows the newest
 non-prerelease.
-:::
-
-::: warning The image moved to Docker Hub
-Images used to be published as `ghcr.io/timothestoifl24/bulk-mailer`. New
-releases go only to `docker.io/timothestoifl24/bulk-mailer` — every earlier
-tag was copied there too — so change the `image:` line in your
-`compose.yaml` once, or `pull` keeps fetching the last GHCR release.
-
-On Kubernetes, change the image name in **both** `base/deployment.yaml` and
-`images[].name` in `base/kustomization.yaml`. Kustomize only applies
-`newTag` to an image whose name matches, so changing just one leaves the
-deployment on the untagged GHCR image.
 :::
 
 ## What happens to your database
@@ -68,7 +56,7 @@ migration step is deliberately narrow, but "narrow" is not "cannot go wrong".
 | --- | --- |
 | **Patch** (`1.4.0 → 1.4.1`) | Fixes. Nothing to do but pull. |
 | **Minor** (`1.3.0 → 1.4.0`) | New capability. Read the entry — a minor release can add behaviour that acts on its own, such as directory list sync. |
-| **Major** | A breaking change. Read the entry properly. |
+| **Major** (`1.3.0 → 2.0.0`) | A breaking change. Read the entry properly. |
 | A `-` suffix | Pre-release (`1.0.0-beta`, `1.0.0-rc1`). `latest` never points at one. |
 
 The running version is in the page footer, and at `/healthz`:

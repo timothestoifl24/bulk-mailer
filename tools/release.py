@@ -1,21 +1,22 @@
-"""Prepare a release: fold the Unreleased notes into a dated section, bump the
-version, commit and tag.
+"""Prepare a release: fold the Unreleased notes into a dated section, set the
+version and commit. Run it on a branch off develop.
 
     python tools/release.py 1.1.2
     python tools/release.py 1.1.2 --dry-run     # show the result, change nothing
     python tools/release.py 1.1.2 --allow-empty # no notes written yet, do it anyway
 
 Why a script and not a CI job: the changelog entry belongs in the commit the
-tag points at. Generated afterwards, it lands in a *child* of the tag, so
-anyone reading the release's source sees a changelog one version short - and
-CI needs write access to the default branch to put it there, which means a
-token that can push to `main`. Doing it here instead makes each tag
-self-describing and leaves CI with nothing to write: the `verify` job in
-.github/workflows/docker-publish.yml only checks the work was done.
+release tag points at. Generated afterwards, it lands in a *child* of the tag,
+so anyone reading the release's source sees a changelog one version short.
 
-Nothing is pushed. The script stops after committing and tagging locally and
-prints the two push commands, because publishing is the irreversible step and
-should be a deliberate one.
+The tag itself is not made here. Once this commit reaches main (pull request
+into develop, then develop into main), .github/workflows/docker.yml sees the
+new __version__, checks CHANGELOG.md has its dated section, and tags, publishes
+and releases that exact commit.
+
+Nothing is pushed: the script stops after committing locally and prints the
+next steps, because publishing is the irreversible step and should be a
+deliberate one.
 """
 
 from __future__ import annotations
@@ -35,13 +36,9 @@ VERSION_FILE = ROOT / "app" / "__init__.py"
 # Used to build the link definitions at the foot of the changelog.
 GITHUB_REPO = "timothestoifl24/bulk-mailer"
 
-# Same shape the pipeline treats as a release: a leading "v", and a "-" suffix
-# marks a pre-release (no :latest, flagged as pre-release on GitHub).
-SEMVER = re.compile(
-    r"^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)"
-    r"(?:-(?P<pre>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)"
-    r"(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?$"
-)
+# Plain MAJOR.MINOR.PATCH: pre-releases (X.Y.Z-beta.N) are cut by CI from
+# every push to develop, never by hand.
+SEMVER = re.compile(r"^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)$")
 
 UNRELEASED = "## [Unreleased]"
 
@@ -69,8 +66,8 @@ def normalise_version(raw: str) -> tuple[str, str]:
     version = raw[1:] if raw.startswith("v") else raw
     if not SEMVER.match(version):
         raise ReleaseError(
-            f"{raw!r} is not a semantic version. Expected MAJOR.MINOR.PATCH, "
-            "optionally with a pre-release suffix (1.2.0, 1.2.0-rc1)."
+            f"{raw!r} is not a release version. Expected MAJOR.MINOR.PATCH "
+            "(1.2.0); betas are published by CI from develop."
         )
     return version, f"v{version}"
 
@@ -87,8 +84,7 @@ def check_clean_tree() -> None:
 def check_tag_is_free(tag: str) -> None:
     if git("tag", "--list", tag):
         raise ReleaseError(
-            f"Tag {tag} already exists locally. Pick the next version, or "
-            f"delete it with: git tag -d {tag}"
+            f"{tag} is already released (the tag exists). Pick the next version."
         )
 
 
@@ -180,7 +176,6 @@ def main() -> int:
     parser.add_argument("version", help="the version to release, e.g. 1.1.2 or v1.1.2")
     parser.add_argument("--dry-run", action="store_true", help="print the result, change nothing")
     parser.add_argument("--allow-empty", action="store_true", help="release even with no Unreleased notes")
-    parser.add_argument("--no-tag", action="store_true", help="make the commit but do not tag it")
     args = parser.parse_args()
 
     # The changelog is UTF-8 and gets echoed back by --dry-run. A legacy
@@ -203,11 +198,6 @@ def main() -> int:
             raise ReleaseError(f"CHANGELOG.md already has a section for {tag}.")
 
         today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
-        # Read the notes from the file as it stands: after build_changelog they
-        # have moved into the new section and [Unreleased] is empty again, so
-        # reading them back out afterwards yields nothing.
-        _, pending, _ = split_unreleased(text)
-        notes = pending.strip()
         updated = build_changelog(text, tag, today, args.allow_empty)
 
         if args.dry_run:
@@ -219,7 +209,7 @@ def main() -> int:
             )
             sys.stdout.writelines(diff)
             print(f'\napp/__init__.py: __version__ = "{version}"')
-            print("\n(dry run: nothing was written, nothing was tagged)")
+            print("\n(dry run: nothing was written)")
             return 0
 
         CHANGELOG.write_text(updated, encoding="utf-8")
@@ -228,22 +218,13 @@ def main() -> int:
         git("add", "CHANGELOG.md", str(VERSION_FILE.relative_to(ROOT)).replace("\\", "/"))
         git("commit", "-m", f"Release {tag}")
 
-        if not args.no_tag:
-            # The notes become the tag message too, so `git show v1.2.0` and
-            # anything reading the tag object carry them without going to the
-            # changelog. Signed automatically when tag.gpgsign is set.
-            message = f"{tag}\n\n{notes}\n" if notes else f"{tag}\n"
-            # --cleanup=verbatim because git tag defaults to "strip", which
-            # discards lines beginning with "#" as commentary - and Keep a
-            # Changelog groups notes under "### Added" / "### Fixed", so every
-            # one of those headings would silently vanish from the tag message.
-            git("tag", "-a", "--cleanup=verbatim", tag, "-m", message)
-
-        print(f"Prepared {tag} on {git('rev-parse', '--short', 'HEAD')}.")
+        branch = git("rev-parse", "--abbrev-ref", "HEAD")
+        print(f"Prepared {tag} on {git('rev-parse', '--short', 'HEAD')} ({branch}).")
         print("\nNothing has been pushed. To publish:\n")
-        print("    git push origin main")
-        if not args.no_tag:
-            print(f"    git push origin {tag}")
+        print(f"    git push -u origin {branch}")
+        print("    1. merge that pull request into develop")
+        print("    2. open a pull request develop -> main and merge it with a merge commit")
+        print(f"\nCI then tags {tag}, publishes the image and creates the release.")
         return 0
 
     except ReleaseError as exc:

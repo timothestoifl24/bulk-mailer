@@ -4,17 +4,100 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project uses
 [Semantic Versioning](https://semver.org/) (`vMAJOR.MINOR.PATCH` tags).
 
-Write anything worth calling out under `## [Unreleased]` as you go, from the
-reader's point of view — what they can now do, or what stopped being broken.
-`tools/release.py` folds those notes into a dated section when you cut a
-release, so the entry is part of the commit the tag points at rather than a
-commit that comes after it. CI only checks the entry is there.
+This file is written by the maintainer when releasing, from the pull
+requests that went in; contributors don't edit it. `tools/release.py` folds
+the notes under `## [Unreleased]` into a dated section, so the entry is part of
+the commit the release tag points at; CI refuses to release from `main`
+without it. See [RELEASING.md](https://github.com/timothestoifl24/bulk-mailer/blob/develop/RELEASING.md).
 
 `v1.0.0-beta` and `v1.0.1-beta` are not linked below: they were tagged
 against an earlier incarnation of the GitHub repository and their release
 pages no longer exist.
 
 ## [Unreleased]
+
+## [v2.0.0] - 2026-11-02
+
+### Added
+- **First-run setup**: a new installation opens a setup page where you create
+  the first administrator, instead of reading `ADMIN_USERNAME` /
+  `ADMIN_PASSWORD` from the environment. Until it is done, every page leads
+  there and each start logs a reminder.
+- That **initial administrator** cannot be deleted, disabled or demoted, so
+  there is always a way in. `python -m app.cli reset-initial-admin` gives it a
+  new password and restores its access.
+- **Single sign-on with OpenID Connect** (Microsoft Entra ID, Keycloak,
+  Google, Authentik and others): add a provider, register the callback URL it
+  shows, and a "Sign in with …" button appears on the sign-in page. An
+  optional administrator group grants admin rights. Once it works, the
+  username and password form can be hidden; `/login?local=1` and
+  `python -m app.cli disable-sso` are the way back.
+- An **Authentication** page (admin only) for every way people sign in: LDAP /
+  Active Directory directories and OpenID Connect providers, each with its own
+  settings, *Test connection*, and the number of people using it. Several
+  directories can be used for sign-in at once.
+- An **Import** wizard for recipients: choose a file, pasted addresses or the
+  directory, then review before anything is written — the columns it
+  recognised (change any that are wrong), how many people are new, updated or
+  skipped, and which list they go into.
+- A **System** page (admin only): a read-only summary of how the instance is
+  set up — version, database, sign-in, background workers and every setting —
+  with where each value comes from (saved in the app, the environment, or the
+  default) and a list of what needs attention, such as an `SMTP_*` variable
+  that is being ignored or a placeholder `SECRET_KEY`. **Copy as text** gives
+  a summary without secrets for a support ticket.
+- Members can now import from a directory too, but only from ones an
+  administrator switched on with *Use for recipient import* — without seeing
+  the server or service account.
+- Pre-release images for trying what is coming next: every change merged into
+  `develop` is published as `timothestoifl24/bulk-mailer:X.Y.Z-beta.N` (and
+  `:beta` for the newest), with a GitHub pre-release. `latest` and the
+  `X.Y.Z` / `X.Y` / `X` tags still only move on a stable release.
+- Development documentation for the upcoming release at
+  [bulkmailer.timothestoifl24.dev/dev](https://bulkmailer.timothestoifl24.dev/dev/), next to the
+  docs for the current release.
+- A new look for 2.0: a grouped sidebar (Audience, Content, Admin), the Inter
+  typeface, Font Awesome icons throughout, and an indigo colour scheme in both
+  light and dark mode. Fonts and icons ship with the app, so it still works on
+  a network with no internet access.
+- A new logo, used for the favicon, the home-screen icon and the header.
+- A "Getting started" checklist on the dashboard that ticks itself off as you
+  connect a mail server, add recipients, create a list, write a template and
+  send your first campaign.
+- A progress tracker on every campaign: write the message, choose who gets it,
+  preview and test, send, done.
+- Small (?) tips next to settings that are easy to get wrong (SMTP, LDAP,
+  sending speed, placeholders), with links to the guide.
+
+### Changed
+- `ADMIN_USERNAME` and `ADMIN_PASSWORD` are no longer used; remove them from
+  your environment, compose file or Kubernetes secret. Existing accounts are
+  unaffected: on upgrade, the oldest local administrator becomes the initial
+  administrator. `create-admin` now only adds further administrators.
+- Recipients and lists are one *Audience* page with two tabs and a single
+  **Import** button. Filters apply as you pick them, and the bulk actions
+  appear in a bar at the bottom once people are selected.
+- The *Users* page lists every account with how it signs in, can be searched
+  and filtered, and edits accounts in a dialog. LDAP sign-in settings moved
+  to the LDAP provider on the *Authentication* page; upgrading moves them
+  there automatically.
+- *Settings* is now **Email delivery** (`/settings/email`), since mail is all
+  it holds. Old `/settings` links lead there.
+- The *LDAP* page is gone: connections live on *Authentication*, directory
+  imports in the Import wizard, and the sync interval on the *Lists* tab. Old
+  `/ldap` links lead to the new place.
+- Confirmations before sending, stopping or deleting now open a clear dialog
+  that says who is affected, instead of the browser's plain pop-up. A dry run
+  goes ahead without asking, since it sends nothing.
+- Friendlier wording across the app: page headings, empty pages, buttons and
+  most messages now say what happened and what to do next.
+- Statuses show an icon as well as a colour, so they can be told apart at a
+  glance and without relying on colour.
+
+### Fixed
+- After an upgrade, browsers no longer keep running the previous version's
+  stylesheet and scripts from cache.
+- `/favicon.ico` now serves the app's icon instead of a 404.
 
 ## [v1.5.1] - 2026-09-28
 
@@ -32,7 +115,7 @@ pages no longer exist.
   one pod on SQLite, or an overlay adding PostgreSQL that can be scaled to
   several replicas. Both run under the *restricted* Pod Security Standard.
   The walkthrough - install, Ingress, upgrades, backups, scaling out - is at
-  [bulkmailer.stoifl.app/kubernetes](https://bulkmailer.stoifl.app/kubernetes).
+  [bulkmailer.timothestoifl24.dev/kubernetes](https://bulkmailer.timothestoifl24.dev/kubernetes).
 
 ### Fixed
 - Two instances on the same PostgreSQL database could send the same campaign
@@ -63,7 +146,7 @@ pages no longer exist.
   content, nothing loaded off-origin — and `npm audit` reports zero.
 
 ### Added
-- A documentation site at [bulkmailer.stoifl.app](https://bulkmailer.stoifl.app):
+- A documentation site at [bulkmailer.timothestoifl24.dev](https://bulkmailer.timothestoifl24.dev):
   a guide, every screen in screenshots, setup, advanced configuration,
   upgrading notes, an FAQ and the contributing guide. Built from `docs/` with
   VitePress and published by GitHub Actions on every change.
@@ -148,7 +231,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v2.0.0...HEAD
+[v2.0.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v2.0.0
 [v1.5.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.0
 [v1.4.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.4.1

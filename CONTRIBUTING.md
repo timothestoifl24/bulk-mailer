@@ -6,6 +6,10 @@ issue first to agree on the approach will save you a rewrite.
 
 Found a security issue? Do not open a public issue — see [SECURITY.md](SECURITY.md).
 
+**Please read these guidelines before you open a pull request.** Every pull
+request confirms that you've read and accept them (see
+[Accepting these guidelines](#accepting-these-guidelines)).
+
 ## Development setup
 
 ```bash
@@ -30,7 +34,7 @@ row locking, so it can't catch a bug in the multi-instance send-locking, for
 instance:
 
 ```bash
-podman run -d --name mailer-test-pg -e POSTGRES_USER=mailer -e POSTGRES_PASSWORD=mailer_ci_pw -e POSTGRES_DB=mailer_test -p 5432:5432 docker.io/library/postgres:17-alpine
+docker run -d --name mailer-test-pg -e POSTGRES_USER=mailer -e POSTGRES_PASSWORD=mailer_ci_pw -e POSTGRES_DB=mailer_test -p 5432:5432 docker.io/library/postgres:17-alpine
 TEST_DATABASE_URL=postgresql+psycopg://mailer:mailer_ci_pw@127.0.0.1:5432/mailer_test python -m pytest -q
 ```
 
@@ -42,8 +46,8 @@ If you're changing the container image, rebuild and smoke-test it before
 opening a PR:
 
 ```bash
-podman build --format docker -t bulk-mailer .
-podman run --rm -e SECRET_KEY=test-key-at-least-32-characters-long -e ADMIN_PASSWORD=test bulk-mailer python -m app.cli list-users
+docker build -t bulk-mailer .
+docker run --rm -e SECRET_KEY=test-key-at-least-32-characters-long bulk-mailer python -m app.cli list-users
 ```
 
 ## Code style
@@ -67,18 +71,9 @@ A few conventions worth keeping:
 A clear, imperative subject line (`Add LDAP group caching`, not `fixed
 stuff`), with the body explaining *why* where that isn't obvious.
 
-Commit subjects are not the changelog. If a change is worth telling users
-about, add a line under `## [Unreleased]` in [`CHANGELOG.md`](CHANGELOG.md)
-in the same commit, written for someone deciding whether to upgrade:
-
-```markdown
-## [Unreleased]
-
-### Fixed
-- Bulk actions on recipients applied to only the 50 rows on the current page.
-```
-
-Not every commit needs one — a refactor with no visible effect doesn't.
+Don't edit `CHANGELOG.md`: the maintainer writes it when releasing, from
+the pull request titles and descriptions. A clear title and description (see
+below) is all a change needs to make it into the release notes.
 
 ## Before opening a pull request
 
@@ -92,41 +87,71 @@ Not every commit needs one — a refactor with no visible effect doesn't.
 - [ ] No secrets, `.env`, or local database files are staged
       (`git status` before committing catches this).
 
+## Describing your pull request
+
+Pull requests go to `develop`. The **title** says what changed, written for
+someone running Bulk Mailer (`Fix bulk actions applying to only the current
+page`, not `Update recipients.py`): it appears as is in the GitHub release
+notes. The **description** says what users will notice and why the change is
+needed; the maintainer writes the changelog from it.
+
+The pull request template also asks two short questions; tick every box that
+applies:
+
+- **Type of change** (at least one): bug fix, new feature, breaking change,
+  documentation, refactoring, API changes, performance, tests.
+- **AI usage:** whether AI was used to write or to review the change. Leave
+  both empty if it wasn't. Using AI is fine; reviews just take it into account.
+
+The pull request is **labelled automatically** from these boxes (`bug`,
+`enhancement`, `breaking-change`, …, `ai-written`, `ai-reviewed`), and the
+labels follow when you change the boxes later. They sort the change into the
+right section of the GitHub release notes, so pick **Breaking change** for
+anything that needs action when upgrading.
+
+Other labels are added for you: `area: …` and `chore` from the files you
+change, `security` from a `security/…` branch or a title that mentions
+security or a CVE, and `hotfix` / `release` from the branch.
+
+## Trying your pull request's image
+
+Every pull request into `develop` from a branch of this repository gets its
+own container image, `docker.io/timothestoifl24/bulk-mailer:develop-pr-N` (N
+is the pull request number). A comment on the pull request shows how to pull
+it. Each push rebuilds it and replaces the previous one: the comment is
+removed when the new build starts and posted again once its image is
+published, so it always describes the current image. The image is deleted
+when the pull request is merged or closed. Pull requests from forks are
+built and tested, but get no published image.
+
+A pull request that only changes documentation (`docs/`, `screenshots/`,
+`assets/`, Markdown files, the docs' `package.json`) skips the tests and the
+image build entirely, and gets no image; the docs check builds the site
+instead. The same goes for a push to `develop` that only changes
+documentation: it publishes no beta. Pull requests into `main` and pushes to
+`main` always run everything.
+
+## Accepting these guidelines
+
+The pull request template ends with this checkbox:
+
+> - [x] I have read and accept the contributing guidelines, including that my contribution is licensed under the MIT License.
+
+Tick it when you open the pull request, together with at least one **Type of
+change**. The **Guidelines accepted** check stays red, and the pull request
+can't be merged, until both are done; editing the description re-runs the
+check.
+
+By ticking it, you confirm that:
+
+1. you have read these guidelines and will follow them;
+2. your contribution is your own work, or you have the right to submit it,
+   and any third-party code in it is identified together with its license;
+3. your contribution is licensed under the project's [MIT License](LICENSE), the same
+   license everyone else receives Bulk Mailer under. You keep the copyright in
+   your work.
+
 ## Releasing (maintainers)
 
-From a clean default branch:
-
-```bash
-python tools/release.py 1.2.0
-```
-
-That folds everything under `## [Unreleased]` into a dated `## [v1.2.0]`
-section, bumps `__version__`, then commits and tags — signed, if you have
-`tag.gpgsign` set. Add `--dry-run` first to see the diff without touching
-anything. It refuses to run on a dirty tree, on a version that isn't semver,
-on a tag that already exists, and on an empty `[Unreleased]` unless you pass
-`--allow-empty`.
-
-Nothing is pushed. Publish deliberately:
-
-```bash
-git push origin main && git push origin v1.2.0
-```
-
-The changelog goes in *before* the tag on purpose: the entry then lives in
-the commit the tag points at, so the tag describes itself and CI never needs
-write access to this repository. Pushing the tag runs
-[`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml),
-which:
-
-1. Checks `CHANGELOG.md` documents the tag and `__version__` agrees, and runs
-   the full suite on both databases. Both gate the next step, so a release
-   missing its notes or failing a test fails *before* an image exists rather
-   than after one is public.
-2. Builds the image and pushes it to Docker Hub
-   (`docker.io/timothestoifl24/bulk-mailer`).
-3. Creates a GitHub Release.
-
-Pushing needs two repository secrets (Settings → Secrets and variables →
-Actions): `DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN` — a Docker Hub personal
-access token with Read & Write scope, not the account password.
+Releases from `develop` to `main` are done by the maintainer and are mostly
+automated; see [RELEASING.md](RELEASING.md) for how.

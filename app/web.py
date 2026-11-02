@@ -6,7 +6,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from . import __version__
@@ -34,6 +34,25 @@ STATUS_COLORS = {
     "pending": "secondary",
     "skipped": "yellow",
 }
+
+# Icon names from _icons.html, shown in front of the status text so a status
+# reads at a glance and does not depend on colour alone.
+STATUS_ICONS = {
+    "draft": "pen",
+    "queued": "clock",
+    "sending": "spinner",
+    "paused": "pause",
+    "completed": "check-circle",
+    "cancelled": "ban",
+    "failed": "error",
+    "sent": "check",
+    "pending": "hourglass",
+    "skipped": "forward",
+}
+
+# Also globals, so macros imported from _ui.html can read them without the
+# importing template having to pass its context along.
+templates.env.globals.update(status_colors=STATUS_COLORS, status_icons=STATUS_ICONS)
 
 # Flash categories -> Bootstrap/Tabler alert modifiers.
 FLASH_CLASSES = {
@@ -71,14 +90,34 @@ def render(
         "user": getattr(request.state, "user", None),
         "flashes": pop_flashes(request),
         "status_colors": STATUS_COLORS,
+        "status_icons": STATUS_ICONS,
         "flash_classes": FLASH_CLASSES,
         "app_debug": settings.debug,
         "current_path": request.url.path,
+        # Set by app.js when it loads a form into the shared modal; such
+        # templates then render just the modal content (see _modal.html).
+        "partial": is_partial(request),
         "version": __version__,
         "source_url": SOURCE_URL,
         **(context or {}),
     }
     return templates.TemplateResponse(request, template_name, payload, status_code=status_code)
+
+
+def is_partial(request: Request) -> bool:
+    return request.headers.get("x-partial") == "1"
+
+
+def done(request: Request, url: str) -> Response:
+    """Finish a form that may have been posted from the shared modal.
+
+    A plain 303 would be followed by fetch() itself, swallowing the flash
+    message meant for the page the browser lands on. For the modal, name the
+    target in a header instead and let app.js navigate there.
+    """
+    if is_partial(request):
+        return Response(status_code=204, headers={"X-Redirect": safe_path(url)})
+    return redirect(url)
 
 
 def safe_path(url: str | None, fallback: str = "/") -> str:

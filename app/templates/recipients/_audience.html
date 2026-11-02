@@ -1,0 +1,40 @@
+{#
+  The shared top of the Audience area: one page with a Recipients and a Lists
+  tab, and the actions that apply to both - above all the single Import.
+      {% from "recipients/_audience.html" import audience_header %}
+      {% call audience_header('recipients', counts, import_href) %}...extra buttons...{% endcall %}
+#}
+{% from "_icons.html" import icon %}
+
+{% macro audience_header(active, counts, import_href='/recipients/import') -%}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row g-2 align-items-center">
+      <div class="col-12 col-md">
+        <div class="page-pretitle">The people you send to, and how they are grouped</div>
+        <h2 class="page-title"><span class="page-title-icon">{{ icon('users') }}</span> Audience</h2>
+      </div>
+      <div class="col-12 col-md-auto ms-md-auto d-print-none">
+        <div class="btn-list">
+          {% if caller %}{{ caller() }}{% endif %}
+          <a class="btn btn-primary" href="{{ import_href }}">{{ icon('import') }} Import</a>
+        </div>
+      </div>
+    </div>
+    <ul class="nav nav-tabs audience-tabs mt-3" role="tablist">
+      <li class="nav-item">
+        <a class="nav-link{{ ' active' if active == 'recipients' }}" href="/recipients"{% if active == 'recipients' %} aria-current="page"{% endif %}>
+          {{ icon('user') }} Recipients <span class="badge bg-secondary-lt ms-1">{{ "{:,}".format(counts.recipients) }}</span>
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link{{ ' active' if active == 'lists' }}" href="/lists"{% if active == 'lists' %} aria-current="page"{% endif %}>
+          {{ icon('list') }} Lists <span class="badge bg-secondary-lt ms-1">{{ "{:,}".format(counts.lists) }}</span>
+        </a>
+      </li>
+    </ul>
+  </div>
+</div>
+{%- endmacro %}
+
+{% set source_labels = {'manual': ('pen', 'By hand'), 'csv': ('file-csv', 'File'), 'ldap': ('server', 'Directory')} %}
