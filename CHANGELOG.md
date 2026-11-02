@@ -16,6 +16,8 @@ pages no longer exist.
 
 ## [Unreleased]
 
+## [v2.0.0] - 2026-11-02
+
 ### Added
 - **First-run setup**: a new installation opens a setup page where you create
   the first administrator, instead of reading `ADMIN_USERNAME` /
@@ -229,7 +231,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v2.0.0...HEAD
+[v2.0.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v2.0.0
 [v1.5.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.0
 [v1.4.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.4.1
