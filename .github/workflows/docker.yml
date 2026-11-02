@@ -11,7 +11,7 @@ name: Container image
 # Documentation-only changes on develop and in pull requests (not into main) skip the tests, the
 #   build and any image or beta; docs.yml covers them. Matrix jobs still start and skip their
 #   steps, so required checks such as "Build linux/amd64" report under their real names.
-# See .github/scripts/release_version.py for the rules, and CONTRIBUTING.md for how to release.
+# See .github/scripts/release_version.py for the rules, and RELEASING.md for how to release.
 #
 # Every run goes through tests.yml first - the suite on both databases and the image booted on
 # both architectures - so an image that fails either never reaches Docker Hub.
