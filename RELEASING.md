@@ -1,8 +1,10 @@
 # Releasing Bulk Mailer
 
-Notes for the maintainer. Contributors don't need any of this: their pull
-requests go to `develop`, and the labels from the pull request template sort
-them into the release notes.
+Notes for the maintainer. Contributors don't need any of this, and they don't
+edit `CHANGELOG.md` either: their pull requests go to `develop` with a clear
+title and description, the labels from the pull request template sort them
+into the release notes, and the maintainer writes the changelog when
+releasing.
 
 ## How it fits together
 
@@ -39,7 +41,16 @@ The docs are built from both branches: `main` at
 
 ## Cutting a release
 
-1. On a branch off `develop`, run
+1. On a branch off `develop`, write the changelog: under `## [Unreleased]` in
+   `CHANGELOG.md`, sum up the pull requests merged since the last release (see
+   [Changelog and release notes](#changelog-and-release-notes)). To list them:
+
+   ```bash
+   gh pr list --base develop --state merged --limit 100 \
+     --search "merged:>=2026-09-28" --json number,title,labels
+   ```
+
+   with the date of the last release. Commit it, then run
 
    ```bash
    python tools/release.py 1.6.0 --dry-run   # show the changes, touch nothing
@@ -71,8 +82,10 @@ The docs are built from both branches: `main` at
 
 A fix that can't wait for the next release:
 
-1. Branch from `main` as `hotfix/…`, make the fix, and add its line under
-   `## [Unreleased]` in `CHANGELOG.md`.
+1. Branch from `main` as `hotfix/…`, make the fix, and add a line for it
+   under `## [Unreleased]` in `CHANGELOG.md` (hotfixes are made by the
+   maintainer, so this is the one time the changelog is written alongside the
+   change).
 2. Run `python tools/release.py X.Y.Z+1` to bump the patch version.
 3. Open a pull request into `main` and merge it; CI releases it as above.
 4. Merge `main` back into `develop`, so the fix and its changelog entry are
@@ -82,18 +95,22 @@ A fix that can't wait for the next release:
 ## Changelog and release notes
 
 [`CHANGELOG.md`](CHANGELOG.md) follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Notes for the
-upcoming version collect under `## [Unreleased]`, grouped as **Added**,
-**Changed**, **Deprecated**, **Removed**, **Fixed** and **Security**, and are
-written for people who run Bulk Mailer: what they can now do, or what stopped
-being broken. Call out anything that needs action when upgrading.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and is written only by
+the maintainer, once per release, from the titles and descriptions of the pull
+requests that went in. Group the notes as **Added**, **Changed**,
+**Deprecated**, **Removed**, **Fixed** and **Security**, and write them for
+people who run Bulk Mailer: what they can now do, or what stopped being
+broken. Several pull requests can become one line, and internal changes
+(refactoring, CI, tests) usually need none. Call out anything that needs
+action when upgrading; the `breaking-change` label marks those pull requests.
 
 - **Release notes:** a release's notes start with the pull command for its
-  image and its section of `CHANGELOG.md`. Every beta shows the `[Unreleased]`
-  notes collected so far. GitHub's list of merged pull requests follows,
-  grouped by their labels as configured in
-  [`.github/release.yml`](.github/release.yml); it helps when writing the
-  changelog entries.
+  image and its section of `CHANGELOG.md`. GitHub's list of merged pull
+  requests follows, by title and grouped by their labels as configured in
+  [`.github/release.yml`](.github/release.yml).
+- **Betas:** `[Unreleased]` is usually empty between releases, so a beta's
+  notes say there is no changelog entry yet and rely on that list of pull
+  requests. The beta build only warns about it.
 - **Upgrade notes:** anything beyond the changelog, such as a manual step or a
   changed default, goes into
   [`docs/upgrading.md`](docs/upgrading.md) as well.
