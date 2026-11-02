@@ -25,7 +25,7 @@ python run.py
 
 The full setup, including running the whole stack in containers and a
 throwaway SMTP sink so nothing reaches real addresses while you work, is in
-[Setup](/setup).
+[Setup](/setup/).
 
 ## Running the tests
 

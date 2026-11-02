@@ -103,7 +103,7 @@ kubectl apply -k deploy/kubernetes/base
 ```
 
 The whole walkthrough — PostgreSQL, Ingress, upgrades, backups, scaling out —
-is on its own page: [Kubernetes](/kubernetes).
+is on its own page: [Kubernetes](/setup/kubernetes).
 
 ## From source
 

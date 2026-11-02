@@ -174,7 +174,7 @@ network.
 ### Can I run it on Kubernetes?
 
 Yes — kustomize manifests ship in `deploy/kubernetes/`, for one pod on SQLite
-or for PostgreSQL with several replicas. See [Kubernetes](/kubernetes).
+or for PostgreSQL with several replicas. See [Kubernetes](/setup/kubernetes).
 
 ### Is there an API?
 
