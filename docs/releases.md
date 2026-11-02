@@ -37,8 +37,9 @@ Before moving to a new minor or major version, read [Upgrading](/upgrading).
 
 ## Beta: preview of the next release
 
-Built from the `develop` branch on every change, so it has the newest features
-before they are released. Each beta is a
+Built from the `develop` branch on every change to the application, so it has
+the newest features before they are released. A change that only touches the
+documentation publishes no beta. Each beta is a
 [pre-release on GitHub](https://github.com/timothestoifl24/bulk-mailer/releases).
 
 | Tag | Points to |
@@ -55,7 +56,12 @@ The documentation for `develop` is published alongside them, at
 
 ## Pull request images
 
-Every pull request into `develop` from this repository gets its own image,
-`develop-pr-N` (N is the pull request number), so a change can be tried before
-it is merged. A comment on the pull request shows how to pull it. The image is
-replaced on every push and deleted when the pull request is merged or closed.
+A pull request into `develop` from a branch of this repository gets its own
+image, `develop-pr-N` (N is the pull request number), so a change can be tried
+before it is merged. A comment on the pull request shows how to pull it. The
+image is replaced on every push and deleted when the pull request is merged or
+closed.
+
+No image is built for pull requests from forks or Dependabot, or for pull
+requests that only change documentation; if there is no comment, there is no
+image to pull.
