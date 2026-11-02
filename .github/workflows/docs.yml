@@ -26,6 +26,8 @@ on:
       - "package-lock.json"
       - "screenshots/**"
       - "assets/**"
+      - "CHANGELOG.md" # included by docs/changelog.md
+      - "SECURITY.md" # included by docs/security.md
       - ".github/workflows/docs.yml"
   pull_request:
     paths:
@@ -34,6 +36,8 @@ on:
       - "package-lock.json"
       - "screenshots/**"
       - "assets/**"
+      - "CHANGELOG.md" # included by docs/changelog.md
+      - "SECURITY.md" # included by docs/security.md
       - ".github/workflows/docs.yml"
   workflow_dispatch: {}
 

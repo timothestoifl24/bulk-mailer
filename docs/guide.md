@@ -23,7 +23,7 @@ answers; a test send proves it will actually accept and relay your mail.
 
 ::: tip No mail server to hand?
 A throwaway SMTP sink ships with the source. See
-[Try it without a mail server](/setup/#try-it-without-a-mail-server) —
+[Try it without a mail server](/setup/docker#try-it-without-a-mail-server) —
 messages get written to disk instead of delivered.
 :::
 

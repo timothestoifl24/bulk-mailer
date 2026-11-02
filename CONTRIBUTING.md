@@ -34,7 +34,7 @@ row locking, so it can't catch a bug in the multi-instance send-locking, for
 instance:
 
 ```bash
-podman run -d --name mailer-test-pg -e POSTGRES_USER=mailer -e POSTGRES_PASSWORD=mailer_ci_pw -e POSTGRES_DB=mailer_test -p 5432:5432 docker.io/library/postgres:17-alpine
+docker run -d --name mailer-test-pg -e POSTGRES_USER=mailer -e POSTGRES_PASSWORD=mailer_ci_pw -e POSTGRES_DB=mailer_test -p 5432:5432 docker.io/library/postgres:17-alpine
 TEST_DATABASE_URL=postgresql+psycopg://mailer:mailer_ci_pw@127.0.0.1:5432/mailer_test python -m pytest -q
 ```
 
@@ -46,8 +46,8 @@ If you're changing the container image, rebuild and smoke-test it before
 opening a PR:
 
 ```bash
-podman build --format docker -t bulk-mailer .
-podman run --rm -e SECRET_KEY=test-key-at-least-32-characters-long bulk-mailer python -m app.cli list-users
+docker build -t bulk-mailer .
+docker run --rm -e SECRET_KEY=test-key-at-least-32-characters-long bulk-mailer python -m app.cli list-users
 ```
 
 ## Code style

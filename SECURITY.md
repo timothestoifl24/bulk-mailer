@@ -70,6 +70,7 @@ in it is especially useful.
 
 Not vulnerabilities in the code, but worth knowing before exposing an
 instance to anyone beyond yourself — see
-[Deployment notes](README.md#deployment-notes) in the README for the full
-list (TLS termination, `SECRET_KEY` rotation, running more than one instance
-safely, and so on).
+[Before you expose it](https://bulkmailer.timothestoifl24.dev/setup/#before-you-expose-it)
+and [Deployment](https://bulkmailer.timothestoifl24.dev/advanced-config#deployment)
+in the documentation (TLS termination, `SECRET_KEY` rotation, running more
+than one instance safely, and so on).

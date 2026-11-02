@@ -50,9 +50,11 @@ docker run -d -p 8000:8000 \
   docker.io/timothestoifl24/bulk-mailer:latest
 ```
 
-Open <http://127.0.0.1:8000> and sign in as `admin`. The full walkthrough,
-including a Compose stack with PostgreSQL, is in [Setup](/setup/); for a
-cluster, see [Kubernetes](/setup/kubernetes).
+Open <http://127.0.0.1:8000> and create the first administrator; see
+[Initial setup](/setup/#initial-setup). The full walkthrough, including a
+Compose stack with PostgreSQL and Podman, is in
+[Docker and Podman](/setup/docker); for a cluster, see
+[Kubernetes](/setup/kubernetes).
 
 ## What it is
 
@@ -80,12 +82,16 @@ The unsubscribe link is in the default template for a reason — keep it.
 | --- | --- |
 | [Guide](/guide) | A first campaign, start to finish |
 | [Screenshots](/screenshots) | Every screen, before you install anything |
-| [Setup](/setup/) | Docker, Compose, or from source |
+| [Docker and Podman](/setup/docker) | The container image, Compose, the full stack |
 | [Kubernetes](/setup/kubernetes) | Ready-made manifests, from one pod to several replicas |
+| [From source](/setup/from-source) | Python 3.13 from a checkout, without containers |
+| [Initial setup](/setup/#initial-setup) | The first administrator, and what to do before exposing it |
 | [Advanced config](/advanced-config) | PostgreSQL, LDAP and single sign-on, list sync, deployment |
 | [Upgrading](/upgrading) | Versioning, schema changes, what to check |
+| [Releases](/releases) | Image tags, stable and beta channels |
+| [Changelog](/changelog) | What changed in each version |
 | [FAQ](/faq) | The questions that come up |
-| [Contributing](/contributing) | Development setup, tests, releases |
+| [Contributing](/contributing) | Development setup and tests |
 
 Bug reports and questions go to
 [Issues](https://github.com/timothestoifl24/bulk-mailer/issues) and

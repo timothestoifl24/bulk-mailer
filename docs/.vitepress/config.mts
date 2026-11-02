@@ -29,6 +29,10 @@ export default defineConfig({
   // A dead internal link should fail the build in CI, not ship.
   ignoreDeadLinks: false,
 
+  // public/ is copied as is; the Markdown that mirror.mjs brings in there
+  // (assets/icons/README.md) is not a page of the site.
+  srcExclude: ["public/**"],
+
   lastUpdated: true,
 
   head: [
@@ -67,24 +71,38 @@ export default defineConfig({
     nav: [
       { text: "Guide", link: "/guide" },
       { text: "Screenshots", link: "/screenshots" },
-      { text: "Setup", link: "/setup/", activeMatch: "/setup/" },
+      {
+        text: "Setup",
+        activeMatch: "^/(setup/|advanced-config|upgrading)",
+        items: [
+          {
+            text: "Deploy",
+            items: [
+              { text: "Docker/Podman", link: "/setup/docker" },
+              { text: "Kubernetes", link: "/setup/kubernetes" },
+              { text: "From source", link: "/setup/from-source" },
+            ],
+          },
+          {
+            // No heading: these follow the Deploy group under a divider.
+            items: [
+              { text: "Advanced config", link: "/advanced-config" },
+              { text: "Upgrading", link: "/upgrading" },
+            ],
+          },
+        ],
+      },
       {
         text: "Reference",
+        activeMatch: "^/(contributing|security|changelog|releases)",
         items: [
-          { text: "Advanced config", link: "/advanced-config" },
-          { text: "Upgrading", link: "/upgrading" },
-          { text: "FAQ", link: "/faq" },
           { text: "Contributing", link: "/contributing" },
+          { text: "Security policy", link: "/security" },
+          { text: "Changelog", link: "/changelog" },
+          { text: "Releases", link: "/releases" },
         ],
       },
-      {
-        text: "Releases",
-        items: [
-          { text: "Changelog", link: `${repo}/blob/${branch}/CHANGELOG.md` },
-          { text: "All releases", link: `${repo}/releases` },
-          { text: "Container image", link: "https://hub.docker.com/r/timothestoifl24/bulk-mailer" },
-        ],
-      },
+      { text: "FAQ", link: "/faq" },
     ],
 
     sidebar: [
@@ -98,30 +116,42 @@ export default defineConfig({
       },
       {
         text: "Setup",
+        link: "/setup/",
         items: [
-          { text: "Docker and from source", link: "/setup/" },
-          { text: "Kubernetes", link: "/setup/kubernetes" },
+          {
+            text: "Deploy",
+            collapsed: false,
+            items: [
+              { text: "Docker/Podman", link: "/setup/docker" },
+              { text: "Kubernetes", link: "/setup/kubernetes" },
+              { text: "From source", link: "/setup/from-source" },
+            ],
+          },
+          { text: "Advanced config", link: "/advanced-config" },
+          { text: "Upgrading", link: "/upgrading" },
         ],
       },
       {
         text: "Reference",
         items: [
-          { text: "Advanced config", link: "/advanced-config" },
-          { text: "Upgrading", link: "/upgrading" },
-          { text: "FAQ", link: "/faq" },
-        ],
-      },
-      {
-        text: "Project",
-        items: [
           { text: "Contributing", link: "/contributing" },
-          { text: "Security policy", link: `${repo}/blob/main/SECURITY.md` },
-          { text: "Changelog", link: `${repo}/blob/${branch}/CHANGELOG.md` },
+          { text: "Security policy", link: "/security" },
+          { text: "Changelog", link: "/changelog" },
+          { text: "Releases", link: "/releases" },
         ],
       },
+      { text: "FAQ", link: "/faq" },
     ],
 
-    socialLinks: [{ icon: "github", link: repo }],
+    // Rendered after the light/dark switch, in this order: Docker Hub, then GitHub.
+    socialLinks: [
+      {
+        icon: "docker",
+        link: "https://hub.docker.com/r/timothestoifl24/bulk-mailer",
+        ariaLabel: "Bulk Mailer on Docker Hub",
+      },
+      { icon: "github", link: repo },
+    ],
 
     editLink: {
       pattern: `${repo}/edit/${branch}/docs/:path`,
