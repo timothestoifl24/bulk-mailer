@@ -127,6 +127,13 @@ published, so it always describes the current image. The image is deleted
 when the pull request is merged or closed. Pull requests from forks are
 built and tested, but get no published image.
 
+A pull request that only changes documentation (`docs/`, `screenshots/`,
+`assets/`, Markdown files, the docs' `package.json`) skips the tests and the
+image build entirely, and gets no image; the docs check builds the site
+instead. The same goes for a push to `develop` that only changes
+documentation: it publishes no beta. Pull requests into `main` and pushes to
+`main` always run everything.
+
 ## Accepting these guidelines
 
 The pull request template ends with this checkbox:

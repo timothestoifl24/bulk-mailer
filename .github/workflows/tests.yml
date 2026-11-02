@@ -12,6 +12,10 @@ on:
         description: Version the image is built as (X.Y.Z-beta.N, ...); empty for __version__
         type: string
         default: ""
+      skip:
+        description: Only documentation changed; every job reports as passed without running
+        type: boolean
+        default: false
   workflow_dispatch: {}
 
 permissions:
@@ -25,6 +29,7 @@ env:
 jobs:
   sqlite:
     name: SQLite
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -42,6 +47,7 @@ jobs:
 
   postgres:
     name: PostgreSQL
+    if: ${{ !inputs.skip }}
     runs-on: ubuntu-latest
 
     # SQLite has no row locking, so it cannot exercise the multi-instance send
@@ -108,21 +114,29 @@ jobs:
           - arch: arm64
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
+    env:
+      # A skipped matrix job reports as "Container image (${{ matrix.arch }})"; skipping the
+      # steps keeps the real check names.
+      SKIP: ${{ inputs.skip }}
     steps:
       - uses: actions/checkout@v7
+        if: env.SKIP != 'true'
 
       - name: Build
+        if: env.SKIP != 'true'
         env:
           VERSION: ${{ inputs.version }}
         run: docker build --pull --build-arg BULK_MAILER_BUILD_VERSION="$VERSION" -t bulk-mailer:ci .
 
       - name: Start
+        if: env.SKIP != 'true'
         run: |
           docker run -d --name mailer-ci -p 8000:8000 \
             -e SECRET_KEY=ci-only-key-at-least-32-characters-long \
             bulk-mailer:ci
 
       - name: Wait for it to answer
+        if: env.SKIP != 'true'
         run: |
           for _ in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:8000/healthz >/dev/null 2>&1; then
@@ -134,6 +148,7 @@ jobs:
           exit 1
 
       - name: The version it reports is the version it was built as
+        if: env.SKIP != 'true'
         env:
           VERSION: ${{ inputs.version }}
         run: |
@@ -146,8 +161,9 @@ jobs:
           test "$reported" = "$expected"
 
       - name: The CLI runs
+        if: env.SKIP != 'true'
         run: docker exec mailer-ci python -m app.cli list-users
 
       - name: Container log
-        if: always()
+        if: always() && env.SKIP != 'true'
         run: docker logs mailer-ci

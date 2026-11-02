@@ -8,6 +8,9 @@ name: Container image
 #   pull it (the comment is deleted when a rebuild starts and posted again once it is published).
 #   pr-image-cleanup.yml deletes the image when the pull request is merged or closed.
 # Other pull requests (forks, Dependabot, into main): tests and build only.
+# Documentation-only changes on develop and in pull requests (not into main) skip the tests, the
+#   build and any image or beta; docs.yml covers them. Matrix jobs still start and skip their
+#   steps, so required checks such as "Build linux/amd64" report under their real names.
 # See .github/scripts/release_version.py for the rules, and CONTRIBUTING.md for how to release.
 #
 # Every run goes through tests.yml first - the suite on both databases and the image booted on
@@ -45,6 +48,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       image_tags: ${{ steps.version.outputs.image_tags }}
+      docs_only: ${{ steps.version.outputs.docs_only }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -54,6 +58,9 @@ jobs:
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          # What changed: the whole pull request, or everything this push brought.
+          CHANGES_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          CHANGES_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
         run: python3 .github/scripts/release_version.py
       - name: Summary
         env:
@@ -61,10 +68,12 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
           PUBLISH: ${{ steps.version.outputs.publish }}
           IMAGE_TAGS: ${{ steps.version.outputs.image_tags }}
+          DOCS_ONLY: ${{ steps.version.outputs.docs_only }}
         run: |
           {
             echo "### ${CHANNEL}: ${VERSION}"
             echo "Publish: ${PUBLISH}"
+            if [ "$DOCS_ONLY" = "true" ]; then echo; echo "Only documentation changed: tests and build are skipped."; fi
             echo
             for t in $IMAGE_TAGS; do echo "- \`$t\`"; done
           } >> "$GITHUB_STEP_SUMMARY"
@@ -97,6 +106,8 @@ jobs:
     uses: ./.github/workflows/tests.yml
     with:
       version: ${{ needs.version.outputs.version }}
+      # Skipped inside tests.yml rather than here, so each check reports under its own name.
+      skip: ${{ needs.version.outputs.docs_only == 'true' }}
 
   build:
     name: Build ${{ matrix.platform }}
@@ -117,15 +128,21 @@ jobs:
       contents: read
     env:
       PUBLISH: ${{ needs.version.outputs.publish }}
+      # A skipped matrix job reports as "Build ${{ matrix.platform }}"; skipping the steps keeps
+      # the real check names.
+      SKIP: ${{ needs.version.outputs.docs_only }}
     steps:
       - name: Platform slug
+        if: env.SKIP != 'true'
         run: |
           platform=${{ matrix.platform }}
           echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v7
+        if: env.SKIP != 'true'
 
       - name: Image labels
+        if: env.SKIP != 'true'
         id: meta
         uses: docker/metadata-action@v6
         with:
@@ -137,6 +154,7 @@ jobs:
             org.opencontainers.image.version=${{ needs.version.outputs.version }}
 
       - uses: docker/setup-buildx-action@v4
+        if: env.SKIP != 'true'
 
       - name: Log in to Docker Hub
         if: env.PUBLISH == 'true'
@@ -146,6 +164,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build (and push by digest)
+        if: env.SKIP != 'true'
         id: build
         uses: docker/build-push-action@v7
         with:
