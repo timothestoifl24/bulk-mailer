@@ -42,15 +42,19 @@ The docs are built from both branches: `main` at
 ## Cutting a release
 
 1. On a branch off `develop`, write the changelog: under `## [Unreleased]` in
-   `CHANGELOG.md`, sum up the pull requests merged since the last release (see
-   [Changelog and release notes](#changelog-and-release-notes)). To list them:
+   `CHANGELOG.md`, sum up what is on `develop` but not yet on `main` (see
+   [Changelog and release notes](#changelog-and-release-notes)). To list it,
+   each pull request with its title:
 
    ```bash
-   gh pr list --base develop --state merged --limit 100 \
-     --search "merged:>=2026-09-28" --json number,title,labels
+   git fetch origin
+   git log --first-parent --format='%s%n    %b' origin/main..origin/develop
    ```
 
-   with the date of the last release. Commit it, then run
+   Comparing the branches rather than going by the last release date also
+   catches what was merged into `develop` just before a hotfix, which the
+   hotfix didn't ship. `gh pr view N` shows a pull request's description and
+   labels. Commit it, then run
 
    ```bash
    python tools/release.py 1.6.0 --dry-run   # show the changes, touch nothing
