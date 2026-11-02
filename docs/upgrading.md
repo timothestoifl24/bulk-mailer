@@ -18,7 +18,7 @@ docker pull docker.io/timothestoifl24/bulk-mailer:1.4.0
 ```
 
 On Kubernetes, change `newTag` in `deploy/kubernetes/base/kustomization.yaml`
-and apply again — see [Kubernetes](/kubernetes#upgrading).
+and apply again — see [Kubernetes](/setup/kubernetes#upgrading).
 
 ::: info Image tags have no `v`
 The git tag is `v1.4.0`; the image is published as `1.4.0`. `1.4` follows

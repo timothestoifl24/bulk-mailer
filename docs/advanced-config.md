@@ -251,4 +251,4 @@ your directory does have, for example `"department": "departmentNumber"` or
 
 Schema changes on upgrade are covered in [Upgrading](/upgrading). On
 Kubernetes, the manifests and the steps to scale out are in
-[Kubernetes](/kubernetes#more-than-one-replica).
+[Kubernetes](/setup/kubernetes#more-than-one-replica).

@@ -39,11 +39,26 @@ export default defineConfig({
     ["meta", { property: "og:image", content: `${site}/media/brand/social-preview.png` }],
     ["meta", { property: "og:url", content: `${site}${base}` }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
+    // Ko-fi "Support me" button, in the brand indigo. It draws into <body>, so wait for the page to load;
+    // offline or with Ko-fi blocked the script never arrives, and the button is simply left out.
+    ["script", { src: "https://storage.ko-fi.com/cdn/scripts/overlay-widget.js", defer: "" }],
+    [
+      "script",
+      {},
+      `window.addEventListener("load", () => typeof kofiWidgetOverlay !== "undefined" && kofiWidgetOverlay.draw("timothestoifl24", {
+        "type": "floating-chat",
+        "floating-chat.donateButton.text": "Support me",
+        "floating-chat.donateButton.background-color": "#4F46E5",
+        "floating-chat.donateButton.text-color": "#fff"
+      }))`,
+    ],
     ...devHead,
   ],
 
   sitemap: {
     hostname: `${site}${base}`,
+    // kubernetes.md only forwards the old URL to setup/kubernetes.
+    transformItems: (items) => items.filter((item) => item.url !== "kubernetes"),
   },
 
   themeConfig: {
@@ -52,8 +67,7 @@ export default defineConfig({
     nav: [
       { text: "Guide", link: "/guide" },
       { text: "Screenshots", link: "/screenshots" },
-      { text: "Setup", link: "/setup" },
-      { text: "Kubernetes", link: "/kubernetes" },
+      { text: "Setup", link: "/setup/", activeMatch: "/setup/" },
       {
         text: "Reference",
         items: [
@@ -78,10 +92,15 @@ export default defineConfig({
         text: "Getting started",
         items: [
           { text: "Overview", link: "/" },
-          { text: "Setup", link: "/setup" },
-          { text: "Kubernetes", link: "/kubernetes" },
           { text: "Guide", link: "/guide" },
           { text: "Screenshots", link: "/screenshots" },
+        ],
+      },
+      {
+        text: "Setup",
+        items: [
+          { text: "Docker and from source", link: "/setup/" },
+          { text: "Kubernetes", link: "/setup/kubernetes" },
         ],
       },
       {

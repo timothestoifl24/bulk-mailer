@@ -6,7 +6,7 @@ description: A first campaign from an empty install to a sent message, including
 # Guide
 
 This walks one campaign from an empty install to a sent message. It assumes
-the app is already running — if not, start at [Setup](/setup).
+the app is already running — if not, start at [Setup](/setup/).
 
 ## 1. Point it at a mail server
 
@@ -23,7 +23,7 @@ answers; a test send proves it will actually accept and relay your mail.
 
 ::: tip No mail server to hand?
 A throwaway SMTP sink ships with the source. See
-[Try it without a mail server](/setup#try-it-without-a-mail-server) —
+[Try it without a mail server](/setup/#try-it-without-a-mail-server) —
 messages get written to disk instead of delivered.
 :::
 
