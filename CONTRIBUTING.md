@@ -156,55 +156,5 @@ By ticking it, you confirm that:
 
 ## Releasing (maintainers)
 
-`develop` is the development branch and the default one: every pull request
-goes there. `main` is production and only receives `develop` (or a hotfix)
-through a pull request. `__version__` in `app/__init__.py` decides everything;
-on `develop` it always holds the **next** version to be released.
-[`.github/workflows/docker.yml`](https://github.com/timothestoifl24/bulk-mailer/blob/develop/.github/workflows/docker.yml)
-runs the suite on both databases and boots the image on both architectures
-before anything is published.
-
-| Event | Result |
-|---|---|
-| Push to a pull request into `develop` | Image `develop-pr-N`, replacing the previous one. The comment how to pull it is removed when the build starts and posted again once it is published (not for pull requests from forks or Dependabot) |
-| Pull request into `develop` merged or closed | Image `develop-pr-N` is deleted |
-| Merge into `develop` | Images `X.Y.Z-beta.N` and `beta`, and a GitHub pre-release `vX.Y.Z-beta.N` |
-| Merge into `main` with a new version | Images `X.Y.Z`, `X.Y`, `X` and `latest`, the GitHub release `vX.Y.Z`, the betas up to it deleted, and a pull request moving `develop` on to `X.Y.Z+1` |
-| Merge into `main` with an already released version | Nothing is published |
-
-Images go to Docker Hub (`docker.io/timothestoifl24/bulk-mailer`). The docs
-are built from both branches: `main` at
-[bulkmailer.timothestoifl24.dev](https://bulkmailer.timothestoifl24.dev/), `develop` at
-[bulkmailer.timothestoifl24.dev/dev](https://bulkmailer.timothestoifl24.dev/dev/).
-
-To release:
-
-1. On a branch off `develop`, run
-
-   ```bash
-   python tools/release.py 1.6.0
-   ```
-
-   That folds everything under `## [Unreleased]` into a dated `## [v1.6.0]`
-   section and sets `__version__`, then commits. Add `--dry-run` first to see
-   the diff without touching anything. It refuses to run on a dirty tree, on a
-   version that isn't `X.Y.Z`, on a version that is already tagged, and on an
-   empty `[Unreleased]` unless you pass `--allow-empty`. Nothing is pushed.
-2. Push the branch and merge its pull request into `develop`.
-3. Open a pull request from `develop` to `main` and merge it with a **merge
-   commit** (not squash), so both branches share their history. CI checks the
-   dated changelog section, then creates the tag, the images and the release —
-   there is nothing to tag by hand.
-4. Merge the "Open X.Y.Z+1 for development" pull request CI opens against
-   `develop`. Until it is merged, beta builds on `develop` fail with a
-   reminder. Change the version on it first if the next release is a minor or
-   major one.
-
-Hotfixes branch from `main` as `hotfix/…`, bump the patch version with
-`tools/release.py`, go into `main` through a pull request, and are then merged
-back into `develop`.
-
-Publishing needs two repository secrets (Settings → Secrets and variables →
-Actions): `DOCKERHUB_USERNAME`, and `DOCKERHUB_TOKEN` — a Docker Hub personal
-access token with **Read, Write, Delete** access (the cleanup jobs delete
-beta and pull request tags), not the account password.
+Releases from `develop` to `main` are done by the maintainer and are mostly
+automated; see [RELEASING.md](RELEASING.md) for how.
