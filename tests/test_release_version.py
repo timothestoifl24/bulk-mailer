@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -72,8 +73,12 @@ def repo(tmp_path):
 
 
 def decide(repo, base: str, head: str, event: str = "pull_request", **env: str) -> dict[str, str]:
+    # The runner's own environment minus anything the script reads, so CI's GITHUB_* values (and
+    # GITHUB_OUTPUT) don't leak in; Windows also needs SYSTEMROOT and friends to start Python.
+    read = ("IMAGE", "PR_NUMBER", "HEAD_REPO", "CHANGES_BASE", "CHANGES_HEAD")
+    own = {k: v for k, v in os.environ.items() if not k.startswith("GITHUB_") and k not in read}
     environment = {
-        "PATH": os.environ["PATH"],
+        **own,
         "GITHUB_EVENT_NAME": event,
         "GITHUB_REPOSITORY": REPO,
         "GITHUB_SHA": head,
@@ -84,7 +89,7 @@ def decide(repo, base: str, head: str, event: str = "pull_request", **env: str) 
     if event == "pull_request":
         environment = {"GITHUB_BASE_REF": "develop", "PR_NUMBER": "7", "HEAD_REPO": REPO,
                        "GITHUB_ACTOR": "someone", **environment}
-    out = subprocess.run(["python3", str(SCRIPT)], cwd=repo.path, env=environment, capture_output=True, text=True)
+    out = subprocess.run([sys.executable, str(SCRIPT)], cwd=repo.path, env=environment, capture_output=True, text=True)
     assert out.returncode == 0, out.stdout + out.stderr
     return dict(line.split("=", 1) for line in out.stdout.splitlines() if "=" in line and not line.startswith("::"))
 
