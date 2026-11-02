@@ -21,6 +21,7 @@ from ..db import get_db
 from ..models import LdapProfile, OidcProvider, RecipientList, User
 from ..security import encrypt_secret
 from ..services import ldap_auth, ldap_client, ldap_sync, oidc_auth, settings_store
+from ..services.importer import discard_drafts_for_profile
 from ..services.ldap_import import DEFAULT_ATTR_MAP, parse_attr_map
 from ..web import flash, redirect, render
 
@@ -387,6 +388,7 @@ def delete(request: Request, kind: str, provider_id: int, db: Session = Depends(
         # profile would keep its sync flag and fail on every pass instead of
         # saying plainly that the thing it synced from is gone.
         orphaned = ldap_sync.detach_profile(db, provider.id)
+        discard_drafts_for_profile(db, provider.id)
     # Cut the accounts loose before the id goes. On SQLite a later provider can
     # be given the same id, and it must not inherit these people (an LDAP
     # username or an OIDC sub only means something within one provider).

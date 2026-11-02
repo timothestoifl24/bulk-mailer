@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -315,6 +316,21 @@ def sweep_expired_drafts(db: Session) -> int:
     """Delete wizard drafts past their lifetime. They hold people's data."""
     cutoff = datetime.now(timezone.utc) - DRAFT_LIFETIME
     return db.execute(delete(ImportDraft).where(ImportDraft.created_at < cutoff)).rowcount or 0
+
+
+def discard_drafts_for_profile(db: Session, profile_id: int) -> int:
+    """Delete directory-search drafts made with an LDAP profile being deleted.
+
+    On SQLite a later profile can be given the same id; a review page left open
+    must not then attach the old search, and its sync settings, to that one.
+    """
+    stale = [
+        draft for draft in db.scalars(select(ImportDraft).where(ImportDraft.source == "ldap"))
+        if draft.meta.get("provider_id") == profile_id
+    ]
+    for draft in stale:
+        db.delete(draft)
+    return len(stale)
 
 
 def preview_rows(db: Session, rows: list[dict], *, source: str, overwrite: bool = True) -> ImportPreview:

@@ -10,11 +10,13 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Table,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,6 +51,18 @@ class User(Base):
     """
 
     __tablename__ = "users"
+    __table_args__ = (
+        # One account per provider identity. Two first sign-ins racing each
+        # other must not both create one; the loser reuses the winner's row.
+        Index(
+            "ux_users_oidc_identity",
+            "auth_provider_id",
+            "external_id",
+            unique=True,
+            sqlite_where=text("auth_source = 'oidc'"),
+            postgresql_where=text("auth_source = 'oidc'"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     username: Mapped[str] = mapped_column(String(120), unique=True, index=True)

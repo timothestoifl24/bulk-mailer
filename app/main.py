@@ -17,7 +17,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from . import __version__
 from .config import secret_key_is_weak, settings
 from .db import IS_SQLITE, Base, engine, get_db, session_scope, startup_lock
-from .migrations import add_missing_columns
+from .migrations import add_missing_columns, add_missing_indexes
 from .models import (
     Campaign,
     CampaignRecipient,
@@ -89,6 +89,7 @@ def bootstrap() -> None:
 def _bootstrap_schema_and_data() -> None:
     Base.metadata.create_all(bind=engine)
     add_missing_columns(engine)
+    add_missing_indexes(engine)
     with session_scope() as db:
         if db.scalar(select(func.count()).select_from(User)) == 0:
             # Said at every start until it is done: until then, whoever opens
