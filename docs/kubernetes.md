@@ -8,7 +8,9 @@ head:
       content: noindex
   - - script
     - {}
-    - location.replace(new URL("setup/kubernetes" + location.hash, location.href))
+    # Swap the last path segment, whatever form it was requested in (/kubernetes,
+    # /kubernetes/ or /kubernetes.html), so /dev/ and the #section survive.
+    - location.replace(location.pathname.replace(/kubernetes(\.html)?\/?$/, "setup/kubernetes") + location.hash)
 ---
 
 # Kubernetes

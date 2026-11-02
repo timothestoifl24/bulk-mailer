@@ -39,12 +39,13 @@ export default defineConfig({
     ["meta", { property: "og:image", content: `${site}/media/brand/social-preview.png` }],
     ["meta", { property: "og:url", content: `${site}${base}` }],
     ["meta", { name: "twitter:card", content: "summary_large_image" }],
-    // Ko-fi "Support me" button, in the brand indigo. It draws into <body>, so wait for the page to load.
+    // Ko-fi "Support me" button, in the brand indigo. It draws into <body>, so wait for the page to load;
+    // offline or with Ko-fi blocked the script never arrives, and the button is simply left out.
     ["script", { src: "https://storage.ko-fi.com/cdn/scripts/overlay-widget.js", defer: "" }],
     [
       "script",
       {},
-      `window.addEventListener("load", () => kofiWidgetOverlay.draw("timothestoifl24", {
+      `window.addEventListener("load", () => typeof kofiWidgetOverlay !== "undefined" && kofiWidgetOverlay.draw("timothestoifl24", {
         "type": "floating-chat",
         "floating-chat.donateButton.text": "Support me",
         "floating-chat.donateButton.background-color": "#4F46E5",
