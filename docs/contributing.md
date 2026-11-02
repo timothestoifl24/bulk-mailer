@@ -132,7 +132,9 @@ security or a CVE, and `hotfix` / `release` from the branch.
 Every pull request into `develop` from a branch of this repository gets its
 own container image, `docker.io/timothestoifl24/bulk-mailer:develop-pr-N` (N
 is the pull request number). A comment on the pull request shows how to pull
-it. Each push rebuilds it and replaces the previous one, and it is deleted
+it. Each push rebuilds it and replaces the previous one: the comment is
+removed when the new build starts and posted again once its image is
+published, so it always describes the current image. The image is deleted
 when the pull request is merged or closed. Pull requests from forks are
 built and tested, but get no published image.
 
@@ -257,7 +259,7 @@ before anything is published.
 
 | Event | Result |
 |---|---|
-| Push to a pull request into `develop` | Image `develop-pr-N`, replacing the previous one, and a comment on the pull request how to pull it (not for pull requests from forks or Dependabot) |
+| Push to a pull request into `develop` | Image `develop-pr-N`, replacing the previous one. The comment how to pull it is removed when the build starts and posted again once it is published (not for pull requests from forks or Dependabot) |
 | Pull request into `develop` merged or closed | Image `develop-pr-N` is deleted |
 | Merge into `develop` | Images `X.Y.Z-beta.N` and `beta`, and a GitHub pre-release `vX.Y.Z-beta.N` |
 | Merge into `main` with a new version | Images `X.Y.Z`, `X.Y`, `X` and `latest`, the GitHub release `vX.Y.Z`, the betas up to it deleted, and a pull request moving `develop` on to `X.Y.Z+1` |
