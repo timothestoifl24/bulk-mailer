@@ -14,7 +14,9 @@
 
 Documentation-only changes (every changed file matches DOCS_ONLY) skip all of that on develop and
 on pull requests other than into main: no tests, no image, no beta. docs_only=true tells the
-workflow; docs.yml builds the docs for them. main and manual runs always do the full run.
+workflow; docs.yml builds the docs for them. A pull request that had an image gets channel
+pr-docs, so the workflow removes that image and its comment. main and manual runs always do the
+full run.
 
 Reads GITHUB_EVENT_NAME, GITHUB_REF, GITHUB_SHA, IMAGE, CHANGES_BASE and CHANGES_HEAD (the commits
 to compare for docs_only), and for pull requests GITHUB_BASE_REF, GITHUB_REPOSITORY,
@@ -48,20 +50,33 @@ def fail(message: str) -> None:
     sys.exit(1)
 
 
-def changed_files() -> list[str] | None:
-    """Files changed between CHANGES_BASE and CHANGES_HEAD, or None when that can't be told."""
+def git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], capture_output=True, text=True)
+
+
+def changed_files(push: bool) -> list[str] | None:
+    """Files changed between CHANGES_BASE and CHANGES_HEAD, or None when that can't be told.
+
+    A pull request is compared from where it branched off (three dots), so changes on the base
+    branch don't count. A push is compared tree to tree, and only when it adds to the old tip: a
+    rewritten history could otherwise drop code while the comparison shows only documentation.
+    --no-renames lists both sides of a move, so moving code into docs/ is not documentation-only.
+    """
     base, head = os.environ.get("CHANGES_BASE", ""), os.environ.get("CHANGES_HEAD", "")
     if not base or not head or set(base) == {"0"}:  # a new branch has no "before"
         return None
-    diff = subprocess.run(["git", "diff", "--name-only", f"{base}...{head}"], capture_output=True, text=True)
-    if diff.returncode != 0:  # e.g. a force push dropped the old commit
-        print(f"::warning::Could not compare {base[:7]}...{head[:7]}; running everything.")
+    if push and git("merge-base", "--is-ancestor", base, head).returncode != 0:
+        print(f"::notice::{head[:7]} does not build on {base[:7]} (history rewritten?); running everything.")
+        return None
+    diff = git("diff", "--no-renames", "--name-only", f"{base}..{head}" if push else f"{base}...{head}")
+    if diff.returncode != 0:  # e.g. the old commit is unknown
+        print(f"::warning::Could not compare {base[:7]} and {head[:7]}; running everything.")
         return None
     return diff.stdout.split()
 
 
-def docs_only() -> bool:
-    files = changed_files()
+def docs_only(push: bool) -> bool:
+    files = changed_files(push)
     return bool(files) and all(DOCS_ONLY.match(name) for name in files)
 
 
@@ -93,13 +108,24 @@ def main() -> None:
         "image_tags": "",
         "docs_only": "false",
     }
-    skippable = (event == "push" and ref == "refs/heads/develop") or (
-        event == "pull_request" and os.environ.get("GITHUB_BASE_REF") != "main"
+    # Pull requests that get a develop-pr-N image. Forks, and runs Dependabot starts, get no
+    # repository secrets: they can't log in to Docker Hub to push images.
+    image_pr = (
+        event == "pull_request"
+        and os.environ.get("GITHUB_BASE_REF") == "develop"
+        and os.environ.get("PR_NUMBER", "").isdigit()
+        and os.environ.get("HEAD_REPO") == os.environ.get("GITHUB_REPOSITORY")
+        and os.environ.get("GITHUB_ACTOR") != "dependabot[bot]"
     )
+    push_to_develop = event == "push" and ref == "refs/heads/develop"
+    skippable = push_to_develop or (event == "pull_request" and os.environ.get("GITHUB_BASE_REF") != "main")
 
-    if skippable and docs_only():
+    if skippable and docs_only(push=push_to_develop):
         print("::notice::Only documentation changed: no tests, image or beta. docs.yml builds the docs.")
         result["docs_only"] = "true"
+        if image_pr:
+            # An image built while the pull request still changed code no longer matches it.
+            result["channel"] = "pr-docs"
 
     elif event in ("push", "workflow_dispatch") and ref == "refs/heads/main":
         tag = f"v{version}"
@@ -139,15 +165,7 @@ def main() -> None:
         else:
             print(f"::notice::Merging this releases {tag}.")
 
-    elif (
-        event == "pull_request"
-        and os.environ.get("GITHUB_BASE_REF") == "develop"
-        and os.environ.get("PR_NUMBER", "").isdigit()
-        # Pull requests from forks, and runs Dependabot starts, get no repository secrets: they
-        # can't log in to Docker Hub to push images.
-        and os.environ.get("HEAD_REPO") == os.environ.get("GITHUB_REPOSITORY")
-        and os.environ.get("GITHUB_ACTOR") != "dependabot[bot]"
-    ):
+    elif image_pr:
         number = os.environ["PR_NUMBER"]
         result.update(
             channel="pr",

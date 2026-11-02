@@ -82,8 +82,10 @@ jobs:
     name: Remove the pull request image comment
     # A rebuild is starting: the comment goes now, and pr-image posts it again once the new image
     # is published, so the pull request never shows a pull command for a build that is replaced.
+    # pr-docs: the pull request now only changes documentation, so it gets no new image, and the
+    # one built while it still changed code is deleted together with its comment.
     needs: version
-    if: needs.version.outputs.channel == 'pr'
+    if: needs.version.outputs.channel == 'pr' || needs.version.outputs.channel == 'pr-docs'
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -99,6 +101,12 @@ jobs:
           persist-credentials: false
       - name: Delete the comment
         run: python3 .github/scripts/pr_image.py uncomment
+      - name: Delete the image built before the pull request became documentation-only
+        if: needs.version.outputs.channel == 'pr-docs'
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: python3 .github/scripts/pr_image.py delete
 
   tests:
     name: Tests
