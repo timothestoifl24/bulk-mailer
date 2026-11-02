@@ -1,48 +1,69 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/logo-wordmark-dark.svg">
-    <img src="assets/logo-wordmark.svg" alt="Bulk Mailer" width="300" height="72">
+    <img src="assets/logo-wordmark.svg" alt="Bulk Mailer" width="320" height="77">
   </picture>
 </p>
 
 <p align="center">
-  Send one message to many recipients — typed in, pasted, uploaded as CSV, or pulled straight from LDAP / Active Directory.
+  <b>Send one message to many recipients</b><br>
+  Typed in, pasted, uploaded as CSV, or pulled straight from LDAP / Active Directory.<br>
+  Self-hosted, server-rendered, and it runs fully offline.
 </p>
 
 <p align="center">
-  <a href="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker.yml">
-    <img alt="Container image" src="https://github.com/timothestoifl24/bulk-mailer/actions/workflows/docker.yml/badge.svg?branch=main">
-  </a>
-  <a href="https://hub.docker.com/r/timothestoifl24/bulk-mailer">
-    <img alt="Docker Hub" src="https://img.shields.io/docker/v/timothestoifl24/bulk-mailer?label=docker%20hub&sort=semver&color=4F46E5">
-  </a>
-  <a href="https://github.com/timothestoifl24/bulk-mailer/releases">
-    <img alt="Latest release" src="https://img.shields.io/github/v/release/timothestoifl24/bulk-mailer?color=4F46E5">
-  </a>
-  <a href="LICENSE">
-    <img alt="License" src="https://img.shields.io/github/license/timothestoifl24/bulk-mailer?color=4F46E5">
-  </a>
-  <img alt="Python 3.13" src="https://img.shields.io/badge/python-3.13-4F46E5">
+  <a href="https://github.com/timothestoifl24/bulk-mailer/releases/latest"><img alt="Version" src="https://img.shields.io/github/v/release/timothestoifl24/bulk-mailer?sort=semver&display_name=tag&label=version&style=for-the-badge&color=4F46E5&labelColor=1E1B4B"></a>
+  <a href="https://hub.docker.com/r/timothestoifl24/bulk-mailer"><img alt="Docker pulls" src="https://img.shields.io/docker/pulls/timothestoifl24/bulk-mailer?style=for-the-badge&logo=docker&logoColor=white&color=4F46E5&labelColor=1E1B4B"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/timothestoifl24/bulk-mailer?style=for-the-badge&color=4F46E5&labelColor=1E1B4B"></a>
 </p>
 
 <p align="center">
-  <b><a href="https://bulkmailer.timothestoifl24.dev">Documentation: bulkmailer.timothestoifl24.dev</a></b><br>
-  <sub>
-    <a href="https://bulkmailer.timothestoifl24.dev/guide/">Guide</a> ·
-    <a href="https://bulkmailer.timothestoifl24.dev/screenshots/">Screenshots</a> ·
-    <a href="https://bulkmailer.timothestoifl24.dev/setup/">Setup</a> ·
-    <a href="https://bulkmailer.timothestoifl24.dev/kubernetes/">Kubernetes</a> ·
-    <a href="https://bulkmailer.timothestoifl24.dev/advanced-config/">Advanced config</a> ·
-    <a href="https://bulkmailer.timothestoifl24.dev/upgrading/">Upgrading</a> ·
-    <a href="https://bulkmailer.timothestoifl24.dev/faq/">FAQ</a>
-  </sub>
+  <a href="https://bulkmailer.timothestoifl24.dev"><img src="assets/icons/book-open.svg" alt="" height="14" align="top"> <b>Documentation</b></a> &nbsp;·&nbsp;
+  <a href="https://bulkmailer.timothestoifl24.dev/guide/">Guide</a> ·
+  <a href="https://bulkmailer.timothestoifl24.dev/screenshots/">Screenshots</a> ·
+  <a href="https://bulkmailer.timothestoifl24.dev/setup/">Setup</a> ·
+  <a href="https://bulkmailer.timothestoifl24.dev/kubernetes/">Kubernetes</a> ·
+  <a href="https://bulkmailer.timothestoifl24.dev/advanced-config/">Advanced config</a> ·
+  <a href="https://bulkmailer.timothestoifl24.dev/upgrading/">Upgrading</a> ·
+  <a href="https://bulkmailer.timothestoifl24.dev/faq/">FAQ</a>
 </p>
 
-- [Features](#features)
-- [Quick start](#quick-start)
-- [Typical run](#typical-run)
-- [Configuration](#configuration)
-- [Contributing](#contributing) · [Security](#security) · [Changelog](#changelog) · [License](#license)
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <img src="assets/icons/users.svg" alt="" height="28"><br>
+      <b>Recipients from anywhere</b><br>
+      <sub>Type, paste, upload a CSV or import from a directory, with a review before anything is written.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="assets/icons/sitemap.svg" alt="" height="28"><br>
+      <b>LDAP &amp; Active Directory</b><br>
+      <sub>Paged search, group imports with nesting, and lists that stay in sync with their search.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="assets/icons/pen-to-square.svg" alt="" height="28"><br>
+      <b>Sandboxed templates</b><br>
+      <sub>Per-recipient placeholders that cannot reach into the app, and a live preview on real data.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <img src="assets/icons/paper-plane.svg" alt="" height="28"><br>
+      <b>Sending you can watch</b><br>
+      <sub>Throttle, live progress, pause, resume, cancel, retry the failures, and a dry run first.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="assets/icons/user-shield.svg" alt="" height="28"><br>
+      <b>Sign-in your way</b><br>
+      <sub>Local accounts, LDAP sign-in and OpenID Connect single sign-on, with admin groups.</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="assets/icons/shield-halved.svg" alt="" height="28"><br>
+      <b>Unsubscribes handled</b><br>
+      <sub>One-click unsubscribe and <code>List-Unsubscribe</code> headers, honoured by every later campaign.</sub>
+    </td>
+  </tr>
+</table>
 
 Built with FastAPI + Jinja2 + SQLAlchemy, a [Tabler](https://tabler.io)
 (Bootstrap 5) UI vendored locally rather than pulled from a CDN, and either
@@ -50,9 +71,10 @@ SQLite or PostgreSQL. No JavaScript build step — it's server-rendered pages
 you can run on a workstation, a small VPS, or fully offline on an isolated
 network.
 
-## Features
+## <img src="assets/icons/star.svg" alt="" height="20" align="top"> Features
 
-**Recipients**
+### <img src="assets/icons/users.svg" alt="" height="18" align="top"> Recipients
+
 - Add one by one, or use the **Import** wizard: paste a block of addresses
   (`Jane Doe <jane@example.com>` is understood), upload a CSV, or search the
   directory. Column names are recognised (English and German) and can be
@@ -61,7 +83,8 @@ network.
 - Recipients and lists on one *Audience* page; filter and search; bulk
   add/remove/suppress/delete; export to CSV.
 
-**LDAP / Active Directory**
+### <img src="assets/icons/sitemap.svg" alt="" height="18" align="top"> LDAP / Active Directory
+
 - Directories are set up by an administrator on the *Authentication* page
   (LDAPS, StartTLS or plain; simple or anonymous bind), each usable for
   sign-in, recipient import, or both. Bind passwords are stored encrypted
@@ -77,7 +100,8 @@ network.
   matches are added and people who have left are removed from the list, on a
   schedule and on demand. Off by default, so an import stays a snapshot.
 
-**Composing**
+### <img src="assets/icons/pen-to-square.svg" alt="" height="18" align="top"> Composing
+
 - Reusable templates, or write directly in the campaign.
 - HTML body with an auto-generated plain-text part, file attachments.
 - Per-recipient placeholders (`{{ first_name }}`, `{{ company }}`,
@@ -86,7 +110,8 @@ network.
 - Live preview against a real recipient's data, and a `[TEST]` send to
   yourself.
 
-**Sending**
+### <img src="assets/icons/paper-plane.svg" alt="" height="18" align="top"> Sending
+
 - A background worker reuses one SMTP connection and reconnects if the
   server drops it.
 - Throttle in messages/minute, live progress, pause/resume/cancel, retry
@@ -95,7 +120,8 @@ network.
   anything.
 - Progress lives in the database, so a restart resumes where it stopped.
 
-**Users & sign-in**
+### <img src="assets/icons/user-shield.svg" alt="" height="18" align="top"> Users & sign-in
+
 - Local accounts, sign-in against one or more LDAP / Active Directory
   directories, and **single sign-on with OpenID Connect** (Entra ID,
   Keycloak, Google, Authentik, …) — all set up on one *Authentication* page.
@@ -105,14 +131,15 @@ network.
 - A *Users* page to search accounts, see how each signs in, and edit them in
   place.
 
-**Compliance & safety**
+### <img src="assets/icons/shield-halved.svg" alt="" height="18" align="top"> Compliance & safety
+
 - One-click unsubscribe link plus `List-Unsubscribe` headers; unsubscribed
   addresses are skipped automatically by every later campaign.
 - PBKDF2 password hashing, CSRF protection on state-changing requests.
 
-## Quick start
+## <img src="assets/icons/rocket.svg" alt="" height="20" align="top"> Quick start
 
-### Docker (recommended)
+### <img src="assets/icons/docker.svg" alt="" height="18" align="top"> Docker (recommended)
 
 ```yaml
 # compose.yaml
@@ -164,7 +191,7 @@ without touching a real mail server — plus every detail of the image
 (non-root user, read-only code, health check, what `/data` holds) — is in
 [Running in containers](#running-in-containers) below.
 
-### Kubernetes
+### <img src="assets/icons/cubes.svg" alt="" height="18" align="top"> Kubernetes
 
 Ready-made [kustomize](https://kustomize.io/) manifests live in
 [`deploy/kubernetes/`](deploy/kubernetes/) — `kubectl` has kustomize built
@@ -185,7 +212,7 @@ scaling out are covered in the
 [Kubernetes guide](https://bulkmailer.timothestoifl24.dev/kubernetes/)
 ([source](docs/kubernetes.md)).
 
-### From source
+### <img src="assets/icons/code.svg" alt="" height="18" align="top"> From source
 
 ```bash
 python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt
@@ -193,7 +220,7 @@ cp .env.example .env   # set SECRET_KEY, DATABASE_URL, and the SMTP block
 python run.py
 ```
 
-## Typical run
+## <img src="assets/icons/list-check.svg" alt="" height="20" align="top"> Typical run
 
 1. **Email delivery** — enter the SMTP server, press *Test the connection*, then
    send yourself a test email.
@@ -209,7 +236,7 @@ python run.py
 6. Untick it and send for real. Watch the progress bar; pause or cancel at
    any time.
 
-## Configuration
+## <img src="assets/icons/sliders.svg" alt="" height="20" align="top"> Configuration
 
 Environment variables (see `.env.example`); everything under *Email delivery*
 in the UI is stored in the database and overrides the SMTP defaults below
@@ -225,7 +252,7 @@ without a restart. *System* shows each value and where it comes from.
 
 <a id="database"></a>
 <details>
-<summary><strong>Database</strong> — SQLite vs. PostgreSQL</summary>
+<summary><img src="assets/icons/database.svg" alt="" height="14" align="top"> <strong>Database</strong> — SQLite vs. PostgreSQL</summary>
 
 Either backend works; the app detects which from `DATABASE_URL` and creates
 the schema on first start.
@@ -246,7 +273,7 @@ docker run -d --name mailer-pg -e POSTGRES_USER=mailer -e POSTGRES_PASSWORD=mail
 
 <a id="running-in-containers"></a>
 <details>
-<summary><strong>Running in containers</strong> — full Compose stack, image details</summary>
+<summary><img src="assets/icons/box.svg" alt="" height="14" align="top"> <strong>Running in containers</strong> — full Compose stack, image details</summary>
 
 The whole stack — app, PostgreSQL, and a throwaway SMTP sink — comes up with
 one command from a checkout of this repository. Compose substitutes
@@ -294,7 +321,7 @@ the OCI image format, which silently drops the `HEALTHCHECK`.)
 </details>
 
 <details>
-<summary><strong>Try it without a mail server</strong></summary>
+<summary><img src="assets/icons/envelope-open-text.svg" alt="" height="14" align="top"> <strong>Try it without a mail server</strong></summary>
 
 A throwaway SMTP sink is included. Start it in a second terminal:
 
@@ -308,7 +335,7 @@ delivered.
 </details>
 
 <details>
-<summary><strong>Signing in with LDAP</strong></summary>
+<summary><img src="assets/icons/key.svg" alt="" height="14" align="top"> <strong>Signing in with LDAP</strong></summary>
 
 Turn on **Use for sign-in** on an LDAP provider under *Authentication*
 (admin only). It reuses the provider's server and service account. With
@@ -354,7 +381,7 @@ your directory does have, e.g. `"department": "departmentNumber"` or
 </details>
 
 <details>
-<summary><strong>Keeping a list in sync with a group</strong></summary>
+<summary><img src="assets/icons/rotate.svg" alt="" height="14" align="top"> <strong>Keeping a list in sync with a group</strong></summary>
 
 An import is a snapshot. Tick **Keep the list in sync with this search** in
 the last step of the import wizard and the list instead tracks the query that filled it: the
@@ -388,7 +415,7 @@ so. The lists and their members are untouched.
 </details>
 
 <details>
-<summary><strong>Single sign-on with OpenID Connect</strong></summary>
+<summary><img src="assets/icons/right-to-bracket.svg" alt="" height="14" align="top"> <strong>Single sign-on with OpenID Connect</strong></summary>
 
 *Authentication* → **Add provider** → *OpenID Connect*. Enter the provider's
 discovery URL, client ID and secret, save, and register the **callback URL**
@@ -408,7 +435,7 @@ switches single sign-on off from the command line.
 
 <a id="deployment-notes"></a>
 <details>
-<summary><strong>Deployment notes</strong></summary>
+<summary><img src="assets/icons/server.svg" alt="" height="14" align="top"> <strong>Deployment notes</strong></summary>
 
 - The app speaks plain HTTP and holds a session cookie. Put it behind a
   reverse proxy with TLS if it's reachable by more than localhost, and set
@@ -436,7 +463,7 @@ switches single sign-on off from the command line.
   [More than one replica](https://bulkmailer.timothestoifl24.dev/kubernetes/#more-than-one-replica).
 </details>
 
-## Sending responsibly
+## <img src="assets/icons/paper-plane.svg" alt="" height="20" align="top"> Sending responsibly
 
 This tool will happily send to every address a directory returns. Before a
 large run: check the throttle against your server's rate limit, do a dry
@@ -444,7 +471,7 @@ run, send a test to yourself, and make sure the recipients actually expect
 the message. The unsubscribe link is included in the default template for a
 reason — keep it.
 
-## Project layout
+## <img src="assets/icons/folder-tree.svg" alt="" height="20" align="top"> Project layout
 
 <details>
 <summary>Expand</summary>
@@ -481,7 +508,7 @@ tests/
 ```
 </details>
 
-## Testing
+## <img src="assets/icons/vial.svg" alt="" height="20" align="top"> Testing
 
 ```bash
 pip install -r requirements-dev.txt && python -m pytest -q
@@ -491,27 +518,27 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full test setup, including
 running the suite against PostgreSQL and rebuilding the image before opening
 a PR.
 
-## Contributing
+## <img src="assets/icons/code-pull-request.svg" alt="" height="20" align="top"> Contributing
 
 Bug reports, fixes, and feature ideas are welcome — see
 [CONTRIBUTING.md](CONTRIBUTING.md) for the development setup, test
 requirements, and how releases are cut.
 
-## Security
+## <img src="assets/icons/lock.svg" alt="" height="20" align="top"> Security
 
 Please don't open a public issue for a security problem — see
 [SECURITY.md](SECURITY.md) for how to report one privately.
 
-## Changelog
+## <img src="assets/icons/clock-rotate-left.svg" alt="" height="20" align="top"> Changelog
 
 Release notes live in [CHANGELOG.md](CHANGELOG.md), updated automatically on
 every tagged release, and as [GitHub Releases](https://github.com/timothestoifl24/bulk-mailer/releases).
 
-## Getting help
+## <img src="assets/icons/life-ring.svg" alt="" height="20" align="top"> Getting help
 
-- [Report a bug](https://github.com/timothestoifl24/bulk-mailer/issues)
-- [Ask a question](https://github.com/timothestoifl24/bulk-mailer/discussions)
+- <img src="assets/icons/bug.svg" alt="" height="14" align="top"> [Report a bug](https://github.com/timothestoifl24/bulk-mailer/issues)
+- <img src="assets/icons/comments.svg" alt="" height="14" align="top"> [Ask a question](https://github.com/timothestoifl24/bulk-mailer/discussions)
 
-## License
+## <img src="assets/icons/scale-balanced.svg" alt="" height="20" align="top"> License
 
 [MIT](LICENSE) © Timothé Stoifl
