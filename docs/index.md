@@ -1,7 +1,7 @@
 ---
 layout: home
-title: Bulk Mailer
-titleTemplate: Self-hosted bulk email with LDAP import
+title: Bulk-Mailer
+titleTemplate: Send one message to many recipients
 description: Send one message to many recipients - typed in, pasted, uploaded as CSV, or pulled straight from LDAP / Active Directory. Sandboxed templates and a dry run that proves the message before anyone receives it.
 
 hero:
