@@ -1,63 +1,28 @@
 ---
 title: Setup
-description: Install Bulk Mailer with Docker, the full Compose stack, Kubernetes, or from source - including the settings you must not leave at their defaults.
+description: Choose how to run Bulk Mailer - Docker or Podman, Kubernetes, or from source - then create the first administrator and put it behind TLS.
 ---
 
 # Setup
 
-## Docker
+Bulk Mailer ships as one container image, on SQLite or PostgreSQL. Pick how to
+run it, then do the [initial setup](#initial-setup) below.
 
-The published image needs two things you must choose yourself, and one volume.
+| Method | Use it when |
+| --- | --- |
+| [Docker and Podman](/setup/docker) | One machine: a workstation, a small VPS, an isolated network. Includes Compose and the full stack with PostgreSQL. |
+| [Kubernetes](/setup/kubernetes) | You already run a cluster, or want several replicas on PostgreSQL. |
+| [From source](/setup/from-source) | Developing Bulk Mailer, or running it without containers. |
 
-```bash
-docker run -d -p 8000:8000 \
-  -e SECRET_KEY=$(openssl rand -base64 36) \
-  -v mailer-data:/data \
-  docker.io/timothestoifl24/bulk-mailer:latest
-```
+After that, [Advanced config](/advanced-config) covers the database, LDAP,
+single sign-on and running several instances, and [Upgrading](/upgrading)
+covers moving to a new version.
 
-Open <http://127.0.0.1:8000>. On the first start there is no account yet: the app opens a **setup page**
-where you create the first administrator. Do this straight away — until then,
-anyone who can reach the address can create it.
+## Initial setup
 
-::: danger `SECRET_KEY` is not decoration
-It signs session cookies **and** derives the key that encrypts stored SMTP
-and LDAP passwords. Changing it later logs everyone out and invalidates
-every stored password. Generate a long random one now and keep it.
-:::
+Once the app is running, two things are left before it is ready for real use.
 
-::: warning `/data` must be a volume
-It holds attachments and, on SQLite, the database file. Without a volume
-your data disappears with the container.
-:::
-
-### With Compose
-
-```yaml
-# compose.yaml
-services:
-  app:
-    image: docker.io/timothestoifl24/bulk-mailer:latest
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-    environment:
-      SECRET_KEY: change-me-to-a-long-random-string
-      # DATABASE_URL: postgresql+psycopg://user:pass@host:5432/db   # optional
-    volumes:
-      - mailer-data:/data
-volumes:
-  mailer-data:
-```
-
-```bash
-docker compose up -d
-```
-
-`DATABASE_URL` is optional and defaults to SQLite at `/data/mailer.db`. See
-[Database](/advanced-config#database) for when that is not the right choice.
-
-## The first administrator
+### The first administrator
 
 There is no admin password in the environment. The first time the app starts
 with an empty database, every page leads to **/setup**, where you choose the
@@ -82,94 +47,7 @@ Upgrading from a version that still used `ADMIN_USERNAME` / `ADMIN_PASSWORD`
 changes nothing for existing accounts: the oldest local administrator becomes
 the initial administrator, and the two variables can be removed.
 
-Other commands worth knowing before you need them:
-
-| Command | What it does |
-| --- | --- |
-| `python -m app.cli list-users` | Who exists, and how they authenticate |
-| `python -m app.cli reset-initial-admin` | New password for the initial administrator, and its access restored |
-| `python -m app.cli create-admin` | Add another administrator (after setup) |
-| `python -m app.cli disable-ldap-login` | The way back in when a directory setting locks everyone out |
-| `python -m app.cli disable-sso` | Switches every OpenID Connect provider off and shows the password form again |
-
-## Kubernetes
-
-Manifests for a single pod on SQLite, or PostgreSQL with room for several
-replicas, ship in `deploy/kubernetes/`:
-
-```bash
-cp deploy/kubernetes/base/secret.env.example deploy/kubernetes/base/secret.env   # fill it in
-kubectl apply -k deploy/kubernetes/base
-```
-
-The whole walkthrough — PostgreSQL, Ingress, upgrades, backups, scaling out —
-is on its own page: [Kubernetes](/setup/kubernetes).
-
-## From source
-
-Python 3.13.
-
-```bash
-python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt
-cp .env.example .env   # set SECRET_KEY, DATABASE_URL and the SMTP block
-python run.py
-```
-
-`python run.py --reload` restarts on code changes while developing.
-
-## The full stack
-
-From a checkout, one command brings up the app, PostgreSQL, and a throwaway
-SMTP sink. Compose reads `SECRET_KEY` and friends from a
-`.env` file next to `compose.yaml`:
-
-```bash
-docker compose --profile dev up -d --build
-```
-
-Drop `--profile dev` to leave the SMTP sink out and point `SMTP_HOST` at a
-real server. Captured mail lands in `/data/sent` inside the sink container.
-
-## Try it without a mail server
-
-A throwaway SMTP sink ships with the source. Start it in a second terminal:
-
-```bash
-python tools/dev_smtp.py --port 8025 --out ./data/sent
-```
-
-Point *Email delivery* at `127.0.0.1:8025` with security `none`. Every
-message is printed and written to `./data/sent/*.eml` instead of being
-delivered — which makes it safe to run a real campaign against real addresses
-while you are still learning what the tool does.
-
-## About the image
-
-- Runs as the unprivileged user `app` (uid 1000). The code is root-owned and
-  read-only to that user; `/data` is the only writable path, so it also runs
-  fine with `--read-only --tmpfs /tmp`.
-- `HOST` defaults to `0.0.0.0` inside the image so the port is reachable.
-- Ships a `HEALTHCHECK` (`tools/healthcheck.py`, standard library only — there
-  is no curl in the image) polling `/healthz`.
-- One container is one sender worker. Running more than one replica requires
-  PostgreSQL — see [Deployment](/advanced-config#deployment).
-- Declares its user numerically (`1000:1000`), so Kubernetes' `runAsNonRoot`
-  can verify it.
-- Published to
-  [Docker Hub](https://hub.docker.com/r/timothestoifl24/bulk-mailer)
-  on every tagged release, for `linux/amd64` and `linux/arm64` (Apple Silicon,
-  ARM cloud instances) from 1.5.1 on. Earlier releases are `amd64` only.
-
-Building it yourself:
-
-```bash
-docker build --pull -t bulk-mailer .
-```
-
-With Podman, add `--format docker`. Podman defaults to the OCI image format,
-which silently drops the `HEALTHCHECK`.
-
-## Before you expose it
+### Before you expose it
 
 The app speaks plain HTTP and holds a session cookie. If anything other than
 localhost can reach it, put it behind a reverse proxy with TLS and set
@@ -180,4 +58,4 @@ localhost can reach it, put it behind a reverse proxy with TLS and set
 so it has to be an address your recipients can actually reach. `localhost` in
 an unsubscribe link is a broken unsubscribe link.
 
-Next: [the guide](/guide), or [advanced config](/advanced-config).
+Next: [the guide](/guide), which starts with connecting your mail server.

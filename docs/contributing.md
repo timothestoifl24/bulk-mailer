@@ -25,7 +25,7 @@ python run.py
 
 The full setup, including running the whole stack in containers and a
 throwaway SMTP sink so nothing reaches real addresses while you work, is in
-[Setup](/setup/).
+[Docker and Podman](/setup/docker#the-full-stack).
 
 ## Running the tests
 
@@ -38,7 +38,7 @@ or anything database-specific, also run it against PostgreSQL — SQLite has no
 row locking, so it cannot catch a bug in the multi-instance send locking:
 
 ```bash
-podman run -d --name mailer-test-pg \
+docker run -d --name mailer-test-pg \
   -e POSTGRES_USER=mailer -e POSTGRES_PASSWORD=mailer_ci_pw -e POSTGRES_DB=mailer_test \
   -p 5432:5432 docker.io/library/postgres:17-alpine
 
@@ -55,8 +55,8 @@ If you are changing the container image, rebuild and smoke-test it before
 opening a PR:
 
 ```bash
-podman build --format docker -t bulk-mailer .
-podman run --rm -e SECRET_KEY=test-key-at-least-32-characters-long \
+docker build -t bulk-mailer .
+docker run --rm -e SECRET_KEY=test-key-at-least-32-characters-long \
   bulk-mailer python -m app.cli list-users
 ```
 
@@ -178,7 +178,7 @@ npm run docs:preview    # serves that build
 No Node installed? A container works, and is how this site was first built:
 
 ```bash
-podman run --rm -v "$PWD:/app" -w /app -p 5173:5173 docker.io/library/node:22-alpine \
+docker run --rm -v "$PWD:/app" -w /app -p 5173:5173 docker.io/library/node:22-alpine \
   sh -c "apk add --no-cache git && git config --global --add safe.directory /app && npm ci && npm run docs:dev -- --host 0.0.0.0"
 ```
 
