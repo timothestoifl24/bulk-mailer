@@ -24,7 +24,7 @@ on the server, and runs fully offline on an isolated network.
 
 <a href="https://ko-fi.com/Z4F028KJ68"><img src="https://img.shields.io/badge/Buy_me_a_coffee-4F46E5?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Buy me a coffee on Ko-fi"></a>
 
-## Features
+## <img src="assets/icons/star.svg" alt="" height="20" align="top"> Features
 
 - Recipients typed in, pasted, uploaded as CSV or imported from LDAP / Active Directory, with a review before anything is written
 - Lists that stay in sync with the directory search or group that filled them
@@ -34,7 +34,9 @@ on the server, and runs fully offline on an isolated network.
 - One-click unsubscribe and `List-Unsubscribe` headers, honoured by every later campaign
 - Admin interface based on [Tabler](https://tabler.io), with sign-in through local accounts, LDAP or OpenID Connect
 
-## Quick Setup
+<a id="quick-setup"></a>
+
+## <img src="assets/icons/rocket.svg" alt="" height="20" align="top"> Quick Setup
 
 1. [Install Docker](https://docs.docker.com/get-docker/)
 2. Create a `compose.yaml` file similar to this:
@@ -65,7 +67,7 @@ docker compose up -d
 This is the bare minimum, on SQLite. See the [documentation](https://bulkmailer.timothestoifl24.dev/setup/) for
 PostgreSQL, Kubernetes, HTTPS and the [configuration reference](https://bulkmailer.timothestoifl24.dev/advanced-config).
 
-## Contributing
+## <img src="assets/icons/code-pull-request.svg" alt="" height="20" align="top"> Contributing
 
 Pull requests are welcome against the `develop` branch; official releases are made from `main`.
 Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
@@ -73,12 +75,12 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 Documentation for `develop` is available for preview at
 [bulkmailer.timothestoifl24.dev/dev](https://bulkmailer.timothestoifl24.dev/dev/).
 
-## Getting Support
+## <img src="assets/icons/life-ring.svg" alt="" height="20" align="top"> Getting Support
 
 1. [Found a bug?](https://github.com/timothestoifl24/bulk-mailer/issues)
 2. [Have a question?](https://github.com/timothestoifl24/bulk-mailer/discussions)
 3. [Found a vulnerability?](https://github.com/timothestoifl24/bulk-mailer/security/advisories/new) See [SECURITY.md](SECURITY.md).
 
-## License
+## <img src="assets/icons/scale-balanced.svg" alt="" height="20" align="top"> License
 
 Bulk Mailer is released under the [MIT License](LICENSE).
