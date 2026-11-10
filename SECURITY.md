@@ -22,8 +22,13 @@ have them.
 There's no formal SLA. As a solo-maintained project, expect an acknowledgement
 within a few days and a fix timeline once the report is confirmed, not a
 guaranteed response window. Coordinated disclosure is appreciated — please
-hold off on public details until a fix has shipped. You'll be credited in the
-release notes unless you'd rather stay anonymous.
+hold off on public details until a fix has shipped.
+
+There's no bug bounty: this is an open-source project, and confirmed reports
+aren't paid. Instead, you'll be credited in the pull request that fixes the
+issue, in the GitHub Security Advisory, and in the release notes, unless
+you'd rather stay anonymous. See
+[Rewards and recognition](CONTRIBUTING.md#rewards-and-recognition).
 
 ## Scope
 

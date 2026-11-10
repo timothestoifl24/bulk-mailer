@@ -5,6 +5,7 @@ changes are all welcome — for anything larger than a small fix, opening an
 issue first to agree on the approach will save you a rewrite.
 
 Found a security issue? Do not open a public issue — see [SECURITY.md](SECURITY.md).
+There's no bug bounty; see [Rewards and recognition](#rewards-and-recognition).
 
 **Please read these guidelines before you open a pull request.** Every pull
 request confirms that you've read and accept them (see
@@ -150,6 +151,22 @@ By ticking it, you confirm that:
 3. your contribution is licensed under the project's [MIT License](LICENSE), the same
    license everyone else receives Bulk Mailer under. You keep the copyright in
    your work.
+
+## Rewards and recognition
+
+Bulk Mailer is an open-source project, and it doesn't run a bug bounty or
+reward program: confirmed reports and accepted contributions, security
+reports included, are not paid. That means there's no payout method and no
+payout timeline.
+
+Accepted reports are recognized by credit instead:
+
+- in the pull request that fixes the issue;
+- in the GitHub Security Advisory, for a security report;
+- in the release notes of the release that ships the fix.
+
+If you'd rather not be named, say so in your report and you'll stay
+anonymous.
 
 ## Releasing (maintainers)
 
