@@ -275,3 +275,30 @@ def test_setup_page_asks_for_the_token_only_when_configured(client, monkeypatch)
     page = client.get("/setup").text
     assert 'name="setup_token"' in page
     assert "anyone who can open this page" not in page
+
+
+def test_setup_form_submits_the_token(anon_client, monkeypatch):
+    """Through /setup itself: a missing or wrong token creates nothing."""
+    created = []
+
+    def fake_create(db, username, password, display_name, email):
+        created.append(username)
+        return User(id=10**9, username=username)
+
+    monkeypatch.setattr(settings, "setup_token", "s3cret-token")
+    monkeypatch.setattr(first_run, "is_done", lambda db: False)
+    monkeypatch.setattr(first_run, "_create_locked", fake_create)
+    form = {"username": "fresh", "password": "fresh-pass-1", "confirm_password": "fresh-pass-1"}
+
+    for token in (None, "", "wrong"):
+        data = form if token is None else {**form, "setup_token": token}
+        response = anon_client.post("/setup", data=data, follow_redirects=False)
+        assert response.status_code == 422
+        assert "setup token" in response.text
+    assert created == []
+
+    response = anon_client.post(
+        "/setup", data={**form, "setup_token": "s3cret-token"}, follow_redirects=False
+    )
+    assert response.headers["location"] == "/settings/email"
+    assert created == ["fresh"]

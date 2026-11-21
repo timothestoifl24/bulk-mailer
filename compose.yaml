@@ -40,6 +40,9 @@ services:
       # No admin password here: on first start, open the app and create the
       # first administrator on its setup page.
       PUBLIC_BASE_URL: ${MAILER_PUBLIC_BASE_URL:-http://127.0.0.1:8000}
+      # Optional: makes the setup page ask for this before it creates the
+      # first administrator. Set MAILER_SETUP_TOKEN in .env.
+      SETUP_TOKEN: ${MAILER_SETUP_TOKEN:-}
       # Point at your real mail server, or leave it on the dev sink below.
       # This must be a name the app *container* can resolve, not localhost.
       SMTP_HOST: ${MAILER_SMTP_HOST:-smtp-sink}

@@ -41,6 +41,15 @@ shared network or a cluster with a public ingress, start it with a
 The setup page then asks for it, and only someone who knows it can create the
 first administrator. It has no effect once that account exists.
 
+Compose passes only the variables listed under `environment:` to the app. The
+repository's `compose.yaml` maps `MAILER_SETUP_TOKEN` from `.env` to it; in a
+compose file of your own, add the line yourself:
+
+```yaml
+    environment:
+      SETUP_TOKEN: ${MAILER_SETUP_TOKEN}
+```
+
 That account is the **initial administrator**. It cannot be deleted, disabled
 or demoted in the UI, so there is always one way in. Change its password under
 *Account*; if it is lost, or the account was locked out, a shell resets it and
