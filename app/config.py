@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -23,6 +24,10 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = False
+    # Unset: the session cookie is Secure exactly when PUBLIC_BASE_URL is https.
+    # Set it to true behind a TLS proxy whose public address is written down as
+    # http, or to false only to sign in over plain HTTP on purpose.
+    session_cookie_secure: bool | None = None
 
     # No longer used: the first administrator is created on the /setup page.
     # Still read so a leftover value can be warned about at startup.
@@ -41,6 +46,11 @@ class Settings(BaseSettings):
     default_throttle_per_minute: int = 60
     public_base_url: str = "http://127.0.0.1:8000"
 
+    @field_validator("session_cookie_secure", mode="before")
+    @classmethod
+    def _blank_means_unset(cls, value):
+        return None if isinstance(value, str) and not value.strip() else value
+
     @property
     def attachments_dir(self) -> Path:
         return self.data_dir / "attachments"
@@ -58,6 +68,15 @@ settings = get_settings()
 
 # Placeholders shipped in .env.example, the compose file and the images.
 WEAK_SECRETS = ("dev-insecure-secret-key-change-me", "CHANGE-ME", "change-me")
+
+
+LOOPBACK_HOSTS = ("localhost", "127.0.0.1", "::1", "[::1]")
+
+
+def session_cookie_is_secure() -> bool:
+    if settings.session_cookie_secure is not None:
+        return settings.session_cookie_secure
+    return settings.public_base_url.strip().lower().startswith("https://")
 
 
 def secret_key_is_weak(key: str | None = None) -> bool:
