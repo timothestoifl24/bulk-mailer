@@ -66,20 +66,20 @@ def login(
     # Keep the form on screen for a retry even where it is normally hidden.
     retry = "/login?local=1" if local == "1" else "/login"
     client = login_throttle.client_of(request)
-    if login_throttle.is_blocked("login", username, client):
+    attempt = login_throttle.begin("login", username, client)
+    if attempt is None:
         logger.warning("Sign-in for %r from %s throttled after repeated failures.", username.strip()[:80], client)
         flash(request, "Too many failed sign-in attempts. Wait a few minutes and try again.", "error")
         return redirect(retry)
 
     user, reason = authenticate(db, username, password)
     if user is None:
-        login_throttle.record_failure("login", username, client)
         logger.info("Failed sign-in for %r: %s", username.strip()[:80], reason)
         # One message for every failure: never reveal which usernames exist.
         flash(request, "Invalid username or password.", "error")
         return redirect(retry)
 
-    login_throttle.record_success("login", username, client)
+    login_throttle.succeeded(attempt)
     return _sign_in(request, user, next)
 
 
@@ -171,19 +171,20 @@ def change_password(
             "This account signs in through a directory or single sign-on; change the password there.",
             "error",
         )
-    elif login_throttle.is_blocked("password", str(user.id), client):
+    elif (attempt := login_throttle.begin("password", str(user.id), client)) is None:
         flash(request, "Too many wrong passwords. Wait a few minutes and try again.", "error")
     elif not verify_password(current_password, user.password_hash):
-        login_throttle.record_failure("password", str(user.id), client)
         flash(request, "Your current password isn't right. Try again.", "error")
-    elif len(new_password) < 8:
-        flash(request, "The new password must be at least 8 characters.", "error")
-    elif new_password != confirm_password:
-        flash(request, "The two new passwords don't match. Type them again.", "error")
     else:
-        db_user = db.get(User, user.id)
-        assert db_user is not None
-        db_user.password_hash = hash_password(new_password)
-        db.commit()
-        flash(request, "Password changed. Use it next time you sign in.", "success")
+        login_throttle.succeeded(attempt)
+        if len(new_password) < 8:
+            flash(request, "The new password must be at least 8 characters.", "error")
+        elif new_password != confirm_password:
+            flash(request, "The two new passwords don't match. Type them again.", "error")
+        else:
+            db_user = db.get(User, user.id)
+            assert db_user is not None
+            db_user.password_hash = hash_password(new_password)
+            db.commit()
+            flash(request, "Password changed. Use it next time you sign in.", "success")
     return redirect("/account")
