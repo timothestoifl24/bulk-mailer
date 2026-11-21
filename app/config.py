@@ -79,6 +79,27 @@ def session_cookie_is_secure() -> bool:
     return settings.public_base_url.strip().lower().startswith("https://")
 
 
+def insecure_cookie_warning() -> str:
+    """Why the session cookie may cross the network in clear text, or "" if it cannot."""
+    from urllib.parse import urlsplit
+
+    host = (urlsplit(settings.public_base_url).hostname or "").lower()
+    if session_cookie_is_secure() or host in LOOPBACK_HOSTS:
+        return ""
+    if settings.session_cookie_secure is False:
+        return (
+            "SESSION_COOKIE_SECURE=false: the session cookie is sent without the Secure flag, "
+            "so it also goes over plain HTTP. Remove the setting unless you sign in over "
+            "plain HTTP on purpose."
+        )
+    return (
+        f"PUBLIC_BASE_URL ({settings.public_base_url}) is not https://, so the session cookie "
+        "is sent without the Secure flag and passwords may cross the network unencrypted. "
+        "Serve the app over HTTPS and set PUBLIC_BASE_URL to the https:// address, or set "
+        "SESSION_COOKIE_SECURE=true if a TLS proxy already does."
+    )
+
+
 def secret_key_is_weak(key: str | None = None) -> bool:
     key = settings.secret_key if key is None else key
     return any(marker in key for marker in WEAK_SECRETS) or len(key) < 32

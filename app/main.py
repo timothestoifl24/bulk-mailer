@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
-from urllib.parse import quote, urlsplit
+from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse, PlainTextResponse
@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import __version__
-from .config import LOOPBACK_HOSTS, secret_key_is_weak, session_cookie_is_secure, settings
+from .config import insecure_cookie_warning, secret_key_is_weak, session_cookie_is_secure, settings
 from .db import IS_SQLITE, Base, engine, get_db, session_scope, startup_lock
 from .migrations import add_missing_columns, add_missing_indexes
 from .models import (
@@ -80,14 +80,8 @@ def warn_about_removed_settings() -> None:
 
 def warn_about_insecure_cookie() -> None:
     """A session cookie without Secure travels in clear text over plain HTTP."""
-    host = (urlsplit(settings.public_base_url).hostname or "").lower()
-    if not session_cookie_is_secure() and host not in LOOPBACK_HOSTS:
-        logger.warning(
-            "The session cookie is sent without the Secure flag, because PUBLIC_BASE_URL "
-            "(%s) is not https. Serve the app over HTTPS and set PUBLIC_BASE_URL to the "
-            "https:// address, or set SESSION_COOKIE_SECURE=true behind a TLS proxy.",
-            settings.public_base_url,
-        )
+    if warning := insecure_cookie_warning():
+        logger.warning(warning)
 
 
 def bootstrap() -> None:
