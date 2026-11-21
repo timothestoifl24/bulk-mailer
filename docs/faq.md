@@ -65,7 +65,9 @@ environment, and flags an environment value that is being ignored.
 
 You can, but it logs everyone out **and** invalidates every stored SMTP and
 LDAP password, because the encryption key is derived from it. Re-enter those
-passwords afterwards. Generate a long random value at install time and keep it
+passwords afterwards. It also breaks the unsubscribe links in messages already
+sent, since each is signed with the key: suppress those recipients by hand on
+*Recipients* when they write in. Generate a long random value at install time and keep it
 somewhere you will not lose it.
 
 ## Data
