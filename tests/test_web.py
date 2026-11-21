@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import pytest
 from sqlalchemy import func, select
 
 from app import __version__
@@ -35,6 +36,37 @@ def test_anonymous_users_are_sent_to_the_login_page(anon_client):
 
 def test_healthz_is_public(anon_client):
     assert anon_client.get("/healthz").json()["status"] == "ok"
+
+
+@pytest.mark.parametrize("path", ["/login", "/healthz", "/static/app.js"])
+def test_security_headers_on_every_response(anon_client, path):
+    headers = anon_client.get(path, follow_redirects=False).headers
+    assert headers["X-Frame-Options"] == "DENY"
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    assert headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
+
+
+def test_security_headers_on_an_unhandled_error(client, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.routers import auth
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("database went away")
+
+    monkeypatch.setattr(auth, "oidc_auth", type("Broken", (), {"enabled_providers": broken}))
+    response = TestClient(app, raise_server_exceptions=False).get("/login")
+    assert response.status_code == 500
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+
+
+def test_security_headers_on_a_blocked_cross_site_post(anon_client):
+    response = anon_client.post("/login", headers={"Origin": "http://evil.example"})
+    assert response.status_code == 403
+    assert response.headers["X-Frame-Options"] == "DENY"
 
 
 def test_bad_credentials_are_rejected(anon_client):
