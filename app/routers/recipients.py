@@ -397,6 +397,17 @@ def delete_recipient(request: Request, recipient_id: int, db: Session = Depends(
     return redirect(local_referer(request, "/recipients"))
 
 
+# Spreadsheet apps evaluate a cell starting with one of these as a formula.
+# Recipient fields come from uploaded files, pasted lists and directories, so a
+# crafted name could otherwise run on the machine of whoever opens the export.
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_cell(value) -> str:
+    text = "" if value is None else str(value)
+    return "'" + text if text.startswith(_FORMULA_PREFIXES) else text
+
+
 @router.get("/recipients-export.csv")
 def export_csv(list_id: str = "", db: Session = Depends(get_db)):
     statement = select(Recipient).order_by(Recipient.email)
@@ -422,16 +433,19 @@ def export_csv(list_id: str = "", db: Session = Depends(get_db)):
     for recipient in db.scalars(statement):
         writer.writerow(
             [
-                recipient.email,
-                recipient.first_name,
-                recipient.last_name,
-                recipient.display_name,
-                recipient.company,
-                recipient.department,
-                recipient.title,
-                recipient.source,
-                "yes" if recipient.is_suppressed else "no",
-                "; ".join(item.name for item in recipient.lists),
+                _csv_cell(value)
+                for value in (
+                    recipient.email,
+                    recipient.first_name,
+                    recipient.last_name,
+                    recipient.display_name,
+                    recipient.company,
+                    recipient.department,
+                    recipient.title,
+                    recipient.source,
+                    "yes" if recipient.is_suppressed else "no",
+                    "; ".join(item.name for item in recipient.lists),
+                )
             ]
         )
     buffer.seek(0)
