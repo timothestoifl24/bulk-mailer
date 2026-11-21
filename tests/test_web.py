@@ -252,6 +252,21 @@ def test_recipient_export_returns_csv(logged_in):
     assert response.text.splitlines()[0].startswith("email,first_name")
 
 
+def test_recipient_export_neutralises_formulas(logged_in):
+    with SessionLocal() as db:
+        db.add(Recipient(email="formula@example.com", first_name='=HYPERLINK("http://x","y")', company="+1 Corp"))
+        db.commit()
+    try:
+        text = logged_in.get("/recipients-export.csv").text
+        row = next(line for line in text.splitlines() if line.startswith("formula@example.com"))
+        assert ",\"'=HYPERLINK(" in row
+        assert ",'+1 Corp," in row
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.scalar(select(Recipient).where(Recipient.email == "formula@example.com")))
+            db.commit()
+
+
 def test_campaign_template_picker_submits_as_a_form(logged_in):
     """The picker must navigate without JavaScript assembling a URL.
 
