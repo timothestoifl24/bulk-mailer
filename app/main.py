@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import __version__
-from .config import secret_key_is_weak, settings
+from .config import insecure_cookie_warning, secret_key_is_weak, session_cookie_is_secure, settings
 from .db import IS_SQLITE, Base, engine, get_db, session_scope, startup_lock
 from .migrations import add_missing_columns, add_missing_indexes
 from .models import (
@@ -78,10 +78,17 @@ def warn_about_removed_settings() -> None:
         )
 
 
+def warn_about_insecure_cookie() -> None:
+    """A session cookie without Secure travels in clear text over plain HTTP."""
+    if warning := insecure_cookie_warning():
+        logger.warning(warning)
+
+
 def bootstrap() -> None:
     """Create the schema, adopt an initial admin on upgrade, and reset stale campaigns."""
     warn_about_weak_secrets()
     warn_about_removed_settings()
+    warn_about_insecure_cookie()
     with startup_lock():
         _bootstrap_schema_and_data()
 
@@ -138,7 +145,7 @@ app.add_middleware(
     secret_key=settings.secret_key,
     session_cookie="mailer_session",
     same_site="lax",
-    https_only=settings.public_base_url.startswith("https://"),
+    https_only=session_cookie_is_secure(),
     max_age=8 * 60 * 60,
 )
 
