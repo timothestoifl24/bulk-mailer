@@ -170,6 +170,29 @@ async def csrf_guard(request: Request, call_next):
     return await call_next(request)
 
 
+# Only what cannot break a page: the templates still have inline scripts and
+# handlers, so script-src is left open until they move into app.js. The email
+# preview iframe (srcdoc) inherits this policy, so nothing here may restrict
+# the images or styles an email uses.
+CONTENT_SECURITY_POLICY = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+SECURITY_HEADERS = {
+    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    # Unsubscribe links carry a token in the URL.
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Registered last, so it is outermost and covers the guards' own responses."""
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code == status.HTTP_401_UNAUTHORIZED:
