@@ -47,6 +47,22 @@ def test_security_headers_on_every_response(anon_client, path):
     assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
 
 
+def test_security_headers_on_an_unhandled_error(client, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.routers import auth
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("database went away")
+
+    monkeypatch.setattr(auth, "oidc_auth", type("Broken", (), {"enabled_providers": broken}))
+    response = TestClient(app, raise_server_exceptions=False).get("/login")
+    assert response.status_code == 500
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+
+
 def test_security_headers_on_a_blocked_cross_site_post(anon_client):
     response = anon_client.post("/login", headers={"Origin": "http://evil.example"})
     assert response.status_code == 403

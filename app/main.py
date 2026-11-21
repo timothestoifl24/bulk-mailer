@@ -193,6 +193,15 @@ async def security_headers(request: Request, call_next):
     return response
 
 
+@app.exception_handler(Exception)
+async def server_error_handler(request: Request, exc: Exception):
+    """An unhandled error's 500 is built by Starlette's ServerErrorMiddleware,
+    outside every user middleware, so security_headers never sees it."""
+    return PlainTextResponse(
+        "Internal Server Error", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, headers=SECURITY_HEADERS
+    )
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code == status.HTTP_401_UNAUTHORIZED:
