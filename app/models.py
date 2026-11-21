@@ -291,6 +291,8 @@ class LdapProfile(Base):
     """
 
     __tablename__ = "ldap_profiles"
+    # As for OidcProvider: never hand a deleted profile's id to a new one.
+    __table_args__ = {"sqlite_autoincrement": True}
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200), unique=True)

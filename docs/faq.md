@@ -87,7 +87,12 @@ volume there or it disappears with the container.
 
 ### Does upgrading need a migration step?
 
-No. The app adds missing columns on startup. It only ever adds
+Normally no. The app adds missing columns on startup. The one exception is LDAP
+sign-in after upgrading from 1.x to 2.0.0: if directory users are locked out,
+run `python -m app.cli migrate-ldap-login` — see
+[Upgrading](/upgrading#upgrading-from-1-x-to-2-0).
+
+Apart from that, it only ever adds
 nullable-or-defaulted columns and never drops or renames anything — see
 [Upgrading](/upgrading) for the limits of that, and back up first anyway.
 

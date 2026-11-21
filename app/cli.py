@@ -5,6 +5,7 @@
     python -m app.cli set-password alice
     python -m app.cli create-admin alice --password ...
     python -m app.cli disable-ldap-login
+    python -m app.cli migrate-ldap-login
     python -m app.cli disable-sso
 
 In a container:  podman exec -it <container> python -m app.cli list-users
@@ -21,7 +22,7 @@ from sqlalchemy import func, select
 from .db import session_scope
 from .models import LdapProfile, OidcProvider, User
 from .security import hash_password
-from .services import settings_store
+from .services import ldap_auth, settings_store
 from .services import setup as first_run
 
 MIN_PASSWORD_LENGTH = 8
@@ -151,6 +152,51 @@ def disable_ldap_login(_args) -> int:
     return 0
 
 
+def migrate_ldap_login(args) -> int:
+    """Repair the LDAP sign-in settings an upgrade with 2.0.0 got wrong.
+
+    For an upgrade from 1.x after which LDAP users cannot sign in: it restores
+    the 1.x login attribute and bind template on the LDAP provider they
+    belonged to, leaving settings changed since alone. `--reattach` also
+    re-links unlinked directory accounts whose DN is under that provider.
+    """
+    with session_scope() as db:
+        profile = ldap_auth.legacy_profile(db)
+        if profile is None:
+            raise SystemExit(
+                "Nothing to migrate: this database has no 1.x LDAP sign-in settings "
+                "pointing at an existing LDAP connection."
+            )
+        # The settings name the provider by id only. If 2.0.0 deleted it,
+        # SQLite may have given that id to another directory since; repairing
+        # that one would break its sign-in and could hand it old accounts.
+        if args.provider is None or args.provider.strip().lower() != profile.name.strip().lower():
+            print(
+                f"The 1.x sign-in settings point at the LDAP provider {profile.name!r} "
+                f"({profile.host}, base DN {profile.base_dn!r})."
+            )
+            if args.provider is not None:
+                print(f"That is not {args.provider!r}, so nothing was changed.")
+            raise SystemExit(
+                "If that is the directory 1.x signed in against, run this again with "
+                f"--provider {profile.name!r}. If it is not, the 1.x provider is gone and "
+                "there is nothing to repair."
+            )
+        ldap_auth.migrate_legacy_settings(db, force=True, reattach=args.reattach)
+        print(
+            f"The 1.x sign-in settings are now on the LDAP provider {profile.name!r}: "
+            f"sign-in {'on' if profile.login_enabled else 'off'}, "
+            f"{profile.login_bind_mode} mode, login attribute {profile.login_attribute!r}."
+        )
+        attached = db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.auth_source == "ldap", User.auth_provider_id == profile.id)
+        )
+        print(f"{attached} directory account(s) belong to it.")
+    return 0
+
+
 def disable_sso(_args) -> int:
     """Escape hatch for a broken OpenID Connect provider; also shows the local form again."""
     with session_scope() as db:
@@ -196,6 +242,22 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser(
         "disable-ldap-login", help="turn LDAP sign-in off (use when it locks everyone out)"
     ).set_defaults(func=disable_ldap_login)
+
+    p = sub.add_parser(
+        "migrate-ldap-login",
+        help="repair the 1.x LDAP sign-in settings after an upgrade that lost them",
+    )
+    p.add_argument(
+        "--provider",
+        metavar="NAME",
+        help="the name of the LDAP provider 1.x signed in against, to confirm the target",
+    )
+    p.add_argument(
+        "--reattach",
+        action="store_true",
+        help="also re-link unlinked directory accounts whose DN is under that provider's base DN",
+    )
+    p.set_defaults(func=migrate_ldap_login)
 
     sub.add_parser(
         "disable-sso", help="turn every OpenID Connect provider off and show the local form"
