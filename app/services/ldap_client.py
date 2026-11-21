@@ -59,6 +59,7 @@ def connect(profile: LdapProfile) -> Connection:
         use_ssl=profile.use_ssl,
         get_info=ALL,
         tls=tls_config(profile),
+        connect_timeout=10,
     )
     password = decrypt_secret(profile.bind_password_enc)
     try:

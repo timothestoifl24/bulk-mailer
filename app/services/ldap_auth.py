@@ -72,6 +72,11 @@ def is_enabled(db: Session) -> bool:
 
 MIGRATION_MARKER = "auth_migrated_v2"
 
+# Someone is waiting on the sign-in page: an unreachable directory should fail
+# in seconds, not hold a worker thread for half a minute.
+LOGIN_CONNECT_TIMEOUT = 5
+LOGIN_RECEIVE_TIMEOUT = 10
+
 
 def migrate_legacy_settings(db: Session) -> bool:
     """Move the pre-2.1 global LDAP sign-in settings onto their profile.
@@ -119,6 +124,7 @@ def _bind_as(profile: LdapProfile, bind_name: str, password: str) -> bool:
         port=profile.port,
         use_ssl=profile.use_ssl,
         tls=tls_config(profile),
+        connect_timeout=LOGIN_CONNECT_TIMEOUT,
     )
     connection = None
     try:
@@ -129,7 +135,7 @@ def _bind_as(profile: LdapProfile, bind_name: str, password: str) -> bool:
             authentication=SIMPLE,
             auto_bind=False,
             raise_exceptions=False,
-            receive_timeout=30,
+            receive_timeout=LOGIN_RECEIVE_TIMEOUT,
         )
         if profile.start_tls and not profile.use_ssl:
             connection.open()
@@ -292,8 +298,11 @@ def authenticate_ldap(profile: LdapProfile, username: str, password: str) -> Lda
         dn=dn,
         display_name=first_value(attributes.get(attribute_map.get("display_name", "displayName"))),
         email=first_value(attributes.get(attribute_map.get("email", "mail"))),
-        is_admin=(
-            in_group(profile, admin_group, dn, username, attributes) if admin_group else False
+        is_admin=bool(admin_group)
+        and (
+            # Already established above: no second directory round-trip.
+            admin_group.lower() == required_group.lower()
+            or in_group(profile, admin_group, dn, username, attributes)
         ),
     )
 

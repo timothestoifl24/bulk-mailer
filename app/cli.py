@@ -4,6 +4,7 @@
     python -m app.cli reset-initial-admin
     python -m app.cli set-password alice
     python -m app.cli create-admin alice --password ...
+    python -m app.cli promote alice
     python -m app.cli disable-ldap-login
     python -m app.cli disable-sso
 
@@ -25,6 +26,18 @@ from .services import settings_store
 from .services import setup as first_run
 
 MIN_PASSWORD_LENGTH = 8
+NO_ACCOUNTS = "No account exists yet. Open the app's /setup page to create the first administrator."
+
+
+def _find_user(db, username: str) -> User | None:
+    return db.scalar(select(User).where(func.lower(User.username) == username.lower()))
+
+
+def _require_user(db, username: str) -> User:
+    user = _find_user(db, username)
+    if user is None:
+        raise SystemExit(f"No account named {username!r}.")
+    return user
 
 
 def _read_password(supplied: str | None) -> str:
@@ -41,7 +54,7 @@ def list_users(_args) -> int:
     with session_scope() as db:
         users = list(db.scalars(select(User).order_by(User.username)))
         if not users:
-            print("No accounts exist yet. Open the app's /setup page to create the first administrator.")
+            print(NO_ACCOUNTS)
             return 0
         width = max(len(u.username) for u in users)
         print(f"{'USERNAME'.ljust(width)}  SOURCE  RIGHTS   STATE     LAST SIGN-IN")
@@ -59,9 +72,7 @@ def list_users(_args) -> int:
 
 def set_password(args) -> int:
     with session_scope() as db:
-        user = db.scalar(select(User).where(func.lower(User.username) == args.username.lower()))
-        if user is None:
-            raise SystemExit(f"No account named {args.username!r}.")
+        user = _require_user(db, args.username)
         if user.auth_source != "local":
             raise SystemExit(
                 f"{user.username!r} signs in through the directory; there is no local password. "
@@ -79,9 +90,7 @@ def reset_initial_admin(args) -> int:
         user = first_run.initial_admin(db)
         if user is None:
             if db.scalar(select(func.count()).select_from(User)) == 0:
-                raise SystemExit(
-                    "No account exists yet. Open the app's /setup page to create the first administrator."
-                )
+                raise SystemExit(NO_ACCOUNTS)
             raise SystemExit(
                 "No account is marked as the initial administrator. Use set-password on a local "
                 "administrator, or create-admin to add one."
@@ -100,11 +109,8 @@ def create_admin(args) -> int:
     with session_scope() as db:
         if db.scalar(select(func.count()).select_from(User)) == 0:
             # The first account is created on the setup page, never from here.
-            raise SystemExit(
-                "No account exists yet. Open the app's /setup page to create the first administrator."
-            )
-        existing = db.scalar(select(User).where(func.lower(User.username) == args.username.lower()))
-        if existing is not None:
+            raise SystemExit(NO_ACCOUNTS)
+        if _find_user(db, args.username) is not None:
             raise SystemExit(f"{args.username!r} already exists; use set-password.")
         db.add(
             User(
@@ -121,12 +127,14 @@ def create_admin(args) -> int:
 
 def promote(args) -> int:
     with session_scope() as db:
-        user = db.scalar(select(User).where(func.lower(User.username) == args.username.lower()))
-        if user is None:
-            raise SystemExit(f"No account named {args.username!r}.")
+        user = _require_user(db, args.username)
+        reenabled = not user.is_active
         user.is_admin = True
         user.is_active = True
-        print(f"{user.username!r} is now an administrator.")
+        print(
+            f"{user.username!r} is now an administrator"
+            + (" and was re-enabled." if reenabled else ".")
+        )
     return 0
 
 
