@@ -23,7 +23,8 @@ pages no longer exist.
   1.x meaning, and a template-mode bind template is carried over unchanged.
 - `python -m app.cli migrate-ldap-login` repairs the login attribute and bind
   template of the LDAP provider for installs that already upgraded to 2.0.0,
-  leaving settings changed since alone. `--reattach` also re-links unlinked
+  leaving settings changed since alone. It asks for the provider's name with
+  `--provider` before changing anything. `--reattach` also re-links unlinked
   directory accounts whose DN is under that provider. See *Upgrading*.
 
 ## [v2.0.0] - 2026-11-02

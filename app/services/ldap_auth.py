@@ -73,16 +73,46 @@ def is_enabled(db: Session) -> bool:
 MIGRATION_MARKER = "auth_migrated_v2"
 
 
-def _normalise_dn(dn: str) -> str:
-    return ",".join(
-        "=".join(part.strip() for part in rdn.split("=", 1)) for rdn in dn.lower().split(",")
-    ).strip()
+def _rdns(dn: str) -> list[str]:
+    """Split a DN into normalised RDNs, honouring backslash escapes.
+
+    `cn=a\\,dc=corp,dc=example` is two RDNs, not three: an escaped comma is
+    part of a value, and treating it as a boundary would let a DN pass as
+    being under a base it is not under.
+    """
+    rdns: list[str] = []
+    current: list[str] = []
+    chars = iter((dn or "").strip())
+    for char in chars:
+        if char == "\\":
+            current.append(char + next(chars, ""))
+        elif char == ",":
+            rdns.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    rdns.append("".join(current))
+    normalised = []
+    for rdn in rdns:
+        attribute, _, value = rdn.partition("=")
+        normalised.append(f"{attribute.strip().lower()}={value.strip().lower()}")
+    return normalised if any(r != "=" for r in normalised) else []
 
 
 def dn_is_under(dn: str, base_dn: str) -> bool:
     """Whether `dn` lies in the subtree `base_dn`, compared RDN by RDN."""
-    dn, base = _normalise_dn(dn or ""), _normalise_dn(base_dn or "")
-    return bool(dn and base) and (dn == base or dn.endswith("," + base))
+    entry, base = _rdns(dn), _rdns(base_dn)
+    return bool(entry and base) and len(entry) >= len(base) and entry[-len(base):] == base
+
+
+def legacy_profile(db: Session) -> LdapProfile | None:
+    """The LDAP profile the 1.x sign-in settings name by id.
+
+    Only a hint: if 2.0.0 deleted that profile, SQLite may have handed its id
+    to a different one since, so a repair must be confirmed by name.
+    """
+    raw = settings_store.get_value(db, "auth_ldap_profile_id").strip()
+    return db.get(LdapProfile, int(raw)) if raw.isdigit() else None
 
 
 def migrate_legacy_settings(db: Session, force: bool = False, reattach: bool = False) -> bool:
@@ -115,8 +145,7 @@ def migrate_legacy_settings(db: Session, force: bool = False, reattach: bool = F
             return False
         settings_store.set_value(db, MIGRATION_MARKER, "1")
 
-    raw = settings_store.get_value(db, "auth_ldap_profile_id").strip()
-    profile = db.get(LdapProfile, int(raw)) if raw.isdigit() else None
+    profile = legacy_profile(db)
     if profile is None:
         return False
 

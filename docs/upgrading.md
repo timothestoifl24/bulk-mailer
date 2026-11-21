@@ -62,6 +62,15 @@ OpenLDAP directory where the login attribute had been left blank — run:
 docker exec -it <container> python -m app.cli migrate-ldap-login
 ```
 
+The first run changes nothing: it shows which LDAP provider the 1.x settings
+point at, with its host and base DN. 1.x stored only that provider's id, and if
+it was deleted since, SQLite may have given the id to another directory. If it
+is the directory 1.x signed in against, confirm it by name:
+
+```bash
+docker exec -it <container> python -m app.cli migrate-ldap-login --provider "Corporate AD"
+```
+
 On SQLite the database is the file in the `/data` volume, so the command works
 on whatever that volume holds; with PostgreSQL it uses `DATABASE_URL` like the
 app does. It also helps if you started a 2.0 beta image before upgrading, since
@@ -77,7 +86,7 @@ Directory accounts that lost their provider stay unlinked unless you add
 `--reattach`:
 
 ```bash
-docker exec -it <container> python -m app.cli migrate-ldap-login --reattach
+docker exec -it <container> python -m app.cli migrate-ldap-login --provider "Corporate AD" --reattach
 ```
 
 That re-links only accounts whose DN is under the provider's base DN. An

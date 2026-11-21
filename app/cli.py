@@ -161,12 +161,28 @@ def migrate_ldap_login(args) -> int:
     re-links unlinked directory accounts whose DN is under that provider.
     """
     with session_scope() as db:
-        if not ldap_auth.migrate_legacy_settings(db, force=True, reattach=args.reattach):
+        profile = ldap_auth.legacy_profile(db)
+        if profile is None:
             raise SystemExit(
                 "Nothing to migrate: this database has no 1.x LDAP sign-in settings "
                 "pointing at an existing LDAP connection."
             )
-        profile = db.get(LdapProfile, int(settings_store.get_value(db, "auth_ldap_profile_id")))
+        # The settings name the provider by id only. If 2.0.0 deleted it,
+        # SQLite may have given that id to another directory since; repairing
+        # that one would break its sign-in and could hand it old accounts.
+        if args.provider is None or args.provider.strip().lower() != profile.name.strip().lower():
+            print(
+                f"The 1.x sign-in settings point at the LDAP provider {profile.name!r} "
+                f"({profile.host}, base DN {profile.base_dn!r})."
+            )
+            if args.provider is not None:
+                print(f"That is not {args.provider!r}, so nothing was changed.")
+            raise SystemExit(
+                "If that is the directory 1.x signed in against, run this again with "
+                f"--provider {profile.name!r}. If it is not, the 1.x provider is gone and "
+                "there is nothing to repair."
+            )
+        ldap_auth.migrate_legacy_settings(db, force=True, reattach=args.reattach)
         print(
             f"The 1.x sign-in settings are now on the LDAP provider {profile.name!r}: "
             f"sign-in {'on' if profile.login_enabled else 'off'}, "
@@ -230,6 +246,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser(
         "migrate-ldap-login",
         help="repair the 1.x LDAP sign-in settings after an upgrade that lost them",
+    )
+    p.add_argument(
+        "--provider",
+        metavar="NAME",
+        help="the name of the LDAP provider 1.x signed in against, to confirm the target",
     )
     p.add_argument(
         "--reattach",

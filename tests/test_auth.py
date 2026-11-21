@@ -504,6 +504,36 @@ def test_repair_keeps_settings_changed_since_and_foreign_accounts_unlinked(logge
         db.commit()
 
 
+def test_repair_command_needs_the_provider_named(logged_in, capsys):
+    """The 1.x id may belong to another directory by now: confirm by name."""
+    from app import cli
+
+    with SessionLocal() as db:
+        profile = LdapProfile(name="maybe-reused", host="ldap.other.example", base_dn="dc=other")
+        db.add(profile)
+        db.flush()
+        settings_store.set_value(db, "auth_ldap_profile_id", str(profile.id))
+        profile.login_attribute = "sAMAccountName"
+        db.commit()
+        profile_id = profile.id
+    try:
+        for argv in (["migrate-ldap-login"], ["migrate-ldap-login", "--provider", "corp"]):
+            with pytest.raises(SystemExit, match="--provider 'maybe-reused'"):
+                cli.main(argv)
+            with SessionLocal() as db:
+                assert db.get(LdapProfile, profile_id).login_attribute == "sAMAccountName"
+        assert "ldap.other.example" in capsys.readouterr().out
+
+        assert cli.main(["migrate-ldap-login", "--provider", "Maybe-Reused"]) == 0
+        with SessionLocal() as db:
+            assert db.get(LdapProfile, profile_id).login_attribute == "uid"
+    finally:
+        with SessionLocal() as db:
+            settings_store.set_value(db, "auth_ldap_profile_id", "")
+            db.delete(db.get(LdapProfile, profile_id))
+            db.commit()
+
+
 @pytest.mark.parametrize(
     "dn, base, expected",
     [
@@ -511,6 +541,9 @@ def test_repair_keeps_settings_changed_since_and_foreign_accounts_unlinked(logge
         ("UID=a, OU=People, DC=Corp, DC=Example", "dc=corp,dc=example", True),
         ("uid=a,dc=evilcorp,dc=example", "dc=corp,dc=example", False),
         ("uid=a,dc=partners,dc=example", "dc=corp,dc=example", False),
+        # An escaped comma is part of the value, not an RDN boundary.
+        ("cn=a\\,dc=corp,dc=example", "dc=corp,dc=example", False),
+        ("cn=Doe\\, Jane,ou=People,dc=corp,dc=example", "dc=corp,dc=example", True),
         ("", "dc=corp,dc=example", False),
         ("uid=a,dc=corp,dc=example", "", False),
     ],
