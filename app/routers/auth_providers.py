@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import LdapProfile, OidcProvider, RecipientList, User
 from ..security import encrypt_secret
-from ..services import ldap_auth, ldap_client, ldap_sync, oidc_auth, settings_store
+from ..services import ldap_auth, ldap_client, ldap_sync, login_throttle, oidc_auth, settings_store
 from ..services.importer import discard_drafts_for_profile
 from ..services.ldap_import import DEFAULT_ATTR_MAP, parse_attr_map
 from ..web import flash, redirect, render
@@ -362,9 +362,16 @@ def try_login(
     provider = db.get(LdapProfile, provider_id)
     if provider is None:
         return redirect(BASE)
+    # Admin-only, but a stolen admin session must not become a password oracle
+    # against the directory.
+    client = login_throttle.client_of(request)
+    if login_throttle.is_blocked("try-login", test_username, client):
+        flash(request, "Too many failed test sign-ins. Wait a few minutes and try again.", "error")
+        return redirect(_url(provider) + "#sign-in")
     try:
         flash(request, ldap_auth.test_login(provider, test_username.strip(), test_password), "success")
     except KeyError:
+        login_throttle.record_failure("try-login", test_username, client)
         flash(
             request,
             f"The directory rejected '{test_username.strip()}'. Wrong password, no such "
