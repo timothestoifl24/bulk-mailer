@@ -65,12 +65,27 @@ docker exec -it <container> python -m app.cli migrate-ldap-login
 On SQLite the database is the file in the `/data` volume, so the command works
 on whatever that volume holds; with PostgreSQL it uses `DATABASE_URL` like the
 app does. It also helps if you started a 2.0 beta image before upgrading, since
-the one-time migration will already have run. It applies the 1.x settings to that provider again (a blank login attribute
-means `uid`, as it did in 1.x) and re-attaches directory accounts that lost
-their provider. It overwrites the sign-in settings of that one provider with
-the 1.x values, so re-check anything you changed there since upgrading. It
-reads the settings 1.x left in the database; it says "Nothing to migrate" if
-there are none. The fix is included from 2.0.1, which makes the command
+the one-time migration will already have run.
+
+It repairs only what 2.0.0 got wrong on that provider, and only where the
+field still holds what 2.0.0 wrote there: the login attribute (blank means
+`uid`, as it did in 1.x), a template-mode bind template, and auto-create when
+1.x had it off. Anything you changed since upgrading stays as it is, and it
+never turns sign-in on or removes a required group.
+
+Directory accounts that lost their provider stay unlinked unless you add
+`--reattach`:
+
+```bash
+docker exec -it <container> python -m app.cli migrate-ldap-login --reattach
+```
+
+That re-links only accounts whose DN is under the provider's base DN. An
+unlinked account can also be left over from a provider you deleted, and must
+not be handed to another directory.
+
+The command reads the settings 1.x left in the database; it says "Nothing to
+migrate" if there are none. The fix is included from 2.0.1, which makes the command
 unnecessary on a fresh upgrade.
 
 ## Versioning

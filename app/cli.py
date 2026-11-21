@@ -152,15 +152,16 @@ def disable_ldap_login(_args) -> int:
     return 0
 
 
-def migrate_ldap_login(_args) -> int:
-    """Apply the LDAP sign-in settings of 1.x to their directory again.
+def migrate_ldap_login(args) -> int:
+    """Repair the LDAP sign-in settings an upgrade with 2.0.0 got wrong.
 
-    For an upgrade from 1.x after which LDAP users cannot sign in: it copies
-    the old global settings onto the LDAP provider they belonged to and
-    re-attaches the directory accounts that lost their provider.
+    For an upgrade from 1.x after which LDAP users cannot sign in: it restores
+    the 1.x login attribute and bind template on the LDAP provider they
+    belonged to, leaving settings changed since alone. `--reattach` also
+    re-links unlinked directory accounts whose DN is under that provider.
     """
     with session_scope() as db:
-        if not ldap_auth.migrate_legacy_settings(db, force=True):
+        if not ldap_auth.migrate_legacy_settings(db, force=True, reattach=args.reattach):
             raise SystemExit(
                 "Nothing to migrate: this database has no 1.x LDAP sign-in settings "
                 "pointing at an existing LDAP connection."
@@ -226,10 +227,16 @@ def main(argv: list[str] | None = None) -> int:
         "disable-ldap-login", help="turn LDAP sign-in off (use when it locks everyone out)"
     ).set_defaults(func=disable_ldap_login)
 
-    sub.add_parser(
+    p = sub.add_parser(
         "migrate-ldap-login",
-        help="re-apply the 1.x LDAP sign-in settings after an upgrade that lost them",
-    ).set_defaults(func=migrate_ldap_login)
+        help="repair the 1.x LDAP sign-in settings after an upgrade that lost them",
+    )
+    p.add_argument(
+        "--reattach",
+        action="store_true",
+        help="also re-link unlinked directory accounts whose DN is under that provider's base DN",
+    )
+    p.set_defaults(func=migrate_ldap_login)
 
     sub.add_parser(
         "disable-sso", help="turn every OpenID Connect provider off and show the local form"

@@ -421,7 +421,9 @@ def test_legacy_blank_login_attribute_stays_uid_and_can_be_repaired(logged_in):
         profile = LdapProfile(name="openldap", host="ldap.legacy.example", base_dn="dc=legacy")
         db.add(profile)
         db.flush()
-        orphan = User(username="orphan-ldap-user", auth_source="ldap")
+        orphan = User(
+            username="orphan-ldap-user", auth_source="ldap", ldap_dn="uid=orphan,ou=People,dc=legacy"
+        )
         db.add(orphan)
         for key, value in {
             "auth_ldap_enabled": "1",
@@ -437,8 +439,8 @@ def test_legacy_blank_login_attribute_stays_uid_and_can_be_repaired(logged_in):
         db.commit()
         assert profile.login_attribute == "uid"
 
-        # An upgrade that already went wrong is repaired with force=True,
-        # which also re-attaches accounts that lost their provider.
+        # An upgrade that already went wrong is repaired with force=True.
+        # Unlinked accounts stay unlinked unless reattach is asked for.
         profile.login_attribute = "sAMAccountName"
         orphan.auth_provider_id = None
         db.commit()
@@ -446,11 +448,75 @@ def test_legacy_blank_login_attribute_stays_uid_and_can_be_repaired(logged_in):
         assert ldap_auth.migrate_legacy_settings(db, force=True) is True
         db.commit()
         assert profile.login_attribute == "uid"
+        assert orphan.auth_provider_id is None
+        assert ldap_auth.migrate_legacy_settings(db, force=True, reattach=True) is True
+        db.commit()
         assert orphan.auth_provider_id == profile.id
         settings_store.set_value(db, "auth_ldap_enabled", "0")
         profile.login_enabled = False
         profile.enabled = False
         db.commit()
+
+
+def test_repair_keeps_settings_changed_since_and_foreign_accounts_unlinked(logged_in):
+    """`migrate-ldap-login` must not undo an admin's changes or hand accounts
+    from a deleted second directory to the 1.x one."""
+    with SessionLocal() as db:
+        profile = LdapProfile(name="corp-1x", host="ldap.corp.example", base_dn="dc=corp,dc=example")
+        db.add(profile)
+        db.flush()
+        partner = User(
+            username="partner-admin",
+            auth_source="ldap",
+            is_admin=True,
+            ldap_dn="uid=partner-admin,ou=People,dc=partners,dc=example",
+        )
+        db.add(partner)
+        for key, value in {
+            "auth_ldap_enabled": "1",
+            "auth_ldap_profile_id": str(profile.id),
+            "auth_ldap_login_attribute": "",
+            "auth_ldap_required_group": "",
+        }.items():
+            settings_store.set_value(db, key, value)
+        # Since the upgrade, the admin turned sign-in off, required a group and
+        # picked the login attribute by hand.
+        profile.login_enabled = False
+        profile.login_required_group = USERS_GROUP
+        profile.login_attribute = "mail"
+        profile.login_auto_create = True
+        db.commit()
+
+        assert ldap_auth.migrate_legacy_settings(db, force=True, reattach=True) is True
+        db.commit()
+        db.refresh(profile)
+        assert profile.login_enabled is False
+        assert profile.login_required_group == USERS_GROUP
+        assert profile.login_attribute == "mail"
+        # Tightened back to 1.x, never loosened.
+        assert profile.login_auto_create is False
+        assert partner.auth_provider_id is None
+
+        settings_store.set_value(db, "auth_ldap_enabled", "0")
+        settings_store.set_value(db, "auth_ldap_profile_id", "")
+        db.delete(partner)
+        db.delete(profile)
+        db.commit()
+
+
+@pytest.mark.parametrize(
+    "dn, base, expected",
+    [
+        ("uid=a,ou=People,dc=corp,dc=example", "dc=corp,dc=example", True),
+        ("UID=a, OU=People, DC=Corp, DC=Example", "dc=corp,dc=example", True),
+        ("uid=a,dc=evilcorp,dc=example", "dc=corp,dc=example", False),
+        ("uid=a,dc=partners,dc=example", "dc=corp,dc=example", False),
+        ("", "dc=corp,dc=example", False),
+        ("uid=a,dc=corp,dc=example", "", False),
+    ],
+)
+def test_dn_is_under(dn, base, expected):
+    assert ldap_auth.dn_is_under(dn, base) is expected
 
 
 # --------------------------------------------------------------------------- #
@@ -478,10 +544,14 @@ def test_deleting_a_provider_detaches_its_accounts(logged_in):
         db.add(User(username="gone-user", auth_source="ldap", auth_provider_id=provider.id))
         db.commit()
         provider_id = provider.id
+        settings_store.set_value(db, "auth_ldap_profile_id", str(provider_id))
+        db.commit()
     page = logged_in.post(f"/settings/auth/ldap/{provider_id}/delete", follow_redirects=True).text
     assert "1 user(s) stay" in page
     with SessionLocal() as db:
         user = db.scalar(select(User).where(User.username == "gone-user"))
         assert user.auth_provider_id is None
+        # A later profile given the same id is never mistaken for the 1.x one.
+        assert settings_store.get_value(db, "auth_ldap_profile_id") == ""
         db.delete(user)
         db.commit()

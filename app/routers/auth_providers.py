@@ -389,6 +389,11 @@ def delete(request: Request, kind: str, provider_id: int, db: Session = Depends(
         # saying plainly that the thing it synced from is gone.
         orphaned = ldap_sync.detach_profile(db, provider.id)
         discard_drafts_for_profile(db, provider.id)
+        # The 1.x sign-in settings name a profile by id. Once it is gone, a later
+        # profile given the same id must never be taken for it by
+        # `migrate-ldap-login`.
+        if settings_store.get_value(db, "auth_ldap_profile_id").strip() == str(provider.id):
+            settings_store.set_value(db, "auth_ldap_profile_id", "")
     # Cut the accounts loose before the id goes. On SQLite a later provider can
     # be given the same id, and it must not inherit these people (an LDAP
     # username or an OIDC sub only means something within one provider).
