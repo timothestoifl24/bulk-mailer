@@ -11,6 +11,7 @@ from ldap3.utils.conv import escape_filter_chars
 
 from ..models import LdapProfile
 from ..security import decrypt_secret
+from .net_guard import BlockedAddress, refuse_link_local
 
 logger = logging.getLogger("mailer.ldap")
 
@@ -53,6 +54,10 @@ def tls_config(profile: LdapProfile) -> Tls | None:
 
 def connect(profile: LdapProfile) -> Connection:
     """Open and bind a connection. The caller is responsible for unbinding."""
+    try:
+        refuse_link_local(profile.host)
+    except BlockedAddress as exc:
+        raise LdapError(str(exc)) from exc
     server = Server(
         host=profile.host,
         port=profile.port,

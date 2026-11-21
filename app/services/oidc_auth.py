@@ -37,6 +37,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import OidcProvider, User
 from ..security import decrypt_secret
+from .net_guard import refuse_link_local
 
 logger = logging.getLogger("mailer.oidc")
 
@@ -59,8 +60,17 @@ class OidcIdentity:
     groups: list[str] = field(default_factory=list)
 
 
+def _refuse_link_local(request: httpx.Request) -> None:
+    # Every request, so a discovery document cannot point the token or JWKS
+    # fetch at the metadata service either. BlockedAddress is a ValueError,
+    # which every caller already turns into an OidcError.
+    refuse_link_local(request.url.host)
+
+
 def _client() -> httpx.Client:
-    return httpx.Client(timeout=HTTP_TIMEOUT, transport=transport)
+    return httpx.Client(
+        timeout=HTTP_TIMEOUT, transport=transport, event_hooks={"request": [_refuse_link_local]}
+    )
 
 
 def callback_url(provider: OidcProvider) -> str:
