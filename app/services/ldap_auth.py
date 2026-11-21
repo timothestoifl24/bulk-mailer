@@ -228,8 +228,12 @@ def _group_contains(profile: LdapProfile, group_dn: str, user_dn: str, username:
     conditions = [
         f"(member={escape_filter_chars(user_dn)})",
         f"(uniqueMember={escape_filter_chars(user_dn)})",
-        f"(memberUid={escape_filter_chars(username)})",
     ]
+    # memberUid holds a login name, not a DN. An empty `username` means the
+    # caller could not tie the name to the account that bound, so it must not
+    # be matched: it may be someone else's.
+    if username:
+        conditions.append(f"(memberUid={escape_filter_chars(username)})")
     connection = connect(profile)
     try:
         connection.search(
@@ -299,20 +303,25 @@ def authenticate_ldap(profile: LdapProfile, username: str, password: str) -> Lda
     # someone else's sAMAccountName), so only an entry that provably is the
     # bound account counts: otherwise its memberOf would decide this user's
     # groups. Without one, groups are read from the group entries instead.
+    # The name group entries may list as memberUid. In template mode it is
+    # only trusted once the looked-up entry is proven to be the bound account.
+    group_username = username
     if mode == "template" and (required_group or admin_group):
+        group_username = ""
         try:
             found_dn, found = _find_user(profile, username)
         except KeyError:
             found_dn, found = "", {}
         if _is_bound_account(dn, found_dn, found):
             attributes = found
+            group_username = username
         elif found_dn:
             logger.warning(
                 "Ignored %s for %s: it is not the account the bind template names (%s).",
                 found_dn, username, dn,
             )
 
-    if required_group and not in_group(profile, required_group, dn, username, attributes):
+    if required_group and not in_group(profile, required_group, dn, group_username, attributes):
         logger.info("%s authenticated but is not in %s", username, required_group)
         raise KeyError(username)
 
@@ -323,7 +332,7 @@ def authenticate_ldap(profile: LdapProfile, username: str, password: str) -> Lda
         display_name=first_value(attributes.get(attribute_map.get("display_name", "displayName"))),
         email=first_value(attributes.get(attribute_map.get("email", "mail"))),
         is_admin=(
-            in_group(profile, admin_group, dn, username, attributes) if admin_group else False
+            in_group(profile, admin_group, dn, group_username, attributes) if admin_group else False
         ),
     )
 
