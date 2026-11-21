@@ -172,6 +172,38 @@ def test_unsubscribe_link_suppresses_the_recipient(logged_in):
     assert email in listing
 
 
+def test_one_click_unsubscribe_from_a_mail_provider(logged_in):
+    """RFC 8058: the provider POSTs to the List-Unsubscribe URL with no Origin,
+    Referer or cookie, and only `List-Unsubscribe=One-Click` in the body."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.security import unsubscribe_url
+
+    email = "one+click@example.com"
+    with SessionLocal() as db:
+        db.add(Recipient(email=email))
+        db.commit()
+    provider = TestClient(app, base_url="http://testserver")
+    try:
+        path = urlsplit(unsubscribe_url(email))
+        target = f"{path.path}?{path.query}"
+        body = {"List-Unsubscribe": "One-Click"}
+
+        wrong = provider.post(target.replace("&t=", "&t=x"), data=body)
+        assert wrong.status_code == 200
+        with SessionLocal() as db:
+            assert db.scalar(select(Recipient).where(Recipient.email == email)).is_suppressed is False
+
+        assert provider.post(target, data=body).status_code == 200
+        with SessionLocal() as db:
+            assert db.scalar(select(Recipient).where(Recipient.email == email)).is_suppressed is True
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.scalar(select(Recipient).where(Recipient.email == email)))
+            db.commit()
+
+
 def test_suppressed_recipients_are_left_out_of_new_campaigns(logged_in):
     """jane@example.com was unsubscribed by the previous test."""
     client = logged_in

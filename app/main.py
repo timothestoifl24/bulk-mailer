@@ -159,10 +159,15 @@ async def first_run_setup(request: Request, call_next):
     return await call_next(request)
 
 
+# Authorised by an HMAC token in the request, never by the session cookie, and
+# posted cross-site by mail providers on purpose (RFC 8058 one-click).
+CSRF_EXEMPT_PATHS = ("/unsubscribe",)
+
+
 @app.middleware("http")
 async def csrf_guard(request: Request, call_next):
     """Reject cross-site state-changing requests (origin/referer check)."""
-    if not origin_is_trusted(request):
+    if request.url.path not in CSRF_EXEMPT_PATHS and not origin_is_trusted(request):
         return PlainTextResponse(
             "Cross-site request blocked. Please navigate to the app and try again.",
             status_code=status.HTTP_403_FORBIDDEN,
