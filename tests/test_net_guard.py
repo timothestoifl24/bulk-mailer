@@ -48,3 +48,72 @@ def test_oidc_discovery_refuses_metadata(monkeypatch):
     provider = OidcProvider(name="meta", discovery_url="http://169.254.169.254/latest/meta-data/")
     with pytest.raises(oidc_auth.OidcError, match="link-local"):
         oidc_auth.test_connection(provider)
+
+
+class _Stream:
+    def __init__(self, address):
+        self.address = address
+
+    def get_extra_info(self, name):
+        return (self.address, 80) if name == "server_addr" else None
+
+
+def _resolves_publicly(monkeypatch):
+    monkeypatch.setattr(
+        socket, "getaddrinfo", lambda host, port: [(None, None, None, "", ("203.0.113.10", 0))]
+    )
+
+
+def test_oidc_checks_the_address_it_really_reached(monkeypatch):
+    """DNS rebinding: the name passes the up-front check, the connection lands
+    on the metadata service anyway."""
+    _resolves_publicly(monkeypatch)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"authorization_endpoint": "x", "token_endpoint": "y"},
+            extensions={"network_stream": _Stream("169.254.169.254")},
+        )
+
+    monkeypatch.setattr(oidc_auth, "transport", httpx.MockTransport(handler))
+    provider = OidcProvider(name="rebind", discovery_url="https://idp.rebind.example/.well-known")
+    with pytest.raises(oidc_auth.OidcError, match="link-local"):
+        oidc_auth.test_connection(provider)
+
+
+def test_ldap_checks_the_address_it_really_reached(monkeypatch):
+    _resolves_publicly(monkeypatch)
+    sent = []
+
+    class _Socket:
+        def getpeername(self):
+            return ("169.254.169.254", 389)
+
+    class _Connection:
+        def __init__(self, *args, **kwargs):
+            self.socket = None
+
+        def open(self):
+            self.socket = _Socket()
+
+        def start_tls(self):
+            sent.append("start_tls")
+            return True
+
+        def bind(self):
+            sent.append("bind")
+            return True
+
+        def unbind(self):
+            pass
+
+    monkeypatch.setattr(ldap_client, "Connection", _Connection)
+    monkeypatch.setattr(ldap_auth, "Connection", _Connection)
+    profile = LdapProfile(name="x", host="dc.rebind.example", port=389, bind_password_enc="")
+    with pytest.raises(ldap_client.LdapError, match="link-local"):
+        ldap_client.connect(profile)
+    with pytest.raises(ldap_auth.LdapAuthError, match="link-local"):
+        ldap_auth._bind_as(profile, "cn=a", "pw")
+    # Nothing - least of all a password - went over the connection.
+    assert sent == []

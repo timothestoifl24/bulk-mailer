@@ -33,8 +33,8 @@ from sqlalchemy.orm import Session
 
 from ..models import LdapProfile, Setting, User
 from . import settings_store
-from .ldap_client import LdapError, connect, first_value, supported_attributes, tls_config
-from .net_guard import BlockedAddress, refuse_link_local
+from .ldap_client import LdapError, connect, first_value, peer_of, supported_attributes, tls_config
+from .net_guard import BlockedAddress, refuse_link_local, refuse_link_local_peer
 
 logger = logging.getLogger("mailer.ldap_auth")
 
@@ -144,8 +144,13 @@ def _bind_as(profile: LdapProfile, bind_name: str, password: str) -> bool:
             raise_exceptions=False,
             receive_timeout=30,
         )
+        # Checked on the open socket, before the user's password is sent.
+        connection.open()
+        try:
+            refuse_link_local_peer(profile.host, peer_of(connection))
+        except BlockedAddress as exc:
+            raise LdapAuthError(str(exc)) from exc
         if profile.start_tls and not profile.use_ssl:
-            connection.open()
             if not connection.start_tls():
                 raise LdapAuthError(f"StartTLS failed: {connection.last_error}")
         return bool(connection.bind())

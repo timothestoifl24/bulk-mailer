@@ -37,7 +37,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import OidcProvider, User
 from ..security import decrypt_secret
-from .net_guard import refuse_link_local
+from .net_guard import refuse_link_local, refuse_link_local_peer
 
 logger = logging.getLogger("mailer.oidc")
 
@@ -67,9 +67,19 @@ def _refuse_link_local(request: httpx.Request) -> None:
     refuse_link_local(request.url.host)
 
 
+def _refuse_link_local_peer(response: httpx.Response) -> None:
+    # The name may resolve differently for the connection than it did for the
+    # check above. Before the body is read, check the address really reached.
+    stream = response.extensions.get("network_stream")
+    peer = stream.get_extra_info("server_addr") if stream is not None else None
+    refuse_link_local_peer(response.request.url.host, peer)
+
+
 def _client() -> httpx.Client:
     return httpx.Client(
-        timeout=HTTP_TIMEOUT, transport=transport, event_hooks={"request": [_refuse_link_local]}
+        timeout=HTTP_TIMEOUT,
+        transport=transport,
+        event_hooks={"request": [_refuse_link_local], "response": [_refuse_link_local_peer]},
     )
 
 
