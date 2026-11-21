@@ -48,6 +48,14 @@ ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin-test-password"
 
 
+@pytest.fixture(autouse=True)
+def _reset_login_throttle():
+    """Every test starts with a clean slate of failed sign-ins."""
+    from app.services import login_throttle
+
+    login_throttle.reset()
+
+
 @pytest.fixture(scope="session")
 def client():
     # The context manager runs the lifespan: schema creation + sender worker.

@@ -29,6 +29,18 @@ def hash_password(password: str) -> str:
     return f"pbkdf2_sha256${_PBKDF2_ROUNDS}${salt.hex()}${digest.hex()}"
 
 
+_dummy_hash = ""
+
+
+def burn_password_check(password: str) -> None:
+    """Spend what a real password check costs, so a fast "no such account"
+    does not tell an attacker which usernames exist."""
+    global _dummy_hash
+    if not _dummy_hash:
+        _dummy_hash = hash_password(secrets.token_hex(16))
+    verify_password(password, _dummy_hash)
+
+
 def verify_password(password: str, stored: str) -> bool:
     try:
         algorithm, rounds, salt_hex, digest_hex = stored.split("$")

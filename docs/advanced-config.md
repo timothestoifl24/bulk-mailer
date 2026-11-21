@@ -60,6 +60,19 @@ identity providers. Each provider gets a page with its connection, a
 Local accounts always keep working next to them, so one broken provider never
 locks everyone out.
 
+### Repeated wrong passwords
+
+After 5 failed sign-ins for one username from one address within 15 minutes,
+or 30 failed sign-ins from one address across any usernames, further attempts
+from that address are refused for the rest of the window, before any password
+is checked. The same applies to *Change password* and to an LDAP provider's
+*Try a sign-in*. A user signing in from another address is not affected.
+
+The count is kept in each app process's memory. Behind a reverse proxy, start
+uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy address>` so the
+limit sees the client's address rather than the proxy's; with several
+replicas, a rate limit at the proxy or ingress is the stronger control.
+
 ## LDAP and Active Directory
 
 Add one with *Authentication* → **Add provider** → *LDAP / Active Directory*:
