@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy import delete, select
 
 from app import cli
+from app.config import settings
 from app.db import SessionLocal
 from app.models import Setting, User
 from app.security import verify_password
@@ -247,3 +248,30 @@ def test_an_upgrade_without_any_admin_still_gets_an_initial_admin(client):
             db.commit()
         with SessionLocal() as db:
             assert first_run.initial_admin(db).username == "admin"
+
+
+# --------------------------------------------------------------------------- #
+# Setup token
+# --------------------------------------------------------------------------- #
+def test_setup_token_is_required_when_configured(client, monkeypatch):
+    """Inside a transaction that is rolled back: the real users stay."""
+    monkeypatch.setattr(settings, "setup_token", "s3cret-token")
+    form = {"username": "fresh", "password": "fresh-pass-1", "confirm": "fresh-pass-1", "commit": False}
+    with SessionLocal() as db:
+        db.execute(delete(User))
+        for wrong in ("", "nope", "s3cret-toke"):
+            with pytest.raises(first_run.SetupError, match="setup token"):
+                first_run.create_initial_admin(db, setup_token=wrong, **form)
+        user = first_run.create_initial_admin(db, setup_token=" s3cret-token ", **form)
+        assert user.is_initial_admin
+        db.rollback()
+    assert _initial().username == "admin"
+
+
+def test_setup_page_asks_for_the_token_only_when_configured(client, monkeypatch):
+    monkeypatch.setattr(first_run, "is_done", lambda db: False)
+    assert 'name="setup_token"' not in client.get("/setup").text
+    monkeypatch.setattr(settings, "setup_token", "s3cret-token")
+    page = client.get("/setup").text
+    assert 'name="setup_token"' in page
+    assert "anyone who can open this page" not in page

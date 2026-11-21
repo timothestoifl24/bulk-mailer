@@ -31,8 +31,15 @@ until that is done.
 
 ::: warning Do it before anyone else can
 Until the first administrator exists, whoever opens the app first creates it.
-Complete setup as soon as the app is up, before exposing it more widely.
+Complete setup as soon as the app is up, before exposing it more widely, or set
+`SETUP_TOKEN` (below).
 :::
+
+If the app is reachable by others before you can open it, for example on a
+shared network or a cluster with a public ingress, start it with a
+`SETUP_TOKEN` of your choosing, such as the output of `openssl rand -base64 24`.
+The setup page then asks for it, and only someone who knows it can create the
+first administrator. It has no effect once that account exists.
 
 That account is the **initial administrator**. It cannot be deleted, disabled
 or demoted in the UI, so there is always one way in. Change its password under
