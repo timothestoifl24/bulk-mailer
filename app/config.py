@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = False
+    # When set, /setup asks for this value before it creates the first
+    # administrator, so whoever reaches a fresh install first cannot claim it.
+    setup_token: str = ""
 
     # No longer used: the first administrator is created on the /setup page.
     # Still read so a leftover value can be warned about at startup.

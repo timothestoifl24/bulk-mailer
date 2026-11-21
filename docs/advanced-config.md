@@ -19,6 +19,7 @@ is being ignored.
 | `DATABASE_URL` | `sqlite:////data/mailer.db` by default in the Docker image (`./data` from source). Any SQLAlchemy URL works. |
 | `PUBLIC_BASE_URL` | Base for unsubscribe links inside messages — must be reachable **by recipients**. |
 | `SMTP_*` | Initial mail server settings. |
+| `SETUP_TOKEN` | Optional. When set, first-run setup asks for it before creating the first administrator. Unused once an account exists. |
 | `DEFAULT_THROTTLE_PER_MINUTE` | Pre-filled throttle for new campaigns (0 = unlimited). |
 
 See `.env.example` in the repository for the complete list with comments.
