@@ -73,7 +73,9 @@ class _FakeConnection:
             self.bound = True
             return True
         for account in self.directory.values():
-            if account["dn"] == self.user and account["password"] == self.password:
+            # Active Directory also accepts a bind by userPrincipalName.
+            names = {account["dn"], account.get("upn")}
+            if self.user in names and account["password"] == self.password:
                 self.bound = True
                 return True
         return False
@@ -244,6 +246,52 @@ def test_admin_group_membership_grants_admin(ldap_directory):
             assert db.scalar(select(User).where(User.username == "jdoe")).is_admin is False
     finally:
         _set("login_admin_group", "")
+
+
+def _template_profile(db):
+    profile = db.scalar(select(LdapProfile).where(LdapProfile.name == "auth-test"))
+    profile.login_bind_mode = "template"
+    profile.login_bind_template = "{username}@example.com"
+    profile.login_admin_group = ADMINS_GROUP
+    return profile
+
+
+def test_template_mode_groups_come_from_the_bound_account(ldap_directory, monkeypatch):
+    boss = dict(_FakeConnection.directory["boss"], upn="boss@example.com")
+    boss["attributes"] = dict(boss["attributes"], userPrincipalName=["boss@example.com"])
+    monkeypatch.setitem(_FakeConnection.directory, "boss", boss)
+    with SessionLocal() as db:
+        identity = ldap_auth.authenticate_ldap(_template_profile(db), "boss", "boss-pw-123")
+    assert identity.is_admin is True
+    assert identity.display_name == "The Boss"
+
+
+def test_template_mode_ignores_an_entry_that_is_someone_else(ldap_directory, monkeypatch):
+    """A UPN prefix that is another person's login name must not borrow that
+    person's groups: here the attacker's UPN is boss@example.com, while the
+    admin `boss` has a different UPN."""
+    boss = dict(_FakeConnection.directory["boss"], upn="the.boss@example.com")
+    boss["attributes"] = dict(boss["attributes"], userPrincipalName=["the.boss@example.com"])
+    monkeypatch.setitem(_FakeConnection.directory, "boss", boss)
+    monkeypatch.setitem(
+        _FakeConnection.directory,
+        "john.smith2",
+        {
+            "dn": "CN=John Smith,OU=Staff,DC=example,DC=com",
+            "upn": "boss@example.com",
+            "password": "mallory-pw",
+            "attributes": {"displayName": ["John Smith"], "userPrincipalName": ["boss@example.com"]},
+        },
+    )
+    with SessionLocal() as db:
+        profile = _template_profile(db)
+        identity = ldap_auth.authenticate_ldap(profile, "boss", "mallory-pw")
+        assert identity.is_admin is False
+        assert identity.display_name == ""
+        # And a required group the attacker is not in still keeps them out.
+        profile.login_required_group = ADMINS_GROUP
+        with pytest.raises(KeyError):
+            ldap_auth.authenticate_ldap(profile, "boss", "mallory-pw")
 
 
 # --------------------------------------------------------------------------- #
