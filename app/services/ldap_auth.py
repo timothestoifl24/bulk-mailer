@@ -340,8 +340,11 @@ def sync_user(db: Session, identity: LdapIdentity, profile: LdapProfile) -> User
     user.email = identity.email or user.email
     user.ldap_dn = identity.dn
     user.auth_provider_id = profile.id
-    if identity.is_admin:
-        user.is_admin = True
+    if (profile.login_admin_group or "").strip():
+        # With a group configured the directory is the source of truth both
+        # ways, as for OpenID Connect: leaving the group revokes the rights at
+        # the next sign-in.
+        user.is_admin = identity.is_admin
     user.last_login_at = datetime.now(timezone.utc)
     db.flush()
     return user
