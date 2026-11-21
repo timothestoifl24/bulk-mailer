@@ -19,7 +19,7 @@ os.environ.update(
     {
         "DATABASE_URL": DATABASE_URL,
         "DATA_DIR": str(TMP_DIR),
-        "SECRET_KEY": "test-secret-key-for-tests-only",
+        "SECRET_KEY": "test-secret-key-for-tests-only-0123456789",
         "PUBLIC_BASE_URL": "http://testserver",
         "SMTP_HOST": "",
         "DEBUG": "false",

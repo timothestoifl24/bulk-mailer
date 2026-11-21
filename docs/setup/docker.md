@@ -48,7 +48,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      SECRET_KEY: change-me-to-a-long-random-string
+      # From the .env file next to this one; see the step below.
+      SECRET_KEY: "${MAILER_SECRET_KEY:?set MAILER_SECRET_KEY in .env}"
       # DATABASE_URL: postgresql+psycopg://user:pass@host:5432/db   # optional
     volumes:
       - mailer-data:/data
@@ -57,6 +58,8 @@ volumes:
 ```
 
 ```bash
+# Adds a key to .env (creating it if needed), unless it already has one.
+grep -qs '^MAILER_SECRET_KEY=' .env || echo "MAILER_SECRET_KEY=$(openssl rand -base64 36)" >> .env
 docker compose up -d
 ```
 
