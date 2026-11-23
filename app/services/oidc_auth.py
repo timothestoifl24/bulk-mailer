@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlencode
 
+import httpcore
 import httpx
 from joserfc import jwt
 from joserfc.errors import JoseError
@@ -37,7 +38,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import OidcProvider, User
 from ..security import decrypt_secret
-from .net_guard import refuse_link_local, refuse_link_local_peer
+from .net_guard import CheckedBackend, refuse_link_local, refuse_link_local_peer
 
 logger = logging.getLogger("mailer.oidc")
 
@@ -75,10 +76,21 @@ def _refuse_link_local_peer(response: httpx.Response) -> None:
     refuse_link_local_peer(response.request.url.host, peer)
 
 
+def _checked_transport() -> httpx.HTTPTransport:
+    """httpx's transport, connecting only to addresses the guard checked."""
+    checked = httpx.HTTPTransport()
+    # httpx exposes no setting for the network backend; its connection pool
+    # takes one. tests/test_net_guard.py fails if this stops being wired up.
+    checked._pool = httpcore.ConnectionPool(
+        ssl_context=httpx.create_ssl_context(), network_backend=CheckedBackend()
+    )
+    return checked
+
+
 def _client() -> httpx.Client:
     return httpx.Client(
         timeout=HTTP_TIMEOUT,
-        transport=transport,
+        transport=transport or _checked_transport(),
         event_hooks={"request": [_refuse_link_local], "response": [_refuse_link_local_peer]},
     )
 

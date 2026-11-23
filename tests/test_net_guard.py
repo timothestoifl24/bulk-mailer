@@ -117,3 +117,45 @@ def test_ldap_checks_the_address_it_really_reached(monkeypatch):
         ldap_auth._bind_as(profile, "cn=a", "pw")
     # Nothing - least of all a password - went over the connection.
     assert sent == []
+
+
+def test_oidc_connects_only_to_the_address_it_checked(monkeypatch):
+    """The first lookup (the early check) sees a public address; the lookup
+    for the connection itself returns the metadata address. The backend must
+    refuse before connecting, instead of trusting the earlier answer."""
+    answers = iter(["203.0.113.10", "169.254.169.254"])
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, port, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (next(answers), port or 0))],
+    )
+    connected = []
+    monkeypatch.setattr(
+        net_guard.httpcore.SyncBackend, "connect_tcp", lambda self, host, *a, **k: connected.append(host)
+    )
+    monkeypatch.setattr(oidc_auth, "transport", None)
+    provider = OidcProvider(name="rebind", discovery_url="https://idp.rebind.example/.well-known")
+    with pytest.raises(oidc_auth.OidcError, match="link-local"):
+        oidc_auth.test_connection(provider)
+    assert connected == []
+
+
+def test_checked_backend_connects_to_the_checked_address(monkeypatch):
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, port, *a, **k: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("203.0.113.10", port))],
+    )
+    connected = []
+    monkeypatch.setattr(
+        net_guard.httpcore.SyncBackend, "connect_tcp", lambda self, host, port, **k: connected.append((host, port))
+    )
+    net_guard.CheckedBackend().connect_tcp("idp.example", 443)
+    assert connected == [("203.0.113.10", 443)]
+
+
+def test_oidc_client_uses_the_checked_backend(monkeypatch):
+    monkeypatch.setattr(oidc_auth, "transport", None)
+    with oidc_auth._client() as client:
+        pool = client._transport._pool
+    assert isinstance(pool._network_backend, net_guard.CheckedBackend)
