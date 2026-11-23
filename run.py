@@ -26,6 +26,8 @@ def main() -> None:
         port=args.port,
         reload=args.reload,
         log_level="debug" if settings.debug else "info",
+        # No `server: uvicorn` banner for fingerprinting.
+        server_header=False,
     )
 
 
