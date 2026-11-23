@@ -18,7 +18,8 @@ is being ignored.
 | `SECRET_KEY` | Signs session cookies **and** derives the key encrypting stored SMTP/LDAP passwords. Changing it logs everyone out and invalidates those stored passwords. At least 32 characters; the app refuses to start with a shorter one or a placeholder. |
 | `ALLOW_INSECURE_SECRET_KEY` | `true` starts the app even with a weak `SECRET_KEY` (also implied by `DEBUG=true`). For throwaway local setups only. |
 | `DATABASE_URL` | `sqlite:////data/mailer.db` by default in the Docker image (`./data` from source). Any SQLAlchemy URL works. |
-| `PUBLIC_BASE_URL` | Base for unsubscribe links inside messages — must be reachable **by recipients**. |
+| `PUBLIC_BASE_URL` | Base for unsubscribe links inside messages — must be reachable **by recipients**. An `https://` address also makes the session cookie `Secure`. |
+| `SESSION_COOKIE_SECURE` | Overrides that: `true` always sets `Secure` on the session cookie (behind a TLS proxy), `false` never does. Unset by default. |
 | `SMTP_*` | Initial mail server settings. |
 | `SETUP_TOKEN` | Optional. When set, first-run setup asks for it before creating the first administrator. Unused once an account exists. |
 | `DEFAULT_THROTTLE_PER_MINUTE` | Pre-filled throttle for new campaigns (0 = unlimited). |
