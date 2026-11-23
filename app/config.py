@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     debug: bool = False
     # Throwaway local setups only: start even with a placeholder SECRET_KEY.
     allow_insecure_secret_key: bool = False
+    # When set, /setup asks for this value before it creates the first
+    # administrator, so whoever reaches a fresh install first cannot claim it.
+    setup_token: str = ""
 
     # No longer used: the first administrator is created on the /setup page.
     # Still read so a leftover value can be warned about at startup.
