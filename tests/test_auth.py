@@ -415,6 +415,44 @@ def test_legacy_settings_move_onto_the_profile(logged_in):
         db.commit()
 
 
+def test_legacy_blank_login_attribute_stays_uid_and_can_be_repaired(logged_in):
+    """1.x searched for `uid` when the attribute was left blank."""
+    with SessionLocal() as db:
+        profile = LdapProfile(name="openldap", host="ldap.legacy.example", base_dn="dc=legacy")
+        db.add(profile)
+        db.flush()
+        orphan = User(username="orphan-ldap-user", auth_source="ldap")
+        db.add(orphan)
+        for key, value in {
+            "auth_ldap_enabled": "1",
+            "auth_ldap_profile_id": str(profile.id),
+            "auth_ldap_login_attribute": "",
+            "auth_ldap_user_filter": "",
+        }.items():
+            settings_store.set_value(db, key, value)
+        db.delete(db.get(Setting, ldap_auth.MIGRATION_MARKER))
+        db.commit()
+
+        assert ldap_auth.migrate_legacy_settings(db) is True
+        db.commit()
+        assert profile.login_attribute == "uid"
+
+        # An upgrade that already went wrong is repaired with force=True,
+        # which also re-attaches accounts that lost their provider.
+        profile.login_attribute = "sAMAccountName"
+        orphan.auth_provider_id = None
+        db.commit()
+        assert ldap_auth.migrate_legacy_settings(db) is False
+        assert ldap_auth.migrate_legacy_settings(db, force=True) is True
+        db.commit()
+        assert profile.login_attribute == "uid"
+        assert orphan.auth_provider_id == profile.id
+        settings_store.set_value(db, "auth_ldap_enabled", "0")
+        profile.login_enabled = False
+        profile.enabled = False
+        db.commit()
+
+
 # --------------------------------------------------------------------------- #
 # Deleted providers
 # --------------------------------------------------------------------------- #

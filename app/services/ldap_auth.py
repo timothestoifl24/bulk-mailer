@@ -73,18 +73,26 @@ def is_enabled(db: Session) -> bool:
 MIGRATION_MARKER = "auth_migrated_v2"
 
 
-def migrate_legacy_settings(db: Session) -> bool:
-    """Move the pre-2.1 global LDAP sign-in settings onto their profile.
+def migrate_legacy_settings(db: Session, force: bool = False) -> bool:
+    """Move the 1.x global LDAP sign-in settings onto their profile.
 
-    Runs at every start and does its work once: the marker setting records that
-    it happened, so switching sign-in off later is not undone by a restart.
-    Returns True when something was moved.
+    At every start this does its work once: the marker setting records that it
+    happened, so switching sign-in off later is not undone by a restart.
+    `force` ignores the marker and applies the old settings again; that is
+    what `python -m app.cli migrate-ldap-login` uses to repair an upgrade that
+    went wrong. Returns True when something was moved.
+
+    The values are carried over exactly as 1.x read them. In particular a
+    blank login attribute meant `uid` there, not the form's `sAMAccountName`
+    placeholder: turning it into the latter made every search on an OpenLDAP
+    directory come back empty.
     """
-    if db.get(Setting, MIGRATION_MARKER) is not None:
-        return False
-    settings_store.set_value(db, MIGRATION_MARKER, "1")
+    if not force:
+        if db.get(Setting, MIGRATION_MARKER) is not None:
+            return False
+        settings_store.set_value(db, MIGRATION_MARKER, "1")
 
-    raw = settings_store.get_value(db, "auth_ldap_profile_id")
+    raw = settings_store.get_value(db, "auth_ldap_profile_id").strip()
     profile = db.get(LdapProfile, int(raw)) if raw.isdigit() else None
     if profile is None:
         return False
@@ -92,16 +100,20 @@ def migrate_legacy_settings(db: Session) -> bool:
     def value(key: str) -> str:
         return settings_store.get_value(db, f"auth_ldap_{key}").strip()
 
-    profile.login_enabled = value("enabled") == "1"
-    profile.login_bind_mode = value("bind_mode") or "search"
-    profile.login_attribute = value("login_attribute") or "sAMAccountName"
-    profile.login_user_filter = value("user_filter")
-    # The old default was a placeholder, never a working value.
+    mode = value("bind_mode") or "search"
     template = value("bind_template")
-    profile.login_bind_template = "" if template == "{username}@example.com" else template
+    profile.login_enabled = value("enabled") == "1"
+    profile.login_bind_mode = mode
+    profile.login_attribute = value("login_attribute") or "uid"
+    profile.login_user_filter = value("user_filter")
+    # The default was a placeholder, never a working value - but a directory
+    # in template mode may really use it, and then it has to stay.
+    profile.login_bind_template = (
+        "" if mode != "template" and template == "{username}@example.com" else template
+    )
     profile.login_required_group = value("required_group")
     profile.login_admin_group = value("admin_group")
-    profile.login_auto_create = value("auto_create") != "0"
+    profile.login_auto_create = value("auto_create") == "1"
 
     # Directory accounts made before 2.0 all came through this one profile.
     for user in db.scalars(

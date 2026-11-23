@@ -48,6 +48,31 @@ yet. If a release ever requires it, the changelog will say so.
 `/data/mailer.db` while the app is stopped; on PostgreSQL, `pg_dump`. The
 migration step is deliberately narrow, but "narrow" is not "cannot go wrong".
 
+## Upgrading from 1.x to 2.0
+
+2.0 moved the LDAP sign-in settings from one global form onto each LDAP
+provider (*Authentication* page). The first start of 2.x copies your old
+settings onto the provider they pointed at and attaches your directory
+accounts to it. Nothing needs to be done for that.
+
+If LDAP users **cannot sign in after upgrading to 2.0.0** — most often on an
+OpenLDAP directory where the login attribute had been left blank — run:
+
+```bash
+docker exec -it <container> python -m app.cli migrate-ldap-login
+```
+
+On SQLite the database is the file in the `/data` volume, so the command works
+on whatever that volume holds; with PostgreSQL it uses `DATABASE_URL` like the
+app does. It also helps if you started a 2.0 beta image before upgrading, since
+the one-time migration will already have run. It applies the 1.x settings to that provider again (a blank login attribute
+means `uid`, as it did in 1.x) and re-attaches directory accounts that lost
+their provider. It overwrites the sign-in settings of that one provider with
+the 1.x values, so re-check anything you changed there since upgrading. It
+reads the settings 1.x left in the database; it says "Nothing to migrate" if
+there are none. The fix is included from 2.0.1, which makes the command
+unnecessary on a fresh upgrade.
+
 ## Versioning
 
 [Semantic versioning](https://semver.org/), as `vMAJOR.MINOR.PATCH` tags.
