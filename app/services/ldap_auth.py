@@ -239,7 +239,7 @@ def _find_user(profile: LdapProfile, username: str) -> tuple[str, dict]:
         search_filter = f"(&{extra_filter}{search_filter})"
 
     attribute_map = profile.attr_map
-    wanted = sorted({v for v in attribute_map.values() if v} | {"memberOf"})
+    wanted = sorted({v for v in attribute_map.values() if v} | {"memberOf", "userPrincipalName"})
 
     connection = connect(profile)
     try:
@@ -271,6 +271,25 @@ def _find_user(profile: LdapProfile, username: str) -> tuple[str, dict]:
     return entry.get("dn", ""), entry.get("attributes", {})
 
 
+def _dn_key(dn: str) -> str:
+    return ",".join(
+        "=".join(part.strip() for part in rdn.split("=", 1)) for rdn in dn.lower().split(",")
+    ).strip()
+
+
+def _is_bound_account(bind_name: str, entry_dn: str, attributes: dict) -> bool:
+    """Whether a looked-up entry is the account that just bound as `bind_name`.
+
+    A template bind name is either a DN or, on Active Directory, a UPN.
+    """
+    if not bind_name.strip() or not entry_dn.strip():
+        return False
+    if _dn_key(entry_dn) == _dn_key(bind_name):
+        return True
+    upn = first_value(attributes.get("userPrincipalName")).strip().lower()
+    return bool(upn) and upn == bind_name.strip().lower()
+
+
 def _has_member_of(raw_attributes: dict, group_dn: str) -> bool:
     """Fast path: Active Directory, and OpenLDAP with the memberOf overlay."""
     member_of = raw_attributes.get("memberOf") or []
@@ -291,8 +310,12 @@ def _group_contains(profile: LdapProfile, group_dn: str, user_dn: str, username:
     conditions = [
         f"(member={escape_filter_chars(user_dn)})",
         f"(uniqueMember={escape_filter_chars(user_dn)})",
-        f"(memberUid={escape_filter_chars(username)})",
     ]
+    # memberUid holds a login name, not a DN. An empty `username` means the
+    # caller could not tie the name to the account that bound, so it must not
+    # be matched: it may be someone else's.
+    if username:
+        conditions.append(f"(memberUid={escape_filter_chars(username)})")
     connection = connect(profile)
     try:
         connection.search(
@@ -356,15 +379,31 @@ def authenticate_ldap(profile: LdapProfile, username: str, password: str) -> Lda
     if not _bind_as(profile, dn, password):
         raise KeyError(username)
 
-    # Group checks need the account's attributes; in template mode nothing has
-    # been read yet, so fetch them now that the credentials are known good.
-    if (required_group or admin_group) and not attributes:
+    # In template mode nothing has been read yet, so fetch the attributes now
+    # that the credentials are known good. The login attribute may name a
+    # different person than the bind template does (a UPN prefix that is
+    # someone else's sAMAccountName), so only an entry that provably is the
+    # bound account counts: otherwise its memberOf would decide this user's
+    # groups. Without one, groups are read from the group entries instead.
+    # The name group entries may list as memberUid. In template mode it is
+    # only trusted once the looked-up entry is proven to be the bound account.
+    group_username = username
+    if mode == "template" and (required_group or admin_group):
+        group_username = ""
         try:
-            _, attributes = _find_user(profile, username)
+            found_dn, found = _find_user(profile, username)
         except KeyError:
-            attributes = {}
+            found_dn, found = "", {}
+        if _is_bound_account(dn, found_dn, found):
+            attributes = found
+            group_username = username
+        elif found_dn:
+            logger.warning(
+                "Ignored %s for %s: it is not the account the bind template names (%s).",
+                found_dn, username, dn,
+            )
 
-    if required_group and not in_group(profile, required_group, dn, username, attributes):
+    if required_group and not in_group(profile, required_group, dn, group_username, attributes):
         logger.info("%s authenticated but is not in %s", username, required_group)
         raise KeyError(username)
 
@@ -375,7 +414,7 @@ def authenticate_ldap(profile: LdapProfile, username: str, password: str) -> Lda
         display_name=first_value(attributes.get(attribute_map.get("display_name", "displayName"))),
         email=first_value(attributes.get(attribute_map.get("email", "mail"))),
         is_admin=(
-            in_group(profile, admin_group, dn, username, attributes) if admin_group else False
+            in_group(profile, admin_group, dn, group_username, attributes) if admin_group else False
         ),
     )
 
