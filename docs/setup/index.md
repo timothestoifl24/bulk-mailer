@@ -68,7 +68,10 @@ the initial administrator, and the two variables can be removed.
 The app speaks plain HTTP and holds a session cookie. If anything other than
 localhost can reach it, put it behind a reverse proxy with TLS and set
 `PUBLIC_BASE_URL` to the `https://` address — the session cookie then gets the
-`Secure` flag automatically.
+`Secure` flag automatically. If the public address has to stay `http://` in
+`PUBLIC_BASE_URL` while people still reach the app over HTTPS, set
+`SESSION_COOKIE_SECURE=true`. Each start logs a warning while the cookie is
+sent without `Secure` to anything other than localhost.
 
 `PUBLIC_BASE_URL` is also the base for unsubscribe links **inside messages**,
 so it has to be an address your recipients can actually reach. `localhost` in
