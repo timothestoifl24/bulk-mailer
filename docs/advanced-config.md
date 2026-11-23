@@ -15,7 +15,8 @@ is being ignored.
 
 | Variable | Meaning |
 | --- | --- |
-| `SECRET_KEY` | Signs session cookies **and** derives the key encrypting stored SMTP/LDAP passwords. Changing it logs everyone out and invalidates those stored passwords. |
+| `SECRET_KEY` | Signs session cookies **and** derives the key encrypting stored SMTP/LDAP passwords. Changing it logs everyone out and invalidates those stored passwords. At least 32 characters; the app refuses to start with a shorter one or a placeholder. |
+| `ALLOW_INSECURE_SECRET_KEY` | `true` starts the app even with a weak `SECRET_KEY` (also implied by `DEBUG=true`). For throwaway local setups only. |
 | `DATABASE_URL` | `sqlite:////data/mailer.db` by default in the Docker image (`./data` from source). Any SQLAlchemy URL works. |
 | `PUBLIC_BASE_URL` | Base for unsubscribe links inside messages — must be reachable **by recipients**. An `https://` address also makes the session cookie `Secure`. |
 | `SESSION_COOKIE_SECURE` | Overrides that: `true` always sets `Secure` on the session cookie (behind a TLS proxy), `false` never does. Unset by default. |
@@ -60,6 +61,19 @@ identity providers. Each provider gets a page with its connection, a
 
 Local accounts always keep working next to them, so one broken provider never
 locks everyone out.
+
+### Repeated wrong passwords
+
+After 5 failed sign-ins for one username from one address within 15 minutes,
+or 30 failed sign-ins from one address across any usernames, further attempts
+from that address are refused for the rest of the window, before any password
+is checked. The same applies to *Change password* and to an LDAP provider's
+*Try a sign-in*. A user signing in from another address is not affected.
+
+The count is kept in each app process's memory. Behind a reverse proxy, start
+uvicorn with `--proxy-headers --forwarded-allow-ips=<proxy address>` so the
+limit sees the client's address rather than the proxy's; with several
+replicas, a rate limit at the proxy or ingress is the stronger control.
 
 ## LDAP and Active Directory
 
@@ -175,7 +189,10 @@ Use LDAPS or StartTLS. With plain LDAP every user's password crosses the
 network in the clear on each sign-in — not just the service account's.
 
 Upgrading from 1.x moves the old global sign-in settings onto the LDAP
-provider they pointed at, once, at the first start.
+provider they pointed at, once, at the first start. If directory users cannot
+sign in afterwards, `python -m app.cli migrate-ldap-login` repairs what the
+2.0.0 upgrade got wrong —
+see [Upgrading](/upgrading#upgrading-from-1-x-to-2-0).
 
 ## Single sign-on with OpenID Connect
 

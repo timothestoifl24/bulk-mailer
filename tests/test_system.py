@@ -75,9 +75,11 @@ def test_system_page_never_shows_secrets(logged_in, monkeypatch):
     _clear("smtp_password")
 
 
-def test_system_page_warns_about_weak_setup(logged_in):
+def test_system_page_warns_about_weak_setup(logged_in, monkeypatch):
+    # An install started with ALLOW_INSECURE_SECRET_KEY still shows the warning.
+    monkeypatch.setattr(env, "secret_key", "short")
     page = logged_in.get("/settings/system").text
-    # The test SECRET_KEY is short, and no mail server is configured.
+    # No mail server is configured either.
     assert "SECRET_KEY is a placeholder" in page
     assert "No mail server is set up" in page
     assert "Sending worker" in page

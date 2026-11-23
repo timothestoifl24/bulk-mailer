@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = False
+    # Throwaway local setups only: start even with a placeholder SECRET_KEY.
+    allow_insecure_secret_key: bool = False
     # Unset: the session cookie is Secure exactly when PUBLIC_BASE_URL is https.
     # Set it to true behind a TLS proxy whose public address is written down as
     # http, or to false only to sign in over plain HTTP on purpose.
