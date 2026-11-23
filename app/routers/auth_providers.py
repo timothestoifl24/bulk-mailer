@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import LdapProfile, OidcProvider, RecipientList, User
 from ..security import encrypt_secret
-from ..services import ldap_auth, ldap_client, ldap_sync, oidc_auth, settings_store
+from ..services import ldap_auth, ldap_client, ldap_sync, login_throttle, oidc_auth, settings_store
 from ..services.importer import discard_drafts_for_profile
 from ..services.ldap_import import DEFAULT_ATTR_MAP, parse_attr_map
 from ..web import flash, redirect, render
@@ -362,8 +362,16 @@ def try_login(
     provider = db.get(LdapProfile, provider_id)
     if provider is None:
         return redirect(BASE)
+    # Admin-only, but a stolen admin session must not become a password oracle
+    # against the directory.
+    client = login_throttle.client_of(request)
+    attempt = login_throttle.begin("try-login", test_username, client)
+    if attempt is None:
+        flash(request, "Too many failed test sign-ins. Wait a few minutes and try again.", "error")
+        return redirect(_url(provider) + "#sign-in")
     try:
         flash(request, ldap_auth.test_login(provider, test_username.strip(), test_password), "success")
+        login_throttle.succeeded(attempt)
     except KeyError:
         flash(
             request,
@@ -372,6 +380,8 @@ def try_login(
             "error",
         )
     except ldap_auth.LdapAuthError as exc:
+        # A configuration or connection problem says nothing about the password.
+        login_throttle.release(attempt)
         flash(request, str(exc), "error")
     return redirect(_url(provider) + "#sign-in")
 
@@ -389,6 +399,11 @@ def delete(request: Request, kind: str, provider_id: int, db: Session = Depends(
         # saying plainly that the thing it synced from is gone.
         orphaned = ldap_sync.detach_profile(db, provider.id)
         discard_drafts_for_profile(db, provider.id)
+        # The 1.x sign-in settings name a profile by id. Once it is gone, a later
+        # profile given the same id must never be taken for it by
+        # `migrate-ldap-login`.
+        if settings_store.get_value(db, "auth_ldap_profile_id").strip() == str(provider.id):
+            settings_store.set_value(db, "auth_ldap_profile_id", "")
     # Cut the accounts loose before the id goes. On SQLite a later provider can
     # be given the same id, and it must not inherit these people (an LDAP
     # username or an OIDC sub only means something within one provider).

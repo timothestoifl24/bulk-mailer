@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..models import User
-from ..security import verify_password
+from ..security import burn_password_check, verify_password
 from . import ldap_auth
 
 logger = logging.getLogger("mailer.auth")
@@ -38,6 +38,7 @@ def authenticate(db: Session, username: str, password: str) -> tuple[User | None
     # break-glass login for when the directory is unreachable.
     if user is not None and user.auth_source == "local":
         if not user.is_active:
+            burn_password_check(password)
             return None, "local account is disabled"
         if not user.password_hash or not verify_password(password, user.password_hash):
             return None, "wrong password for local account"
@@ -47,6 +48,7 @@ def authenticate(db: Session, username: str, password: str) -> tuple[User | None
 
     profiles = ldap_auth.login_profiles(db)
     if not profiles:
+        burn_password_check(password)
         return None, "no local account and LDAP sign-in is disabled"
 
     # Someone who signed in before is tried against their own directory first.
