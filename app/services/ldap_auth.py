@@ -33,7 +33,8 @@ from sqlalchemy.orm import Session
 
 from ..models import LdapProfile, Setting, User
 from . import settings_store
-from .ldap_client import connect, first_value, supported_attributes, tls_config
+from .ldap_client import LdapError, connect, first_value, peer_of, supported_attributes, tls_config
+from .net_guard import BlockedAddress, refuse_link_local, refuse_link_local_peer
 
 logger = logging.getLogger("mailer.ldap_auth")
 
@@ -199,8 +200,20 @@ def migrate_legacy_settings(db: Session, force: bool = False, reattach: bool = F
     return True
 
 
+def _connect(profile: LdapProfile):
+    """The service-account connection, failing the way sign-in expects."""
+    try:
+        return connect(profile)
+    except LdapError as exc:
+        raise LdapAuthError(str(exc)) from exc
+
+
 def _bind_as(profile: LdapProfile, bind_name: str, password: str) -> bool:
     """Try a simple bind. True on success, False on invalid credentials."""
+    try:
+        refuse_link_local(profile.host)
+    except BlockedAddress as exc:
+        raise LdapAuthError(str(exc)) from exc
     server = Server(
         host=profile.host,
         port=profile.port,
@@ -219,8 +232,13 @@ def _bind_as(profile: LdapProfile, bind_name: str, password: str) -> bool:
             raise_exceptions=False,
             receive_timeout=LOGIN_RECEIVE_TIMEOUT,
         )
+        # Checked on the open socket, before the user's password is sent.
+        connection.open()
+        try:
+            refuse_link_local_peer(profile.host, peer_of(connection))
+        except BlockedAddress as exc:
+            raise LdapAuthError(str(exc)) from exc
         if profile.start_tls and not profile.use_ssl:
-            connection.open()
             if not connection.start_tls():
                 raise LdapAuthError(f"StartTLS failed: {connection.last_error}")
         return bool(connection.bind())
@@ -247,7 +265,7 @@ def _find_user(profile: LdapProfile, username: str) -> tuple[str, dict]:
     attribute_map = profile.attr_map
     wanted = sorted({v for v in attribute_map.values() if v} | {"memberOf", "userPrincipalName"})
 
-    connection = connect(profile)
+    connection = _connect(profile)
     try:
         # Attributes this directory does not define would make ldap3 raise;
         # a missing company or department must not break signing in.
@@ -322,7 +340,7 @@ def _group_contains(profile: LdapProfile, group_dn: str, user_dn: str, username:
     # be matched: it may be someone else's.
     if username:
         conditions.append(f"(memberUid={escape_filter_chars(username)})")
-    connection = connect(profile)
+    connection = _connect(profile)
     try:
         connection.search(
             search_base=group_dn,

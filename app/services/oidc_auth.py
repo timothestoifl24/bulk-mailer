@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlencode
 
+import httpcore
 import httpx
 from joserfc import jwt
 from joserfc.errors import JoseError
@@ -37,6 +38,7 @@ from sqlalchemy.orm import Session
 from ..config import settings
 from ..models import OidcProvider, User
 from ..security import decrypt_secret
+from .net_guard import CheckedBackend, refuse_link_local, refuse_link_local_peer
 
 logger = logging.getLogger("mailer.oidc")
 
@@ -59,8 +61,45 @@ class OidcIdentity:
     groups: list[str] = field(default_factory=list)
 
 
+def _refuse_link_local(request: httpx.Request) -> None:
+    # Every request, so a discovery document cannot point the token or JWKS
+    # fetch at the metadata service either. BlockedAddress is a ValueError,
+    # which every caller already turns into an OidcError.
+    refuse_link_local(request.url.host)
+
+
+def _refuse_link_local_peer(response: httpx.Response) -> None:
+    # The name may resolve differently for the connection than it did for the
+    # check above. Before the body is read, check the address really reached.
+    stream = response.extensions.get("network_stream")
+    peer = stream.get_extra_info("server_addr") if stream is not None else None
+    refuse_link_local_peer(response.request.url.host, peer)
+
+
+def _checked_transport() -> httpx.HTTPTransport:
+    """httpx's transport, connecting only to addresses the guard checked."""
+    checked = httpx.HTTPTransport()
+    # httpx exposes no setting for the network backend; its connection pool
+    # takes one. tests/test_net_guard.py fails if this stops being wired up.
+    checked._pool = httpcore.ConnectionPool(
+        ssl_context=httpx.create_ssl_context(), network_backend=CheckedBackend()
+    )
+    return checked
+
+
 def _client() -> httpx.Client:
-    return httpx.Client(timeout=HTTP_TIMEOUT, transport=transport)
+    hooks = {"request": [_refuse_link_local], "response": [_refuse_link_local_peer]}
+    if transport is not None:
+        return httpx.Client(timeout=HTTP_TIMEOUT, transport=transport, event_hooks=hooks)
+    # Built without transport= so httpx still honours HTTP(S)_PROXY, ALL_PROXY
+    # and NO_PROXY; passing one turns that off. Only the direct connection
+    # path - also used for NO_PROXY hosts - is swapped for the checked one.
+    # Through a proxy, the proxy resolves the name: the hooks still refuse a
+    # name that resolves to a link-local address here.
+    client = httpx.Client(timeout=HTTP_TIMEOUT, event_hooks=hooks)
+    client._transport.close()
+    client._transport = _checked_transport()
+    return client
 
 
 def callback_url(provider: OidcProvider) -> str:

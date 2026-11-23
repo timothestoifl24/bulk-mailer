@@ -253,6 +253,20 @@ def test_admin_group_membership_grants_admin(ldap_directory):
         _set("login_admin_group", "")
 
 
+def test_a_failed_service_bind_is_a_sign_in_failure_not_a_crash(ldap_directory, monkeypatch):
+    """connect() raises LdapError (directory down, service password wrong);
+    sign-in must treat it like any other directory error."""
+    from app.services.ldap_client import LdapError
+
+    def down(profile):
+        raise LdapError("Could not bind to dc.example.com:389 - connection refused")
+
+    monkeypatch.setattr(ldap_auth, "connect", down)
+    user, reason = _auth("jdoe", "correct-horse")
+    assert user is None
+    assert reason.startswith("ldap error")
+
+
 def test_leaving_the_admin_group_revokes_admin(ldap_directory):
     """Someone removed from the directory's admin group must not stay admin here."""
     _set("login_admin_group", ADMINS_GROUP)
