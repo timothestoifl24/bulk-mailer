@@ -94,6 +94,9 @@ class CheckedBackend(httpcore.SyncBackend):
                     address, port, timeout=timeout,
                     local_address=local_address, socket_options=socket_options,
                 )
-            except httpcore.ConnectError as exc:
+            # A silently dropped connection times out rather than failing;
+            # ConnectTimeout is not a ConnectError, and must not stop the
+            # next address from being tried either.
+            except (httpcore.ConnectError, httpcore.ConnectTimeout) as exc:
                 error = exc
         raise error or httpcore.ConnectError(f"{name} did not resolve to any address")

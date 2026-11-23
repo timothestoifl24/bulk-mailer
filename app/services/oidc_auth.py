@@ -88,11 +88,18 @@ def _checked_transport() -> httpx.HTTPTransport:
 
 
 def _client() -> httpx.Client:
-    return httpx.Client(
-        timeout=HTTP_TIMEOUT,
-        transport=transport or _checked_transport(),
-        event_hooks={"request": [_refuse_link_local], "response": [_refuse_link_local_peer]},
-    )
+    hooks = {"request": [_refuse_link_local], "response": [_refuse_link_local_peer]}
+    if transport is not None:
+        return httpx.Client(timeout=HTTP_TIMEOUT, transport=transport, event_hooks=hooks)
+    # Built without transport= so httpx still honours HTTP(S)_PROXY, ALL_PROXY
+    # and NO_PROXY; passing one turns that off. Only the direct connection
+    # path - also used for NO_PROXY hosts - is swapped for the checked one.
+    # Through a proxy, the proxy resolves the name: the hooks still refuse a
+    # name that resolves to a link-local address here.
+    client = httpx.Client(timeout=HTTP_TIMEOUT, event_hooks=hooks)
+    client._transport.close()
+    client._transport = _checked_transport()
+    return client
 
 
 def callback_url(provider: OidcProvider) -> str:

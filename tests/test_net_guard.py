@@ -159,3 +159,43 @@ def test_oidc_client_uses_the_checked_backend(monkeypatch):
     with oidc_auth._client() as client:
         pool = client._transport._pool
     assert isinstance(pool._network_backend, net_guard.CheckedBackend)
+
+
+def test_checked_backend_tries_the_next_address_after_a_timeout(monkeypatch):
+    """An address that silently drops connections times out; the others must
+    still be tried, as they were before the backend existed."""
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, port, *a, **k: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("203.0.113.10", port)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("203.0.113.11", port)),
+        ],
+    )
+    tried = []
+
+    def connect(self, host, port, **kwargs):
+        tried.append(host)
+        if host == "203.0.113.10":
+            raise net_guard.httpcore.ConnectTimeout("timed out")
+        return "stream"
+
+    monkeypatch.setattr(net_guard.httpcore.SyncBackend, "connect_tcp", connect)
+    assert net_guard.CheckedBackend().connect_tcp("idp.example", 443) == "stream"
+    assert tried == ["203.0.113.10", "203.0.113.11"]
+
+
+def test_oidc_client_still_honours_proxy_settings(monkeypatch):
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+                 "http_proxy", "https_proxy", "all_proxy", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("HTTPS_PROXY", "http://proxy.corp.example:3128")
+    monkeypatch.setenv("NO_PROXY", "idp.internal.example")
+    monkeypatch.setattr(oidc_auth, "transport", None)
+    with oidc_auth._client() as client:
+        proxied = client._transport_for_url(httpx.URL("https://login.example.com/.well-known"))
+        internal = client._transport_for_url(httpx.URL("https://idp.internal.example/.well-known"))
+        direct = client._transport_for_url(httpx.URL("http://idp.plain.example/.well-known"))
+        assert isinstance(proxied._pool, net_guard.httpcore.HTTPProxy)
+        for transport in (internal, direct):
+            assert isinstance(transport._pool._network_backend, net_guard.CheckedBackend)
