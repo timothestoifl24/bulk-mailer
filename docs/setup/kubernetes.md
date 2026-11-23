@@ -349,9 +349,10 @@ request-size limit; see [Exposing it](#exposing-it).
 replica without `ReadWriteMany` storage. Keep the base's `Recreate` strategy
 and one replica, or see [More than one replica](#more-than-one-replica).
 
-**The app logs `SECRET_KEY is a placeholder or too short`.** `secret.env` has
-an empty or short `SECRET_KEY`. Set a long random one before anyone relies on
-the install — changing it later logs everyone out and invalidates stored
+**The pod exits with `SECRET_KEY is empty, a published placeholder, or shorter
+than 32 characters`.** `secret.env` has an empty or short `SECRET_KEY`, and the
+app refuses to start with one, since anyone could forge a session cookie. Set a
+long random one; changing it later logs everyone out and invalidates stored
 passwords.
 
 **The unsubscribe link in messages points at the wrong place.** It is built
