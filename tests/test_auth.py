@@ -267,6 +267,37 @@ def test_a_failed_service_bind_is_a_sign_in_failure_not_a_crash(ldap_directory, 
     assert reason.startswith("ldap error")
 
 
+def test_leaving_the_admin_group_revokes_admin(ldap_directory):
+    """Someone removed from the directory's admin group must not stay admin here."""
+    _set("login_admin_group", ADMINS_GROUP)
+    try:
+        assert _auth("jdoe", "correct-horse")[0] == "jdoe"
+        with SessionLocal() as db:
+            # Promoted earlier - by the group back then, or by hand.
+            db.scalar(select(User).where(User.username == "jdoe")).is_admin = True
+            db.commit()
+        assert _auth("jdoe", "correct-horse")[0] == "jdoe"
+        with SessionLocal() as db:
+            assert db.scalar(select(User).where(User.username == "jdoe")).is_admin is False
+    finally:
+        _set("login_admin_group", "")
+
+
+def test_without_an_admin_group_manual_admin_rights_stay(ldap_directory):
+    assert _auth("jdoe", "correct-horse")[0] == "jdoe"
+    with SessionLocal() as db:
+        db.scalar(select(User).where(User.username == "jdoe")).is_admin = True
+        db.commit()
+    try:
+        assert _auth("jdoe", "correct-horse")[0] == "jdoe"
+        with SessionLocal() as db:
+            assert db.scalar(select(User).where(User.username == "jdoe")).is_admin is True
+    finally:
+        with SessionLocal() as db:
+            db.scalar(select(User).where(User.username == "jdoe")).is_admin = False
+            db.commit()
+
+
 def test_sign_in_binds_use_short_timeouts(ldap_directory, monkeypatch):
     from app.services import ldap_client
 
