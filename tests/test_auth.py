@@ -253,6 +253,64 @@ def test_admin_group_membership_grants_admin(ldap_directory):
         _set("login_admin_group", "")
 
 
+def test_sign_in_binds_use_short_timeouts(ldap_directory, monkeypatch):
+    from app.services import ldap_client
+
+    seen = {}
+
+    def server(*args, **kwargs):
+        seen["server"] = kwargs
+        return object()
+
+    class Recording(_FakeConnection):
+        def __init__(self, server=None, **kwargs):
+            seen["connection"] = kwargs
+            super().__init__(server, **kwargs)
+
+    monkeypatch.setattr(ldap_auth, "Server", server)
+    monkeypatch.setattr(ldap_auth, "Connection", Recording)
+    with SessionLocal() as db:
+        profile = db.scalar(select(LdapProfile).where(LdapProfile.name == "auth-test"))
+        assert ldap_auth._bind_as(profile, "CN=Jane Doe,OU=Staff,DC=example,DC=com", "correct-horse")
+    assert seen["server"]["connect_timeout"] == ldap_auth.LOGIN_CONNECT_TIMEOUT
+    assert seen["connection"]["receive_timeout"] == ldap_auth.LOGIN_RECEIVE_TIMEOUT
+
+    def service_server(*args, **kwargs):
+        seen["service"] = kwargs
+        raise RuntimeError("stop before connecting")
+
+    monkeypatch.setattr(ldap_client, "Server", service_server)
+    with pytest.raises(RuntimeError):
+        ldap_client.connect(profile)
+    assert seen["service"]["connect_timeout"] == 10
+
+
+def test_admin_group_equal_to_required_group_is_looked_up_once(ldap_directory, monkeypatch):
+    """jdoe has no memberOf, so membership needs a group read; with both
+    groups the same, one read must decide both."""
+    monkeypatch.setitem(
+        _FakeConnection.groups, ADMINS_GROUP, [*_FakeConnection.groups[ADMINS_GROUP], "CN=Jane Doe,OU=Staff,DC=example,DC=com"]
+    )
+    reads = []
+    real = ldap_auth._group_contains
+    monkeypatch.setattr(
+        ldap_auth, "_group_contains", lambda *args: reads.append(args[1]) or real(*args)
+    )
+    _set("login_required_group", ADMINS_GROUP)
+    _set("login_admin_group", ADMINS_GROUP)
+    try:
+        with SessionLocal() as db:
+            profile = db.scalar(select(LdapProfile).where(LdapProfile.name == "auth-test"))
+            identity = ldap_auth.authenticate_ldap(profile, "jdoe", "correct-horse")
+            assert identity.is_admin is True
+            assert reads == [ADMINS_GROUP]
+            with pytest.raises(KeyError):
+                ldap_auth.authenticate_ldap(profile, "outsider", "outsider-pw")
+    finally:
+        _set("login_required_group", "")
+        _set("login_admin_group", "")
+
+
 def _template_profile(db):
     profile = db.scalar(select(LdapProfile).where(LdapProfile.name == "auth-test"))
     profile.login_bind_mode = "template"

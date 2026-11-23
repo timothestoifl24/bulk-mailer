@@ -6,7 +6,7 @@ import base64
 import hashlib
 import hmac
 import secrets
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Depends, HTTPException, Request, status
@@ -87,8 +87,6 @@ def unsubscribe_token(email: str) -> str:
 
 
 def unsubscribe_url(email: str) -> str:
-    from urllib.parse import quote
-
     base = settings.public_base_url.rstrip("/")
     return f"{base}/unsubscribe?e={quote(email)}&t={unsubscribe_token(email)}"
 
