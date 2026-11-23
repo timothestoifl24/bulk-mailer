@@ -346,7 +346,10 @@ def test_recipient_export_keeps_line_breaks_inside_one_cell(logged_in):
         assert not any(row and row[0].startswith("=") for row in rows)
         row = next(row for row in rows if row and row[0] == "linebreak@example.com")
         assert row[1:3] == ["Smith\r=1+1", "Doe\n=2+2"]
-        assert '"Smith\r=1+1"' in text
+        assert '"Smith\r=1+1"' in text and '"Doe\n=2+2"' in text
+        # Every record ends in CRLF; the breaks inside values stay quoted.
+        assert text.endswith("\r\n")
+        assert text.splitlines()[0] == "email,first_name,last_name,display_name,company,department,title,source,suppressed,lists"
     finally:
         with SessionLocal() as db:
             db.delete(db.scalar(select(Recipient).where(Recipient.email == "linebreak@example.com")))

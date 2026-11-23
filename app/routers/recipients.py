@@ -415,7 +415,10 @@ def export_csv(list_id: str = "", db: Session = Depends(get_db)):
         statement = statement.where(Recipient.lists.any(RecipientList.id == int(list_id)))
 
     buffer = io.StringIO()
-    writer = csv.writer(buffer, lineterminator="\n")
+    # CRLF, as RFC 4180 and spreadsheet apps expect. It also makes the writer
+    # quote any value containing CR or LF on every Python version, so a line
+    # break inside a value can never start a new row that holds a formula.
+    writer = csv.writer(buffer, lineterminator="\r\n")
     writer.writerow(
         [
             "email",
