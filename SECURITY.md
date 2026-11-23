@@ -28,7 +28,7 @@ There's no bug bounty: this is an open-source project, and confirmed reports
 aren't paid. Instead, you'll be credited in the pull request that fixes the
 issue, in the GitHub Security Advisory, and in the release notes, unless
 you'd rather stay anonymous. See
-[Rewards and recognition](CONTRIBUTING.md#rewards-and-recognition).
+[Rewards and recognition](https://github.com/timothestoifl24/bulk-mailer/blob/develop/CONTRIBUTING.md#rewards-and-recognition).
 
 ## Scope
 
