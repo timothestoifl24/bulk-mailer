@@ -126,6 +126,28 @@ The changelog entry for a version lives in the commit its tag points at, so
 browsing a release's source shows its own notes rather than a changelog one
 version short.
 
+## A weak `SECRET_KEY` now stops the app
+
+Earlier versions only logged `SECRET_KEY is a placeholder or too short` and
+started anyway. Now the app refuses to start with an empty key, a key shorter
+than 32 characters, or one of the shipped placeholders, because anyone who
+knows the key can forge a session cookie and sign in as an administrator.
+
+If your install stops after upgrading, set a long random key
+(`openssl rand -base64 36`). Changing the key:
+
+- logs everyone out;
+- makes the stored SMTP, LDAP and OpenID Connect secrets unreadable, so enter
+  those again afterwards;
+- breaks the unsubscribe links in every message already sent, because each
+  link is signed with the key. A recipient who clicks one sees *Invalid link*
+  and is told to contact the sender; suppress such requests by hand on
+  *Recipients*. Messages sent after the change carry working links. The repository's `compose.yaml` now reads the key from
+`MAILER_SECRET_KEY` in `.env` and stops with a message when it is missing.
+
+`ALLOW_INSECURE_SECRET_KEY=true` (or `DEBUG=true`) starts the app with a weak
+key anyway, for a throwaway local setup.
+
 ## After upgrading
 
 Worth a look, in rough order of how often it matters:
