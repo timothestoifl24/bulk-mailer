@@ -167,7 +167,7 @@ different person and refused, rather than taking over the first account.
 | Bind mode | *Search* (recommended) looks the account up with the service credentials, then binds as its DN. *Template* builds the bind name straight from the username, e.g. `{username}@corp.example.com` — no service account needed. |
 | Login attribute | `sAMAccountName` on Active Directory, `uid` on OpenLDAP. |
 | Required group DN | Only members may sign in. Empty means any directory account can. |
-| Administrator group DN | Members get admin rights on sign-in. |
+| Administrator group DN | With one set, the directory decides admin rights at every sign-in, both ways: leaving the group removes them. Empty: rights are managed on *Users*. |
 | Create a profile automatically | Off means an administrator must create the account first; the directory then only verifies the password. |
 
 Group membership is resolved from the user's `memberOf` when the directory
