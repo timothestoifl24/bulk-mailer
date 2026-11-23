@@ -73,41 +73,123 @@ def is_enabled(db: Session) -> bool:
 MIGRATION_MARKER = "auth_migrated_v2"
 
 
-def migrate_legacy_settings(db: Session) -> bool:
-    """Move the pre-2.1 global LDAP sign-in settings onto their profile.
+def _rdns(dn: str) -> list[str]:
+    """Split a DN into normalised RDNs, honouring backslash escapes.
 
-    Runs at every start and does its work once: the marker setting records that
-    it happened, so switching sign-in off later is not undone by a restart.
-    Returns True when something was moved.
+    `cn=a\\,dc=corp,dc=example` is two RDNs, not three: an escaped comma is
+    part of a value, and treating it as a boundary would let a DN pass as
+    being under a base it is not under.
     """
-    if db.get(Setting, MIGRATION_MARKER) is not None:
-        return False
-    settings_store.set_value(db, MIGRATION_MARKER, "1")
+    rdns: list[str] = []
+    current: list[str] = []
+    chars = iter((dn or "").strip())
+    for char in chars:
+        if char == "\\":
+            current.append(char + next(chars, ""))
+        elif char == ",":
+            rdns.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    rdns.append("".join(current))
+    normalised = []
+    for rdn in rdns:
+        attribute, _, value = rdn.partition("=")
+        normalised.append(f"{attribute.strip().lower()}={value.strip().lower()}")
+    return normalised if any(r != "=" for r in normalised) else []
 
-    raw = settings_store.get_value(db, "auth_ldap_profile_id")
-    profile = db.get(LdapProfile, int(raw)) if raw.isdigit() else None
+
+def dn_is_under(dn: str, base_dn: str) -> bool:
+    """Whether `dn` lies in the subtree `base_dn`, compared RDN by RDN."""
+    entry, base = _rdns(dn), _rdns(base_dn)
+    return bool(entry and base) and len(entry) >= len(base) and entry[-len(base):] == base
+
+
+def legacy_profile(db: Session) -> LdapProfile | None:
+    """The LDAP profile the 1.x sign-in settings name by id.
+
+    Only a hint: if 2.0.0 deleted that profile, SQLite may have handed its id
+    to a different one since, so a repair must be confirmed by name.
+    """
+    raw = settings_store.get_value(db, "auth_ldap_profile_id").strip()
+    return db.get(LdapProfile, int(raw)) if raw.isdigit() else None
+
+
+def migrate_legacy_settings(db: Session, force: bool = False, reattach: bool = False) -> bool:
+    """Move the 1.x global LDAP sign-in settings onto their profile.
+
+    At every start this does its work once: the marker setting records that it
+    happened, so switching sign-in off later is not undone by a restart.
+    Returns True when something was moved.
+
+    The values are carried over exactly as 1.x read them. In particular a
+    blank login attribute meant `uid` there, not the form's `sAMAccountName`
+    placeholder: turning it into the latter made every search on an OpenLDAP
+    directory come back empty.
+
+    `force` is the repair behind `python -m app.cli migrate-ldap-login`, for
+    installs that upgraded with 2.0.0. It ignores the marker but only undoes
+    what 2.0.0 got wrong, and only where the field still holds what 2.0.0 wrote
+    there: anything an administrator changed since - sign-in on or off, the
+    required group, the bind mode - is left alone. It never loosens access.
+
+    Unlinked directory accounts are attached by the first migration, which is
+    when they can only have come from 1.x. On a repair they are attached only
+    with `reattach`, and only when their DN lies under this profile's base DN:
+    in 2.x an unlinked account usually means its provider was deleted on
+    purpose, and attaching it to another directory would hand the account (and
+    its admin flag) to whoever holds that username there.
+    """
+    if not force:
+        if db.get(Setting, MIGRATION_MARKER) is not None:
+            return False
+        settings_store.set_value(db, MIGRATION_MARKER, "1")
+
+    profile = legacy_profile(db)
     if profile is None:
         return False
 
     def value(key: str) -> str:
         return settings_store.get_value(db, f"auth_ldap_{key}").strip()
 
-    profile.login_enabled = value("enabled") == "1"
-    profile.login_bind_mode = value("bind_mode") or "search"
-    profile.login_attribute = value("login_attribute") or "sAMAccountName"
-    profile.login_user_filter = value("user_filter")
-    # The old default was a placeholder, never a working value.
+    mode = value("bind_mode") or "search"
     template = value("bind_template")
-    profile.login_bind_template = "" if template == "{username}@example.com" else template
-    profile.login_required_group = value("required_group")
-    profile.login_admin_group = value("admin_group")
-    profile.login_auto_create = value("auto_create") != "0"
+    login_attribute = value("login_attribute") or "uid"
+    # The default was a placeholder, never a working value - but a directory
+    # in template mode may really use it, and then it has to stay.
+    bind_template = "" if mode != "template" and template == "{username}@example.com" else template
 
-    # Directory accounts made before 2.0 all came through this one profile.
-    for user in db.scalars(
-        select(User).where(User.auth_source == "ldap", User.auth_provider_id.is_(None))
-    ):
-        user.auth_provider_id = profile.id
+    if force:
+        # What 2.0.0 wrote: a blank attribute became sAMAccountName, the
+        # placeholder template was always dropped, and a blank auto-create
+        # became "on".
+        if profile.login_attribute == (value("login_attribute") or "sAMAccountName"):
+            profile.login_attribute = login_attribute
+        if profile.login_bind_mode == "template" == mode and not profile.login_bind_template:
+            profile.login_bind_template = bind_template
+        if value("auto_create") != "1":
+            profile.login_auto_create = False
+    else:
+        profile.login_enabled = value("enabled") == "1"
+        profile.login_bind_mode = mode
+        profile.login_attribute = login_attribute
+        profile.login_user_filter = value("user_filter")
+        profile.login_bind_template = bind_template
+        profile.login_required_group = value("required_group")
+        profile.login_admin_group = value("admin_group")
+        profile.login_auto_create = value("auto_create") == "1"
+
+    if not force or reattach:
+        for user in db.scalars(
+            select(User).where(User.auth_source == "ldap", User.auth_provider_id.is_(None))
+        ):
+            if force and not dn_is_under(user.ldap_dn, profile.base_dn):
+                logger.warning(
+                    "Left %s unlinked: its DN %r is not under %r.",
+                    user.username, user.ldap_dn, profile.base_dn,
+                )
+                continue
+            user.auth_provider_id = profile.id
     logger.info("Moved the LDAP sign-in settings onto the profile '%s'.", profile.name)
     return True
 

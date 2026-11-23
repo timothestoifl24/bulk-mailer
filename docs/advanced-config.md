@@ -187,7 +187,10 @@ Use LDAPS or StartTLS. With plain LDAP every user's password crosses the
 network in the clear on each sign-in — not just the service account's.
 
 Upgrading from 1.x moves the old global sign-in settings onto the LDAP
-provider they pointed at, once, at the first start.
+provider they pointed at, once, at the first start. If directory users cannot
+sign in afterwards, `python -m app.cli migrate-ldap-login` repairs what the
+2.0.0 upgrade got wrong —
+see [Upgrading](/upgrading#upgrading-from-1-x-to-2-0).
 
 ## Single sign-on with OpenID Connect
 
