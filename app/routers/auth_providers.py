@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import LdapProfile, OidcProvider, RecipientList, User
 from ..security import encrypt_secret
-from ..services import ldap_auth, ldap_client, ldap_sync, oidc_auth, settings_store
+from ..services import ldap_auth, ldap_client, ldap_sync, login_throttle, oidc_auth, settings_store
 from ..services.importer import discard_drafts_for_profile
 from ..services.ldap_import import DEFAULT_ATTR_MAP, parse_attr_map
 from ..web import flash, redirect, render
@@ -362,8 +362,16 @@ def try_login(
     provider = db.get(LdapProfile, provider_id)
     if provider is None:
         return redirect(BASE)
+    # Admin-only, but a stolen admin session must not become a password oracle
+    # against the directory.
+    client = login_throttle.client_of(request)
+    attempt = login_throttle.begin("try-login", test_username, client)
+    if attempt is None:
+        flash(request, "Too many failed test sign-ins. Wait a few minutes and try again.", "error")
+        return redirect(_url(provider) + "#sign-in")
     try:
         flash(request, ldap_auth.test_login(provider, test_username.strip(), test_password), "success")
+        login_throttle.succeeded(attempt)
     except KeyError:
         flash(
             request,
@@ -372,6 +380,8 @@ def try_login(
             "error",
         )
     except ldap_auth.LdapAuthError as exc:
+        # A configuration or connection problem says nothing about the password.
+        login_throttle.release(attempt)
         flash(request, str(exc), "error")
     return redirect(_url(provider) + "#sign-in")
 
