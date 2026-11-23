@@ -20,7 +20,11 @@ def _form(request: Request, values: dict | None = None, status_code: int = 200):
     return render(
         request,
         "setup.html",
-        {"values": values or {}, "min_password": first_run.MIN_PASSWORD_LENGTH},
+        {
+            "values": values or {},
+            "min_password": first_run.MIN_PASSWORD_LENGTH,
+            "token_required": first_run.token_required(),
+        },
         status_code=status_code,
     )
 
@@ -40,6 +44,7 @@ def setup_submit(
     email: str = Form(""),
     password: str = Form(""),
     confirm_password: str = Form(""),
+    setup_token: str = Form(""),
     db: Session = Depends(get_db),
 ):
     values = {"username": username, "display_name": display_name, "email": email}
@@ -51,6 +56,7 @@ def setup_submit(
             confirm=confirm_password,
             display_name=display_name,
             email=email,
+            setup_token=setup_token,
         )
     except first_run.SetupError as exc:
         flash(request, str(exc), "error")

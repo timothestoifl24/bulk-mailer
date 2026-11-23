@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     debug: bool = False
     # Throwaway local setups only: start even with a placeholder SECRET_KEY.
     allow_insecure_secret_key: bool = False
+    # When set, /setup asks for this value before it creates the first
+    # administrator, so whoever reaches a fresh install first cannot claim it.
+    setup_token: str = ""
     # Unset: the session cookie is Secure exactly when PUBLIC_BASE_URL is https.
     # Set it to true behind a TLS proxy whose public address is written down as
     # http, or to false only to sign in over plain HTTP on purpose.

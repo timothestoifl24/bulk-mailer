@@ -176,7 +176,7 @@
                  value="{{ p.login_required_group or '' }}" placeholder="CN=Mailer Users,OU=Groups,DC=corp,DC=example,DC=com">
         </div>
         <div class="mb-3">
-          <label class="form-label" for="login_admin_group">Administrator group {{ help("Members of this group become administrators when they sign in.") }}</label>
+          <label class="form-label" for="login_admin_group">Administrator group {{ help("Members of this group are administrators; with a group set, leaving it removes the rights at the next sign-in.") }}</label>
           <input type="text" class="form-control mono" id="login_admin_group" name="login_admin_group"
                  value="{{ p.login_admin_group or '' }}" placeholder="CN=Mailer Admins,OU=Groups,DC=corp,DC=example,DC=com">
         </div>

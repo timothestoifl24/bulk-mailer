@@ -11,6 +11,7 @@ password and restores it.
 
 from __future__ import annotations
 
+import hmac
 import logging
 import re
 import threading
@@ -20,6 +21,7 @@ from sqlalchemy import delete, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..models import Setting, User
 from ..security import hash_password
 
@@ -54,6 +56,10 @@ def is_done(db: Session) -> bool:
     return _done
 
 
+def token_required() -> bool:
+    return bool(settings.setup_token.strip())
+
+
 def forget_cache() -> None:
     """For tests that empty the user table on purpose."""
     global _done
@@ -72,14 +78,21 @@ def create_initial_admin(
     confirm: str,
     display_name: str = "",
     email: str = "",
+    setup_token: str = "",
     commit: bool = True,
 ) -> User:
     """Create the first administrator and commit it.
 
-    Raises SetupError for a bad form, and LookupError when setup has already
-    happened (here or on another instance). `commit=False` is for tests that
-    roll the whole thing back; it gives up the cross-instance guarantee.
+    Raises SetupError for a bad form or a wrong SETUP_TOKEN, and LookupError
+    when setup has already happened (here or on another instance).
+    `commit=False` is for tests that roll the whole thing back; it gives up the
+    cross-instance guarantee.
     """
+    if token_required() and not hmac.compare_digest(
+        (setup_token or "").strip().encode(), settings.setup_token.strip().encode()
+    ):
+        logger.warning("First-run setup refused: wrong or missing setup token.")
+        raise SetupError("That setup token isn't right. It is the SETUP_TOKEN this install was started with.")
     username = (username or "").strip()
     if not USERNAME_RE.match(username):
         raise SetupError("Choose a username of letters, digits and . _ - @ only.")

@@ -117,9 +117,12 @@ def _bootstrap_schema_and_data() -> None:
             # Said at every start until it is done: until then, whoever opens
             # the app first becomes its administrator.
             logger.warning(
-                "No account exists yet. Open %s/setup to create the first administrator - "
-                "until you do, anyone who can reach this address can.",
+                "No account exists yet. Open %s/setup to create the first administrator - %s",
                 settings.public_base_url.rstrip("/"),
+                "it asks for SETUP_TOKEN."
+                if first_run.token_required()
+                else "until you do, anyone who can reach this address can. Set SETUP_TOKEN "
+                "to require a token for it.",
             )
         elif db.scalar(select(func.count()).select_from(User).where(User.is_admin.is_(True))) == 0:
             # Upgraded database: nobody would be able to reach the admin pages.
