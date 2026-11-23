@@ -56,18 +56,33 @@ logger = logging.getLogger("mailer")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
-def warn_about_weak_secrets() -> None:
-    """A placeholder SECRET_KEY lets anyone forge a session cookie.
+class InsecureSecretKey(RuntimeError):
+    pass
 
-    The container images and compose file ship obvious placeholders so the stack
-    starts out of the box; say so loudly rather than let one reach production.
+
+def check_secret_key() -> None:
+    """Refuse to start with a SECRET_KEY an attacker could know.
+
+    The key signs the session cookie, which is only signed, not encrypted: with
+    a published placeholder anyone can mint `{"user_id": 1}` and sign in as the
+    initial administrator, and decrypt every stored SMTP/LDAP/OIDC secret.
+    DEBUG or ALLOW_INSECURE_SECRET_KEY lets a throwaway local setup start anyway.
     """
-    if secret_key_is_weak():
+    if not secret_key_is_weak():
+        return
+    if settings.debug or settings.allow_insecure_secret_key:
         logger.warning(
             "SECRET_KEY is a placeholder or too short. Session cookies can be forged and "
-            "stored SMTP/LDAP passwords are not meaningfully protected. Set a long random "
-            "value before using this for real."
+            "stored SMTP/LDAP passwords are not meaningfully protected. Starting anyway "
+            "because DEBUG or ALLOW_INSECURE_SECRET_KEY is set."
         )
+        return
+    raise InsecureSecretKey(
+        "SECRET_KEY is empty, a published placeholder, or shorter than 32 characters, so "
+        "anyone could forge a session cookie. Generate one with `openssl rand -base64 36` "
+        "and set it as SECRET_KEY. (ALLOW_INSECURE_SECRET_KEY=true starts anyway, for "
+        "throwaway local setups only.)"
+    )
 
 
 def warn_about_removed_settings() -> None:
@@ -80,7 +95,7 @@ def warn_about_removed_settings() -> None:
 
 def bootstrap() -> None:
     """Create the schema, adopt an initial admin on upgrade, and reset stale campaigns."""
-    warn_about_weak_secrets()
+    check_secret_key()
     warn_about_removed_settings()
     with startup_lock():
         _bootstrap_schema_and_data()

@@ -172,6 +172,23 @@ def test_create_admin_still_adds_more_admins(client):
     assert cli.main(["create-admin", "extra-admin", "--password", "extra-admin-pw-1"]) == 0
 
 
+def test_promote_says_when_it_re_enables_an_account(client, capsys):
+    with SessionLocal() as db:
+        db.add(User(username="dormant", auth_source="local", is_active=False, is_admin=False))
+        db.commit()
+    try:
+        assert cli.main(["promote", "DORMANT"]) == 0
+        assert "re-enabled" in capsys.readouterr().out
+        assert cli.main(["promote", "dormant"]) == 0
+        assert "re-enabled" not in capsys.readouterr().out
+        with pytest.raises(SystemExit, match="No account named"):
+            cli.main(["promote", "nobody-here"])
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.scalar(select(User).where(User.username == "dormant")))
+            db.commit()
+
+
 def test_upgrades_adopt_the_oldest_local_admin(client):
     with SessionLocal() as db:
         admin = first_run.initial_admin(db)

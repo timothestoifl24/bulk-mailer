@@ -65,7 +65,9 @@ environment, and flags an environment value that is being ignored.
 
 You can, but it logs everyone out **and** invalidates every stored SMTP and
 LDAP password, because the encryption key is derived from it. Re-enter those
-passwords afterwards. Generate a long random value at install time and keep it
+passwords afterwards. It also breaks the unsubscribe links in messages already
+sent, since each is signed with the key: suppress those recipients by hand on
+*Recipients* when they write in. Generate a long random value at install time and keep it
 somewhere you will not lose it.
 
 ## Data
@@ -87,7 +89,12 @@ volume there or it disappears with the container.
 
 ### Does upgrading need a migration step?
 
-No. The app adds missing columns on startup. It only ever adds
+Normally no. The app adds missing columns on startup. The one exception is LDAP
+sign-in after upgrading from 1.x to 2.0.0: if directory users are locked out,
+run `python -m app.cli migrate-ldap-login` — see
+[Upgrading](/upgrading#upgrading-from-1-x-to-2-0).
+
+Apart from that, it only ever adds
 nullable-or-defaulted columns and never drops or renames anything — see
 [Upgrading](/upgrading) for the limits of that, and back up first anyway.
 
