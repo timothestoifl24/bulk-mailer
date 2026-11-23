@@ -316,6 +316,46 @@ def test_recipient_export_returns_csv(logged_in):
     assert response.text.splitlines()[0].startswith("email,first_name")
 
 
+def test_recipient_export_neutralises_formulas(logged_in):
+    with SessionLocal() as db:
+        db.add(Recipient(email="formula@example.com", first_name='=HYPERLINK("http://x","y")', company="+1 Corp"))
+        db.commit()
+    try:
+        text = logged_in.get("/recipients-export.csv").text
+        row = next(line for line in text.splitlines() if line.startswith("formula@example.com"))
+        assert ",\"'=HYPERLINK(" in row
+        assert ",'+1 Corp," in row
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.scalar(select(Recipient).where(Recipient.email == "formula@example.com")))
+            db.commit()
+
+
+def test_recipient_export_keeps_line_breaks_inside_one_cell(logged_in):
+    """A value with an embedded CR or LF must stay one quoted cell, so the
+    text after the break cannot become a new row that starts with a formula."""
+    import csv
+    import io
+
+    with SessionLocal() as db:
+        db.add(Recipient(email="linebreak@example.com", first_name="Smith\r=1+1", last_name="Doe\n=2+2"))
+        db.commit()
+    try:
+        text = logged_in.get("/recipients-export.csv").text
+        rows = list(csv.reader(io.StringIO(text, newline="")))
+        assert not any(row and row[0].startswith("=") for row in rows)
+        row = next(row for row in rows if row and row[0] == "linebreak@example.com")
+        assert row[1:3] == ["Smith\r=1+1", "Doe\n=2+2"]
+        assert '"Smith\r=1+1"' in text and '"Doe\n=2+2"' in text
+        # Every record ends in CRLF; the breaks inside values stay quoted.
+        assert text.endswith("\r\n")
+        assert text.splitlines()[0] == "email,first_name,last_name,display_name,company,department,title,source,suppressed,lists"
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.scalar(select(Recipient).where(Recipient.email == "linebreak@example.com")))
+            db.commit()
+
+
 def test_campaign_template_picker_submits_as_a_form(logged_in):
     """The picker must navigate without JavaScript assembling a URL.
 
