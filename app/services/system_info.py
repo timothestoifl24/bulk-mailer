@@ -14,13 +14,12 @@ from __future__ import annotations
 
 import platform
 from dataclasses import dataclass, field
-from urllib.parse import urlsplit
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .. import __version__
-from ..config import secret_key_is_weak
+from ..config import insecure_cookie_warning, secret_key_is_weak, session_cookie_is_secure
 from ..config import settings as env
 from ..db import engine
 from ..models import LdapProfile, OidcProvider, RecipientList, Setting, User
@@ -179,14 +178,17 @@ def collect(db: Session) -> SystemInfo:
     info = SystemInfo()
 
     # --- Instance --------------------------------------------------------- #
-    public = urlsplit(env.public_base_url)
-    https_cookie = env.public_base_url.startswith("https://")
+    https_cookie = session_cookie_is_secure()
     info.instance = [
         Row("Version", __version__),
         Row("Python", platform.python_version()),
         Row("Database", f"{engine.dialect.name} ({engine.url.render_as_string(hide_password=True)})"),
         Row("Public address", env.public_base_url, note="used in unsubscribe links and for single sign-on"),
-        Row("Session cookie", "HTTPS only" if https_cookie else "sent over HTTP too"),
+        Row(
+            "Session cookie",
+            "HTTPS only" if https_cookie else "sent over HTTP too",
+            note="set by SESSION_COOKIE_SECURE" if env.session_cookie_secure is not None else "",
+        ),
         Row("Data directory", str(env.data_dir), note="attachments, and the SQLite file if used"),
     ]
     if secret_key_is_weak():
@@ -194,10 +196,8 @@ def collect(db: Session) -> SystemInfo:
             "SECRET_KEY is a placeholder or shorter than 32 characters: session cookies can be "
             "forged and stored passwords are not meaningfully protected."
         ))
-    if not https_cookie and public.hostname not in ("localhost", "127.0.0.1", "::1"):
-        info.warnings.append(Notice(
-            "PUBLIC_BASE_URL is not https://. Passwords and session cookies cross the network unencrypted."
-        ))
+    if cookie_warning := insecure_cookie_warning():
+        info.warnings.append(Notice(cookie_warning))
     if env.debug:
         info.warnings.append(Notice("DEBUG is on. Turn it off outside development."))
 
