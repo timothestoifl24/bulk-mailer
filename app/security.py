@@ -6,7 +6,7 @@ import base64
 import hashlib
 import hmac
 import secrets
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import Depends, HTTPException, Request, status
@@ -27,6 +27,18 @@ def hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, _PBKDF2_ROUNDS)
     return f"pbkdf2_sha256${_PBKDF2_ROUNDS}${salt.hex()}${digest.hex()}"
+
+
+_dummy_hash = ""
+
+
+def burn_password_check(password: str) -> None:
+    """Spend what a real password check costs, so a fast "no such account"
+    does not tell an attacker which usernames exist."""
+    global _dummy_hash
+    if not _dummy_hash:
+        _dummy_hash = hash_password(secrets.token_hex(16))
+    verify_password(password, _dummy_hash)
 
 
 def verify_password(password: str, stored: str) -> bool:
@@ -75,8 +87,6 @@ def unsubscribe_token(email: str) -> str:
 
 
 def unsubscribe_url(email: str) -> str:
-    from urllib.parse import quote
-
     base = settings.public_base_url.rstrip("/")
     return f"{base}/unsubscribe?e={quote(email)}&t={unsubscribe_token(email)}"
 

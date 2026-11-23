@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     debug: bool = False
+    # Throwaway local setups only: start even with a placeholder SECRET_KEY.
+    allow_insecure_secret_key: bool = False
 
     # No longer used: the first administrator is created on the /setup page.
     # Still read so a leftover value can be warned about at startup.
