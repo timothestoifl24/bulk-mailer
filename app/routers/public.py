@@ -26,11 +26,22 @@ def unsubscribe_form(request: Request, e: str = "", t: str = ""):
 @router.post("/unsubscribe")
 def unsubscribe(
     request: Request,
-    email: str = Form(...),
-    token: str = Form(...),
+    email: str = Form(""),
+    token: str = Form(""),
+    e: str = "",
+    t: str = "",
     db: Session = Depends(get_db),
 ):
-    valid = verify_unsubscribe_token(email, token)
+    """The page's button, or a mail provider's one-click unsubscribe (RFC 8058).
+
+    One-click POSTs `List-Unsubscribe=One-Click` to the List-Unsubscribe URL
+    itself, so the address and token come from its query string. It carries no
+    Origin, Referer or cookie, which is why this path skips the CSRF guard: the
+    HMAC token is what authorises it.
+    """
+    email = email or e
+    token = token or t
+    valid = bool(email) and verify_unsubscribe_token(email, token)
     if valid:
         recipient = get_recipient(db, normalise_email(email))
         if recipient is not None and not recipient.is_suppressed:
