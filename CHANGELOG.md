@@ -16,6 +16,8 @@ pages no longer exist.
 
 ## [Unreleased]
 
+## [v2.0.1] - 2026-11-24
+
 💥 **Before upgrading:** the app now refuses to start with a weak `SECRET_KEY`,
 and LDAP administrator groups now also take admin rights away. Both are
 explained below and in *Upgrading*.
@@ -311,7 +313,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v2.0.1...HEAD
+[v2.0.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v2.0.1
 [v2.0.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v2.0.0
 [v1.5.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.0
