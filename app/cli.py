@@ -4,6 +4,7 @@
     python -m app.cli reset-initial-admin
     python -m app.cli set-password alice
     python -m app.cli create-admin alice --password ...
+    python -m app.cli promote alice
     python -m app.cli disable-ldap-login
     python -m app.cli migrate-ldap-login
     python -m app.cli disable-sso
@@ -26,6 +27,18 @@ from .services import ldap_auth, settings_store
 from .services import setup as first_run
 
 MIN_PASSWORD_LENGTH = 8
+NO_ACCOUNTS = "No account exists yet. Open the app's /setup page to create the first administrator."
+
+
+def _find_user(db, username: str) -> User | None:
+    return db.scalar(select(User).where(func.lower(User.username) == username.lower()))
+
+
+def _require_user(db, username: str) -> User:
+    user = _find_user(db, username)
+    if user is None:
+        raise SystemExit(f"No account named {username!r}.")
+    return user
 
 
 def _read_password(supplied: str | None) -> str:
@@ -42,7 +55,7 @@ def list_users(_args) -> int:
     with session_scope() as db:
         users = list(db.scalars(select(User).order_by(User.username)))
         if not users:
-            print("No accounts exist yet. Open the app's /setup page to create the first administrator.")
+            print(NO_ACCOUNTS)
             return 0
         width = max(len(u.username) for u in users)
         print(f"{'USERNAME'.ljust(width)}  SOURCE  RIGHTS   STATE     LAST SIGN-IN")
@@ -60,9 +73,7 @@ def list_users(_args) -> int:
 
 def set_password(args) -> int:
     with session_scope() as db:
-        user = db.scalar(select(User).where(func.lower(User.username) == args.username.lower()))
-        if user is None:
-            raise SystemExit(f"No account named {args.username!r}.")
+        user = _require_user(db, args.username)
         if user.auth_source != "local":
             raise SystemExit(
                 f"{user.username!r} signs in through the directory; there is no local password. "
@@ -80,9 +91,7 @@ def reset_initial_admin(args) -> int:
         user = first_run.initial_admin(db)
         if user is None:
             if db.scalar(select(func.count()).select_from(User)) == 0:
-                raise SystemExit(
-                    "No account exists yet. Open the app's /setup page to create the first administrator."
-                )
+                raise SystemExit(NO_ACCOUNTS)
             raise SystemExit(
                 "No account is marked as the initial administrator. Use set-password on a local "
                 "administrator, or create-admin to add one."
@@ -101,11 +110,8 @@ def create_admin(args) -> int:
     with session_scope() as db:
         if db.scalar(select(func.count()).select_from(User)) == 0:
             # The first account is created on the setup page, never from here.
-            raise SystemExit(
-                "No account exists yet. Open the app's /setup page to create the first administrator."
-            )
-        existing = db.scalar(select(User).where(func.lower(User.username) == args.username.lower()))
-        if existing is not None:
+            raise SystemExit(NO_ACCOUNTS)
+        if _find_user(db, args.username) is not None:
             raise SystemExit(f"{args.username!r} already exists; use set-password.")
         db.add(
             User(
@@ -122,12 +128,14 @@ def create_admin(args) -> int:
 
 def promote(args) -> int:
     with session_scope() as db:
-        user = db.scalar(select(User).where(func.lower(User.username) == args.username.lower()))
-        if user is None:
-            raise SystemExit(f"No account named {args.username!r}.")
+        user = _require_user(db, args.username)
+        reenabled = not user.is_active
         user.is_admin = True
         user.is_active = True
-        print(f"{user.username!r} is now an administrator.")
+        print(
+            f"{user.username!r} is now an administrator"
+            + (" and was re-enabled." if reenabled else ".")
+        )
     return 0
 
 
@@ -152,20 +160,37 @@ def disable_ldap_login(_args) -> int:
     return 0
 
 
-def migrate_ldap_login(_args) -> int:
-    """Apply the LDAP sign-in settings of 1.x to their directory again.
+def migrate_ldap_login(args) -> int:
+    """Repair the LDAP sign-in settings an upgrade with 2.0.0 got wrong.
 
-    For an upgrade from 1.x after which LDAP users cannot sign in: it copies
-    the old global settings onto the LDAP provider they belonged to and
-    re-attaches the directory accounts that lost their provider.
+    For an upgrade from 1.x after which LDAP users cannot sign in: it restores
+    the 1.x login attribute and bind template on the LDAP provider they
+    belonged to, leaving settings changed since alone. `--reattach` also
+    re-links unlinked directory accounts whose DN is under that provider.
     """
     with session_scope() as db:
-        if not ldap_auth.migrate_legacy_settings(db, force=True):
+        profile = ldap_auth.legacy_profile(db)
+        if profile is None:
             raise SystemExit(
                 "Nothing to migrate: this database has no 1.x LDAP sign-in settings "
                 "pointing at an existing LDAP connection."
             )
-        profile = db.get(LdapProfile, int(settings_store.get_value(db, "auth_ldap_profile_id")))
+        # The settings name the provider by id only. If 2.0.0 deleted it,
+        # SQLite may have given that id to another directory since; repairing
+        # that one would break its sign-in and could hand it old accounts.
+        if args.provider is None or args.provider.strip().lower() != profile.name.strip().lower():
+            print(
+                f"The 1.x sign-in settings point at the LDAP provider {profile.name!r} "
+                f"({profile.host}, base DN {profile.base_dn!r})."
+            )
+            if args.provider is not None:
+                print(f"That is not {args.provider!r}, so nothing was changed.")
+            raise SystemExit(
+                "If that is the directory 1.x signed in against, run this again with "
+                f"--provider {profile.name!r}. If it is not, the 1.x provider is gone and "
+                "there is nothing to repair."
+            )
+        ldap_auth.migrate_legacy_settings(db, force=True, reattach=args.reattach)
         print(
             f"The 1.x sign-in settings are now on the LDAP provider {profile.name!r}: "
             f"sign-in {'on' if profile.login_enabled else 'off'}, "
@@ -226,10 +251,21 @@ def main(argv: list[str] | None = None) -> int:
         "disable-ldap-login", help="turn LDAP sign-in off (use when it locks everyone out)"
     ).set_defaults(func=disable_ldap_login)
 
-    sub.add_parser(
+    p = sub.add_parser(
         "migrate-ldap-login",
-        help="re-apply the 1.x LDAP sign-in settings after an upgrade that lost them",
-    ).set_defaults(func=migrate_ldap_login)
+        help="repair the 1.x LDAP sign-in settings after an upgrade that lost them",
+    )
+    p.add_argument(
+        "--provider",
+        metavar="NAME",
+        help="the name of the LDAP provider 1.x signed in against, to confirm the target",
+    )
+    p.add_argument(
+        "--reattach",
+        action="store_true",
+        help="also re-link unlinked directory accounts whose DN is under that provider's base DN",
+    )
+    p.set_defaults(func=migrate_ldap_login)
 
     sub.add_parser(
         "disable-sso", help="turn every OpenID Connect provider off and show the local form"

@@ -21,9 +21,11 @@ pages no longer exist.
   attribute left blank in 1.x (which meant `uid`) became `sAMAccountName`, so
   no user was found on OpenLDAP-style directories. The upgrade now keeps the
   1.x meaning, and a template-mode bind template is carried over unchanged.
-- `python -m app.cli migrate-ldap-login` re-applies the 1.x sign-in settings
-  to the LDAP provider and re-attaches its directory accounts, for installs
-  that already upgraded to 2.0.0. See *Upgrading*.
+- `python -m app.cli migrate-ldap-login` repairs the login attribute and bind
+  template of the LDAP provider for installs that already upgraded to 2.0.0,
+  leaving settings changed since alone. It asks for the provider's name with
+  `--provider` before changing anything. `--reattach` also re-links unlinked
+  directory accounts whose DN is under that provider. See *Upgrading*.
 
 ## [v2.0.0] - 2026-11-02
 

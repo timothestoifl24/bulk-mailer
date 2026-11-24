@@ -33,7 +33,8 @@ from sqlalchemy.orm import Session
 
 from ..models import LdapProfile, Setting, User
 from . import settings_store
-from .ldap_client import connect, first_value, supported_attributes, tls_config
+from .ldap_client import LdapError, connect, first_value, peer_of, supported_attributes, tls_config
+from .net_guard import BlockedAddress, refuse_link_local, refuse_link_local_peer
 
 logger = logging.getLogger("mailer.ldap_auth")
 
@@ -72,28 +73,85 @@ def is_enabled(db: Session) -> bool:
 
 MIGRATION_MARKER = "auth_migrated_v2"
 
+# Someone is waiting on the sign-in page: an unreachable directory should fail
+# in seconds, not hold a worker thread for half a minute.
+LOGIN_CONNECT_TIMEOUT = 5
+LOGIN_RECEIVE_TIMEOUT = 10
 
-def migrate_legacy_settings(db: Session, force: bool = False) -> bool:
+
+def _rdns(dn: str) -> list[str]:
+    """Split a DN into normalised RDNs, honouring backslash escapes.
+
+    `cn=a\\,dc=corp,dc=example` is two RDNs, not three: an escaped comma is
+    part of a value, and treating it as a boundary would let a DN pass as
+    being under a base it is not under.
+    """
+    rdns: list[str] = []
+    current: list[str] = []
+    chars = iter((dn or "").strip())
+    for char in chars:
+        if char == "\\":
+            current.append(char + next(chars, ""))
+        elif char == ",":
+            rdns.append("".join(current))
+            current = []
+        else:
+            current.append(char)
+    rdns.append("".join(current))
+    normalised = []
+    for rdn in rdns:
+        attribute, _, value = rdn.partition("=")
+        normalised.append(f"{attribute.strip().lower()}={value.strip().lower()}")
+    return normalised if any(r != "=" for r in normalised) else []
+
+
+def dn_is_under(dn: str, base_dn: str) -> bool:
+    """Whether `dn` lies in the subtree `base_dn`, compared RDN by RDN."""
+    entry, base = _rdns(dn), _rdns(base_dn)
+    return bool(entry and base) and len(entry) >= len(base) and entry[-len(base):] == base
+
+
+def legacy_profile(db: Session) -> LdapProfile | None:
+    """The LDAP profile the 1.x sign-in settings name by id.
+
+    Only a hint: if 2.0.0 deleted that profile, SQLite may have handed its id
+    to a different one since, so a repair must be confirmed by name.
+    """
+    raw = settings_store.get_value(db, "auth_ldap_profile_id").strip()
+    return db.get(LdapProfile, int(raw)) if raw.isdigit() else None
+
+
+def migrate_legacy_settings(db: Session, force: bool = False, reattach: bool = False) -> bool:
     """Move the 1.x global LDAP sign-in settings onto their profile.
 
     At every start this does its work once: the marker setting records that it
     happened, so switching sign-in off later is not undone by a restart.
-    `force` ignores the marker and applies the old settings again; that is
-    what `python -m app.cli migrate-ldap-login` uses to repair an upgrade that
-    went wrong. Returns True when something was moved.
+    Returns True when something was moved.
 
     The values are carried over exactly as 1.x read them. In particular a
     blank login attribute meant `uid` there, not the form's `sAMAccountName`
     placeholder: turning it into the latter made every search on an OpenLDAP
     directory come back empty.
+
+    `force` is the repair behind `python -m app.cli migrate-ldap-login`, for
+    installs that upgraded with 2.0.0. It ignores the marker but only undoes
+    what 2.0.0 got wrong, and only where the field still holds what 2.0.0 wrote
+    there: anything an administrator changed since - sign-in on or off, the
+    required group, the bind mode - is left alone. It never loosens access.
+
+    Unlinked directory accounts are attached by the first migration, which is
+    when they can only have come from 1.x. On a repair they are attached only
+    with `reattach`, and only when their DN lies under this profile's base DN:
+    in 2.x an unlinked account usually means its provider was deleted on
+    purpose, and attaching it to another directory would hand the account (and
+    its admin flag) to whoever holds that username there.
     """
     if not force:
         if db.get(Setting, MIGRATION_MARKER) is not None:
             return False
         settings_store.set_value(db, MIGRATION_MARKER, "1")
 
-    raw = settings_store.get_value(db, "auth_ldap_profile_id").strip()
-    profile = db.get(LdapProfile, int(raw)) if raw.isdigit() else None
+    profile = legacy_profile(db)
     if profile is None:
         return False
 
@@ -102,35 +160,66 @@ def migrate_legacy_settings(db: Session, force: bool = False) -> bool:
 
     mode = value("bind_mode") or "search"
     template = value("bind_template")
-    profile.login_enabled = value("enabled") == "1"
-    profile.login_bind_mode = mode
-    profile.login_attribute = value("login_attribute") or "uid"
-    profile.login_user_filter = value("user_filter")
+    login_attribute = value("login_attribute") or "uid"
     # The default was a placeholder, never a working value - but a directory
     # in template mode may really use it, and then it has to stay.
-    profile.login_bind_template = (
-        "" if mode != "template" and template == "{username}@example.com" else template
-    )
-    profile.login_required_group = value("required_group")
-    profile.login_admin_group = value("admin_group")
-    profile.login_auto_create = value("auto_create") == "1"
+    bind_template = "" if mode != "template" and template == "{username}@example.com" else template
 
-    # Directory accounts made before 2.0 all came through this one profile.
-    for user in db.scalars(
-        select(User).where(User.auth_source == "ldap", User.auth_provider_id.is_(None))
-    ):
-        user.auth_provider_id = profile.id
+    if force:
+        # What 2.0.0 wrote: a blank attribute became sAMAccountName, the
+        # placeholder template was always dropped, and a blank auto-create
+        # became "on".
+        if profile.login_attribute == (value("login_attribute") or "sAMAccountName"):
+            profile.login_attribute = login_attribute
+        if profile.login_bind_mode == "template" == mode and not profile.login_bind_template:
+            profile.login_bind_template = bind_template
+        if value("auto_create") != "1":
+            profile.login_auto_create = False
+    else:
+        profile.login_enabled = value("enabled") == "1"
+        profile.login_bind_mode = mode
+        profile.login_attribute = login_attribute
+        profile.login_user_filter = value("user_filter")
+        profile.login_bind_template = bind_template
+        profile.login_required_group = value("required_group")
+        profile.login_admin_group = value("admin_group")
+        profile.login_auto_create = value("auto_create") == "1"
+
+    if not force or reattach:
+        for user in db.scalars(
+            select(User).where(User.auth_source == "ldap", User.auth_provider_id.is_(None))
+        ):
+            if force and not dn_is_under(user.ldap_dn, profile.base_dn):
+                logger.warning(
+                    "Left %s unlinked: its DN %r is not under %r.",
+                    user.username, user.ldap_dn, profile.base_dn,
+                )
+                continue
+            user.auth_provider_id = profile.id
     logger.info("Moved the LDAP sign-in settings onto the profile '%s'.", profile.name)
     return True
 
 
+def _connect(profile: LdapProfile):
+    """The service-account connection, failing the way sign-in expects."""
+    try:
+        return connect(profile)
+    except LdapError as exc:
+        raise LdapAuthError(str(exc)) from exc
+
+
 def _bind_as(profile: LdapProfile, bind_name: str, password: str) -> bool:
     """Try a simple bind. True on success, False on invalid credentials."""
+    try:
+        refuse_link_local(profile.host)
+    except BlockedAddress as exc:
+        raise LdapAuthError(str(exc)) from exc
     server = Server(
         host=profile.host,
         port=profile.port,
         use_ssl=profile.use_ssl,
         tls=tls_config(profile),
+        connect_timeout=LOGIN_CONNECT_TIMEOUT,
     )
     connection = None
     try:
@@ -141,10 +230,15 @@ def _bind_as(profile: LdapProfile, bind_name: str, password: str) -> bool:
             authentication=SIMPLE,
             auto_bind=False,
             raise_exceptions=False,
-            receive_timeout=30,
+            receive_timeout=LOGIN_RECEIVE_TIMEOUT,
         )
+        # Checked on the open socket, before the user's password is sent.
+        connection.open()
+        try:
+            refuse_link_local_peer(profile.host, peer_of(connection))
+        except BlockedAddress as exc:
+            raise LdapAuthError(str(exc)) from exc
         if profile.start_tls and not profile.use_ssl:
-            connection.open()
             if not connection.start_tls():
                 raise LdapAuthError(f"StartTLS failed: {connection.last_error}")
         return bool(connection.bind())
@@ -169,9 +263,9 @@ def _find_user(profile: LdapProfile, username: str) -> tuple[str, dict]:
         search_filter = f"(&{extra_filter}{search_filter})"
 
     attribute_map = profile.attr_map
-    wanted = sorted({v for v in attribute_map.values() if v} | {"memberOf"})
+    wanted = sorted({v for v in attribute_map.values() if v} | {"memberOf", "userPrincipalName"})
 
-    connection = connect(profile)
+    connection = _connect(profile)
     try:
         # Attributes this directory does not define would make ldap3 raise;
         # a missing company or department must not break signing in.
@@ -201,6 +295,25 @@ def _find_user(profile: LdapProfile, username: str) -> tuple[str, dict]:
     return entry.get("dn", ""), entry.get("attributes", {})
 
 
+def _dn_key(dn: str) -> str:
+    return ",".join(
+        "=".join(part.strip() for part in rdn.split("=", 1)) for rdn in dn.lower().split(",")
+    ).strip()
+
+
+def _is_bound_account(bind_name: str, entry_dn: str, attributes: dict) -> bool:
+    """Whether a looked-up entry is the account that just bound as `bind_name`.
+
+    A template bind name is either a DN or, on Active Directory, a UPN.
+    """
+    if not bind_name.strip() or not entry_dn.strip():
+        return False
+    if _dn_key(entry_dn) == _dn_key(bind_name):
+        return True
+    upn = first_value(attributes.get("userPrincipalName")).strip().lower()
+    return bool(upn) and upn == bind_name.strip().lower()
+
+
 def _has_member_of(raw_attributes: dict, group_dn: str) -> bool:
     """Fast path: Active Directory, and OpenLDAP with the memberOf overlay."""
     member_of = raw_attributes.get("memberOf") or []
@@ -221,9 +334,13 @@ def _group_contains(profile: LdapProfile, group_dn: str, user_dn: str, username:
     conditions = [
         f"(member={escape_filter_chars(user_dn)})",
         f"(uniqueMember={escape_filter_chars(user_dn)})",
-        f"(memberUid={escape_filter_chars(username)})",
     ]
-    connection = connect(profile)
+    # memberUid holds a login name, not a DN. An empty `username` means the
+    # caller could not tie the name to the account that bound, so it must not
+    # be matched: it may be someone else's.
+    if username:
+        conditions.append(f"(memberUid={escape_filter_chars(username)})")
+    connection = _connect(profile)
     try:
         connection.search(
             search_base=group_dn,
@@ -286,15 +403,31 @@ def authenticate_ldap(profile: LdapProfile, username: str, password: str) -> Lda
     if not _bind_as(profile, dn, password):
         raise KeyError(username)
 
-    # Group checks need the account's attributes; in template mode nothing has
-    # been read yet, so fetch them now that the credentials are known good.
-    if (required_group or admin_group) and not attributes:
+    # In template mode nothing has been read yet, so fetch the attributes now
+    # that the credentials are known good. The login attribute may name a
+    # different person than the bind template does (a UPN prefix that is
+    # someone else's sAMAccountName), so only an entry that provably is the
+    # bound account counts: otherwise its memberOf would decide this user's
+    # groups. Without one, groups are read from the group entries instead.
+    # The name group entries may list as memberUid. In template mode it is
+    # only trusted once the looked-up entry is proven to be the bound account.
+    group_username = username
+    if mode == "template" and (required_group or admin_group):
+        group_username = ""
         try:
-            _, attributes = _find_user(profile, username)
+            found_dn, found = _find_user(profile, username)
         except KeyError:
-            attributes = {}
+            found_dn, found = "", {}
+        if _is_bound_account(dn, found_dn, found):
+            attributes = found
+            group_username = username
+        elif found_dn:
+            logger.warning(
+                "Ignored %s for %s: it is not the account the bind template names (%s).",
+                found_dn, username, dn,
+            )
 
-    if required_group and not in_group(profile, required_group, dn, username, attributes):
+    if required_group and not in_group(profile, required_group, dn, group_username, attributes):
         logger.info("%s authenticated but is not in %s", username, required_group)
         raise KeyError(username)
 
@@ -304,8 +437,11 @@ def authenticate_ldap(profile: LdapProfile, username: str, password: str) -> Lda
         dn=dn,
         display_name=first_value(attributes.get(attribute_map.get("display_name", "displayName"))),
         email=first_value(attributes.get(attribute_map.get("email", "mail"))),
-        is_admin=(
-            in_group(profile, admin_group, dn, username, attributes) if admin_group else False
+        is_admin=bool(admin_group)
+        and (
+            # Already established above: no second directory round-trip.
+            admin_group.lower() == required_group.lower()
+            or in_group(profile, admin_group, dn, group_username, attributes)
         ),
     )
 
@@ -352,8 +488,11 @@ def sync_user(db: Session, identity: LdapIdentity, profile: LdapProfile) -> User
     user.email = identity.email or user.email
     user.ldap_dn = identity.dn
     user.auth_provider_id = profile.id
-    if identity.is_admin:
-        user.is_admin = True
+    if (profile.login_admin_group or "").strip():
+        # With a group configured the directory is the source of truth both
+        # ways, as for OpenID Connect: leaving the group revokes the rights at
+        # the next sign-in.
+        user.is_admin = identity.is_admin
     user.last_login_at = datetime.now(timezone.utc)
     db.flush()
     return user

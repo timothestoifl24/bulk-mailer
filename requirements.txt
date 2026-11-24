@@ -18,4 +18,5 @@ itsdangerous>=2.2.0
 cryptography>=50.0.2
 email-validator>=2.3.0
 httpx>=0.28.1                    # OpenID Connect: discovery, token exchange, userinfo
+httpcore>=1.0.9                  # httpx's connection pool; net_guard supplies its network backend
 joserfc>=1.7.7                   # OpenID Connect: ID token signature and claim checks

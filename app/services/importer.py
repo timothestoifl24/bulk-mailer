@@ -6,7 +6,7 @@ import csv
 import io
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import delete, func, select
@@ -69,11 +69,7 @@ class ImportResult:
     created: int = 0
     updated: int = 0
     skipped: int = 0
-    invalid: list[str] = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        if self.invalid is None:
-            self.invalid = []
+    invalid: list[str] = field(default_factory=list)
 
     @property
     def total(self) -> int:
@@ -266,11 +262,7 @@ class ImportPreview:
     updated: int = 0
     unchanged: int = 0
     duplicates: int = 0
-    invalid: list[tuple[int, str]] = None  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        if self.invalid is None:
-            self.invalid = []
+    invalid: list[tuple[int, str]] = field(default_factory=list)
 
     @property
     def importable(self) -> int:
