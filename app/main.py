@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from . import __version__
-from .config import secret_key_is_weak, settings
+from .config import insecure_cookie_warning, secret_key_is_weak, session_cookie_is_secure, settings
 from .db import IS_SQLITE, Base, engine, get_db, session_scope, startup_lock
 from .migrations import add_missing_columns, add_missing_indexes
 from .models import (
@@ -56,18 +56,33 @@ logger = logging.getLogger("mailer")
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
-def warn_about_weak_secrets() -> None:
-    """A placeholder SECRET_KEY lets anyone forge a session cookie.
+class InsecureSecretKey(RuntimeError):
+    pass
 
-    The container images and compose file ship obvious placeholders so the stack
-    starts out of the box; say so loudly rather than let one reach production.
+
+def check_secret_key() -> None:
+    """Refuse to start with a SECRET_KEY an attacker could know.
+
+    The key signs the session cookie, which is only signed, not encrypted: with
+    a published placeholder anyone can mint `{"user_id": 1}` and sign in as the
+    initial administrator, and decrypt every stored SMTP/LDAP/OIDC secret.
+    DEBUG or ALLOW_INSECURE_SECRET_KEY lets a throwaway local setup start anyway.
     """
-    if secret_key_is_weak():
+    if not secret_key_is_weak():
+        return
+    if settings.debug or settings.allow_insecure_secret_key:
         logger.warning(
             "SECRET_KEY is a placeholder or too short. Session cookies can be forged and "
-            "stored SMTP/LDAP passwords are not meaningfully protected. Set a long random "
-            "value before using this for real."
+            "stored SMTP/LDAP passwords are not meaningfully protected. Starting anyway "
+            "because DEBUG or ALLOW_INSECURE_SECRET_KEY is set."
         )
+        return
+    raise InsecureSecretKey(
+        "SECRET_KEY is empty, a published placeholder, or shorter than 32 characters, so "
+        "anyone could forge a session cookie. Generate one with `openssl rand -base64 36` "
+        "and set it as SECRET_KEY. (ALLOW_INSECURE_SECRET_KEY=true starts anyway, for "
+        "throwaway local setups only.)"
+    )
 
 
 def warn_about_removed_settings() -> None:
@@ -78,10 +93,17 @@ def warn_about_removed_settings() -> None:
         )
 
 
+def warn_about_insecure_cookie() -> None:
+    """A session cookie without Secure travels in clear text over plain HTTP."""
+    if warning := insecure_cookie_warning():
+        logger.warning(warning)
+
+
 def bootstrap() -> None:
     """Create the schema, adopt an initial admin on upgrade, and reset stale campaigns."""
-    warn_about_weak_secrets()
+    check_secret_key()
     warn_about_removed_settings()
+    warn_about_insecure_cookie()
     with startup_lock():
         _bootstrap_schema_and_data()
 
@@ -95,9 +117,12 @@ def _bootstrap_schema_and_data() -> None:
             # Said at every start until it is done: until then, whoever opens
             # the app first becomes its administrator.
             logger.warning(
-                "No account exists yet. Open %s/setup to create the first administrator - "
-                "until you do, anyone who can reach this address can.",
+                "No account exists yet. Open %s/setup to create the first administrator - %s",
                 settings.public_base_url.rstrip("/"),
+                "it asks for SETUP_TOKEN."
+                if first_run.token_required()
+                else "until you do, anyone who can reach this address can. Set SETUP_TOKEN "
+                "to require a token for it.",
             )
         elif db.scalar(select(func.count()).select_from(User).where(User.is_admin.is_(True))) == 0:
             # Upgraded database: nobody would be able to reach the admin pages.
@@ -138,7 +163,7 @@ app.add_middleware(
     secret_key=settings.secret_key,
     session_cookie="mailer_session",
     same_site="lax",
-    https_only=settings.public_base_url.startswith("https://"),
+    https_only=session_cookie_is_secure(),
     max_age=8 * 60 * 60,
 )
 
@@ -159,15 +184,52 @@ async def first_run_setup(request: Request, call_next):
     return await call_next(request)
 
 
+# Authorised by an HMAC token in the request, never by the session cookie, and
+# posted cross-site by mail providers on purpose (RFC 8058 one-click).
+CSRF_EXEMPT_PATHS = ("/unsubscribe",)
+
+
 @app.middleware("http")
 async def csrf_guard(request: Request, call_next):
     """Reject cross-site state-changing requests (origin/referer check)."""
-    if not origin_is_trusted(request):
+    if request.url.path not in CSRF_EXEMPT_PATHS and not origin_is_trusted(request):
         return PlainTextResponse(
             "Cross-site request blocked. Please navigate to the app and try again.",
             status_code=status.HTTP_403_FORBIDDEN,
         )
     return await call_next(request)
+
+
+# Only what cannot break a page: the templates still have inline scripts and
+# handlers, so script-src is left open until they move into app.js. The email
+# preview iframe (srcdoc) inherits this policy, so nothing here may restrict
+# the images or styles an email uses.
+CONTENT_SECURITY_POLICY = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+SECURITY_HEADERS = {
+    "Content-Security-Policy": CONTENT_SECURITY_POLICY,
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    # Unsubscribe links carry a token in the URL.
+    "Referrer-Policy": "strict-origin-when-cross-origin",
+}
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    """Registered last, so it is outermost and covers the guards' own responses."""
+    response = await call_next(request)
+    for name, value in SECURITY_HEADERS.items():
+        response.headers.setdefault(name, value)
+    return response
+
+
+@app.exception_handler(Exception)
+async def server_error_handler(request: Request, exc: Exception):
+    """An unhandled error's 500 is built by Starlette's ServerErrorMiddleware,
+    outside every user middleware, so security_headers never sees it."""
+    return PlainTextResponse(
+        "Internal Server Error", status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, headers=SECURITY_HEADERS
+    )
 
 
 @app.exception_handler(HTTPException)

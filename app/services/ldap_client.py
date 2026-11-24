@@ -11,6 +11,7 @@ from ldap3.utils.conv import escape_filter_chars
 
 from ..models import LdapProfile
 from ..security import decrypt_secret
+from .net_guard import BlockedAddress, refuse_link_local, refuse_link_local_peer
 
 logger = logging.getLogger("mailer.ldap")
 
@@ -51,14 +52,27 @@ def tls_config(profile: LdapProfile) -> Tls | None:
     return Tls(validate=validate)
 
 
+def peer_of(connection) -> tuple | None:
+    """The address an open connection reached, when the socket can say."""
+    try:
+        return connection.socket.getpeername()
+    except (AttributeError, OSError):
+        return None
+
+
 def connect(profile: LdapProfile) -> Connection:
     """Open and bind a connection. The caller is responsible for unbinding."""
+    try:
+        refuse_link_local(profile.host)
+    except BlockedAddress as exc:
+        raise LdapError(str(exc)) from exc
     server = Server(
         host=profile.host,
         port=profile.port,
         use_ssl=profile.use_ssl,
         get_info=ALL,
         tls=tls_config(profile),
+        connect_timeout=10,
     )
     password = decrypt_secret(profile.bind_password_enc)
     try:
@@ -71,8 +85,15 @@ def connect(profile: LdapProfile) -> Connection:
             raise_exceptions=True,
             receive_timeout=30,
         )
+        # Opened first so the address really reached is checked before the
+        # service account's credentials go over it.
+        connection.open()
+        try:
+            refuse_link_local_peer(profile.host, peer_of(connection))
+        except BlockedAddress as exc:
+            connection.unbind()
+            raise LdapError(str(exc)) from exc
         if profile.start_tls and not profile.use_ssl:
-            connection.open()
             connection.start_tls()
         connection.bind()
     except LDAPException as exc:

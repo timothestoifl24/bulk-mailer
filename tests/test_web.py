@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
+import pytest
 from sqlalchemy import func, select
 
 from app import __version__
@@ -35,6 +36,37 @@ def test_anonymous_users_are_sent_to_the_login_page(anon_client):
 
 def test_healthz_is_public(anon_client):
     assert anon_client.get("/healthz").json()["status"] == "ok"
+
+
+@pytest.mark.parametrize("path", ["/login", "/healthz", "/static/app.js"])
+def test_security_headers_on_every_response(anon_client, path):
+    headers = anon_client.get(path, follow_redirects=False).headers
+    assert headers["X-Frame-Options"] == "DENY"
+    assert headers["X-Content-Type-Options"] == "nosniff"
+    assert headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
+    assert "frame-ancestors 'none'" in headers["Content-Security-Policy"]
+
+
+def test_security_headers_on_an_unhandled_error(client, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.routers import auth
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("database went away")
+
+    monkeypatch.setattr(auth, "oidc_auth", type("Broken", (), {"enabled_providers": broken}))
+    response = TestClient(app, raise_server_exceptions=False).get("/login")
+    assert response.status_code == 500
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+
+
+def test_security_headers_on_a_blocked_cross_site_post(anon_client):
+    response = anon_client.post("/login", headers={"Origin": "http://evil.example"})
+    assert response.status_code == 403
+    assert response.headers["X-Frame-Options"] == "DENY"
 
 
 def test_bad_credentials_are_rejected(anon_client):
@@ -138,6 +170,38 @@ def test_unsubscribe_link_suppresses_the_recipient(logged_in):
 
     listing = client.get("/recipients?suppressed=1").text
     assert email in listing
+
+
+def test_one_click_unsubscribe_from_a_mail_provider(logged_in):
+    """RFC 8058: the provider POSTs to the List-Unsubscribe URL with no Origin,
+    Referer or cookie, and only `List-Unsubscribe=One-Click` in the body."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.security import unsubscribe_url
+
+    email = "one+click@example.com"
+    with SessionLocal() as db:
+        db.add(Recipient(email=email))
+        db.commit()
+    provider = TestClient(app, base_url="http://testserver")
+    try:
+        path = urlsplit(unsubscribe_url(email))
+        target = f"{path.path}?{path.query}"
+        body = {"List-Unsubscribe": "One-Click"}
+
+        wrong = provider.post(target.replace("&t=", "&t=x"), data=body)
+        assert wrong.status_code == 200
+        with SessionLocal() as db:
+            assert db.scalar(select(Recipient).where(Recipient.email == email)).is_suppressed is False
+
+        assert provider.post(target, data=body).status_code == 200
+        with SessionLocal() as db:
+            assert db.scalar(select(Recipient).where(Recipient.email == email)).is_suppressed is True
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.scalar(select(Recipient).where(Recipient.email == email)))
+            db.commit()
 
 
 def test_suppressed_recipients_are_left_out_of_new_campaigns(logged_in):
@@ -250,6 +314,46 @@ def test_recipient_export_returns_csv(logged_in):
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/csv")
     assert response.text.splitlines()[0].startswith("email,first_name")
+
+
+def test_recipient_export_neutralises_formulas(logged_in):
+    with SessionLocal() as db:
+        db.add(Recipient(email="formula@example.com", first_name='=HYPERLINK("http://x","y")', company="+1 Corp"))
+        db.commit()
+    try:
+        text = logged_in.get("/recipients-export.csv").text
+        row = next(line for line in text.splitlines() if line.startswith("formula@example.com"))
+        assert ",\"'=HYPERLINK(" in row
+        assert ",'+1 Corp," in row
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.scalar(select(Recipient).where(Recipient.email == "formula@example.com")))
+            db.commit()
+
+
+def test_recipient_export_keeps_line_breaks_inside_one_cell(logged_in):
+    """A value with an embedded CR or LF must stay one quoted cell, so the
+    text after the break cannot become a new row that starts with a formula."""
+    import csv
+    import io
+
+    with SessionLocal() as db:
+        db.add(Recipient(email="linebreak@example.com", first_name="Smith\r=1+1", last_name="Doe\n=2+2"))
+        db.commit()
+    try:
+        text = logged_in.get("/recipients-export.csv").text
+        rows = list(csv.reader(io.StringIO(text, newline="")))
+        assert not any(row and row[0].startswith("=") for row in rows)
+        row = next(row for row in rows if row and row[0] == "linebreak@example.com")
+        assert row[1:3] == ["Smith\r=1+1", "Doe\n=2+2"]
+        assert '"Smith\r=1+1"' in text and '"Doe\n=2+2"' in text
+        # Every record ends in CRLF; the breaks inside values stay quoted.
+        assert text.endswith("\r\n")
+        assert text.splitlines()[0] == "email,first_name,last_name,display_name,company,department,title,source,suppressed,lists"
+    finally:
+        with SessionLocal() as db:
+            db.delete(db.scalar(select(Recipient).where(Recipient.email == "linebreak@example.com")))
+            db.commit()
 
 
 def test_campaign_template_picker_submits_as_a_form(logged_in):

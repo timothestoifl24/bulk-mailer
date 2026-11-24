@@ -48,6 +48,55 @@ yet. If a release ever requires it, the changelog will say so.
 `/data/mailer.db` while the app is stopped; on PostgreSQL, `pg_dump`. The
 migration step is deliberately narrow, but "narrow" is not "cannot go wrong".
 
+## Upgrading from 1.x to 2.0
+
+2.0 moved the LDAP sign-in settings from one global form onto each LDAP
+provider (*Authentication* page). The first start of 2.x copies your old
+settings onto the provider they pointed at and attaches your directory
+accounts to it. Nothing needs to be done for that.
+
+If LDAP users **cannot sign in after upgrading to 2.0.0** — most often on an
+OpenLDAP directory where the login attribute had been left blank — run:
+
+```bash
+docker exec -it <container> python -m app.cli migrate-ldap-login
+```
+
+The first run changes nothing: it shows which LDAP provider the 1.x settings
+point at, with its host and base DN. 1.x stored only that provider's id, and if
+it was deleted since, SQLite may have given the id to another directory. If it
+is the directory 1.x signed in against, confirm it by name:
+
+```bash
+docker exec -it <container> python -m app.cli migrate-ldap-login --provider "Corporate AD"
+```
+
+On SQLite the database is the file in the `/data` volume, so the command works
+on whatever that volume holds; with PostgreSQL it uses `DATABASE_URL` like the
+app does. It also helps if you started a 2.0 beta image before upgrading, since
+the one-time migration will already have run.
+
+It repairs only what 2.0.0 got wrong on that provider, and only where the
+field still holds what 2.0.0 wrote there: the login attribute (blank means
+`uid`, as it did in 1.x), a template-mode bind template, and auto-create when
+1.x had it off. Anything you changed since upgrading stays as it is, and it
+never turns sign-in on or removes a required group.
+
+Directory accounts that lost their provider stay unlinked unless you add
+`--reattach`:
+
+```bash
+docker exec -it <container> python -m app.cli migrate-ldap-login --provider "Corporate AD" --reattach
+```
+
+That re-links only accounts whose DN is under the provider's base DN. An
+unlinked account can also be left over from a provider you deleted, and must
+not be handed to another directory.
+
+The command reads the settings 1.x left in the database; it says "Nothing to
+migrate" if there are none. The fix is included from 2.0.1, which makes the command
+unnecessary on a fresh upgrade.
+
 ## Versioning
 
 [Semantic versioning](https://semver.org/), as `vMAJOR.MINOR.PATCH` tags.
@@ -76,6 +125,53 @@ and on the
 The changelog entry for a version lives in the commit its tag points at, so
 browsing a release's source shows its own notes rather than a changelog one
 version short.
+
+## A weak `SECRET_KEY` now stops the app
+
+Earlier versions only logged `SECRET_KEY is a placeholder or too short` and
+started anyway. Now the app refuses to start with an empty key, a key shorter
+than 32 characters, or one of the shipped placeholders, because anyone who
+knows the key can forge a session cookie and sign in as an administrator.
+
+If your install stops after upgrading, set a long random key
+(`openssl rand -base64 36`). Changing the key:
+
+- logs everyone out;
+- makes the stored SMTP, LDAP and OpenID Connect secrets unreadable, so enter
+  those again afterwards;
+- breaks the unsubscribe links in every message already sent, because each
+  link is signed with the key. A recipient who clicks one sees *Invalid link*
+  and is told to contact the sender; suppress such requests by hand on
+  *Recipients*. Messages sent after the change carry working links. The repository's `compose.yaml` now reads the key from
+`MAILER_SECRET_KEY` in `.env` and stops with a message when it is missing.
+
+`ALLOW_INSECURE_SECRET_KEY=true` (or `DEBUG=true`) starts the app with a weak
+key anyway, for a throwaway local setup.
+
+## LDAP administrator groups now also take admin rights away
+
+Until 2.0.1, an administrator group on an LDAP provider only ever granted
+admin rights. Now, while a group is set, each LDAP sign-in sets admin rights
+from current membership: someone removed from the group in the directory is no
+longer an administrator here.
+
+::: warning Check before you upgrade
+An LDAP account you made an administrator by hand on *Users* loses admin
+rights at its next sign-in if it is not in the configured group. To see who is
+affected, look for LDAP accounts with admin rights on *Users*, or run:
+
+```bash
+docker exec -it <container> python -m app.cli list-users
+```
+
+and compare those with an `ldap` source and `admin` rights against the
+group's members. To keep someone an administrator, add them to the group in
+the directory, or clear the administrator group on the provider (then admin
+rights are managed on *Users* again, as before).
+:::
+
+Local accounts, OpenID Connect accounts and the initial administrator are not
+affected, nor are LDAP providers with no administrator group.
 
 ## After upgrading
 

@@ -2,7 +2,7 @@
 
 import os
 
-__version__ = "2.0.0"
+__version__ = "2.0.1"
 
 # Images built by CI carry their exact build here (1.5.2-beta.3 from develop,
 # 1.5.2-pr.12 from a pull request); see .github/workflows/docker.yml. The line

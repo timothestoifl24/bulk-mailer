@@ -31,8 +31,24 @@ until that is done.
 
 ::: warning Do it before anyone else can
 Until the first administrator exists, whoever opens the app first creates it.
-Complete setup as soon as the app is up, before exposing it more widely.
+Complete setup as soon as the app is up, before exposing it more widely, or set
+`SETUP_TOKEN` (below).
 :::
+
+If the app is reachable by others before you can open it, for example on a
+shared network or a cluster with a public ingress, start it with a
+`SETUP_TOKEN` of your choosing, such as the output of `openssl rand -base64 24`.
+The setup page then asks for it, and only someone who knows it can create the
+first administrator. It has no effect once that account exists.
+
+Compose passes only the variables listed under `environment:` to the app. The
+repository's `compose.yaml` maps `MAILER_SETUP_TOKEN` from `.env` to it; in a
+compose file of your own, add the line yourself:
+
+```yaml
+    environment:
+      SETUP_TOKEN: ${MAILER_SETUP_TOKEN}
+```
 
 That account is the **initial administrator**. It cannot be deleted, disabled
 or demoted in the UI, so there is always one way in. Change its password under
@@ -52,7 +68,10 @@ the initial administrator, and the two variables can be removed.
 The app speaks plain HTTP and holds a session cookie. If anything other than
 localhost can reach it, put it behind a reverse proxy with TLS and set
 `PUBLIC_BASE_URL` to the `https://` address — the session cookie then gets the
-`Secure` flag automatically.
+`Secure` flag automatically. If the public address has to stay `http://` in
+`PUBLIC_BASE_URL` while people still reach the app over HTTPS, set
+`SESSION_COOKIE_SECURE=true`. Each start logs a warning while the cookie is
+sent without `Secure` to anything other than localhost.
 
 `PUBLIC_BASE_URL` is also the base for unsubscribe links **inside messages**,
 so it has to be an address your recipients can actually reach. `localhost` in
