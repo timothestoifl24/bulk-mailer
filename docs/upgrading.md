@@ -148,6 +148,31 @@ If your install stops after upgrading, set a long random key
 `ALLOW_INSECURE_SECRET_KEY=true` (or `DEBUG=true`) starts the app with a weak
 key anyway, for a throwaway local setup.
 
+## LDAP administrator groups now also take admin rights away
+
+Until 2.0.1, an administrator group on an LDAP provider only ever granted
+admin rights. Now, while a group is set, each LDAP sign-in sets admin rights
+from current membership: someone removed from the group in the directory is no
+longer an administrator here.
+
+::: warning Check before you upgrade
+An LDAP account you made an administrator by hand on *Users* loses admin
+rights at its next sign-in if it is not in the configured group. To see who is
+affected, look for LDAP accounts with admin rights on *Users*, or run:
+
+```bash
+docker exec -it <container> python -m app.cli list-users
+```
+
+and compare those with an `ldap` source and `admin` rights against the
+group's members. To keep someone an administrator, add them to the group in
+the directory, or clear the administrator group on the provider (then admin
+rights are managed on *Users* again, as before).
+:::
+
+Local accounts, OpenID Connect accounts and the initial administrator are not
+affected, nor are LDAP providers with no administrator group.
+
 ## After upgrading
 
 Worth a look, in rough order of how often it matters:
