@@ -16,7 +16,50 @@ pages no longer exist.
 
 ## [Unreleased]
 
-### Fixed
+## [v2.0.1] - 2026-11-24
+
+💥 **Before upgrading:** the app now refuses to start with a weak `SECRET_KEY`,
+and LDAP administrator groups now also take admin rights away. Both are
+explained below and in *Upgrading*.
+
+### ✨ Added
+- `SETUP_TOKEN`: when set, the first-run setup page asks for it before
+  creating the initial administrator, so nobody else on the network can claim
+  a fresh install first. Unset, setup works as before.
+- `SESSION_COOKIE_SECURE=true/false` decides whether the session cookie is
+  marked `Secure`, instead of guessing from `PUBLIC_BASE_URL`. Use `true`
+  behind a TLS proxy. Each start now warns while the cookie is not `Secure`
+  for an address other than localhost.
+
+### ♻️ Changed
+- **The app refuses to start with an empty `SECRET_KEY`, one shorter than 32
+  characters, or one of the shipped placeholders.** Anyone who knows the key
+  can forge a session and sign in as an administrator. Set a long random key
+  (`openssl rand -base64 36`); changing it logs everyone out, makes stored
+  SMTP, LDAP and OpenID Connect secrets unreadable until entered again, and
+  invalidates unsubscribe links in mail already sent. See *Upgrading*.
+  `ALLOW_INSECURE_SECRET_KEY=true` (or `DEBUG=true`) still starts a throwaway
+  local setup.
+- The repository's `compose.yaml` now reads the key from `MAILER_SECRET_KEY`
+  in `.env` and stops with a message when it is missing, instead of falling
+  back to a placeholder.
+- **With an administrator group set on an LDAP provider, each sign-in now
+  sets admin rights from current membership**, so someone removed from the
+  group in the directory is no longer an administrator here. An LDAP account
+  promoted by hand while a group is configured loses admin at its next sign-in
+  if it is not in the group. Without a group, rights are still managed on
+  *Users*, and the initial administrator is never affected.
+- LDAP sign-in gives up on an unreachable directory sooner (5 s to connect,
+  10 s to answer, instead of up to 30 s) and moves on to the next address or
+  directory.
+
+### 🐛 Fixed
+- One-click unsubscribe from mail providers (Gmail, Yahoo and others,
+  RFC 8058) was always refused. It works now, which Gmail and Yahoo expect from
+  bulk senders.
+- A directory whose service account could not bind caused an error page on
+  sign-in; it now fails like any other directory error and the next directory
+  is tried.
 - Upgrading from 1.x to 2.0.0 could leave LDAP sign-in broken: a login
   attribute left blank in 1.x (which meant `uid`) became `sAMAccountName`, so
   no user was found on OpenLDAP-style directories. The upgrade now keeps the
@@ -27,9 +70,37 @@ pages no longer exist.
   `--provider` before changing anything. `--reattach` also re-links unlinked
   directory accounts whose DN is under that provider. See *Upgrading*.
 
+### 🔒️ Security
+- Repeated failed sign-ins are throttled: 5 failures for one username from
+  one client, or 30 across usernames, block that client for 15 minutes. This
+  also covers *Change password* and an LDAP provider's *Try a sign-in*, and
+  nobody can lock a user out from another machine. Unknown and disabled
+  accounts now take as long to refuse as a wrong password, so they no longer
+  reveal which usernames exist. The count is kept per process; see *Advanced
+  configuration* for proxies and multiple replicas.
+- In LDAP template bind mode, group membership (required group and
+  administrator group) is now read only for the account that actually signed
+  in. Before, a user whose UPN prefix matched someone else's login name could
+  be judged by that other person's groups.
+- LDAP hosts and OpenID Connect URLs on link-local addresses, such as the
+  cloud metadata service at `169.254.169.254`, are refused, including through
+  redirects in a discovery document. Directories on private and loopback
+  addresses still work.
+- Every response now carries security headers that stop the app being framed
+  (clickjacking), stop content-type sniffing, and keep unsubscribe tokens out
+  of the `Referer` header. The server no longer announces itself as uvicorn.
+- The recipient CSV export puts an apostrophe in front of cells starting with
+  `=`, `+`, `-`, `@`, a tab or a carriage return, so spreadsheets open them as
+  text instead of running them as formulas. A real value starting with `-` or
+  `+` shows that apostrophe.
+- The `migrate-ldap-login` repair no longer re-links every unlinked account to
+  the 1.x directory (which could hand a deleted directory's admin to someone
+  else) or reverts settings changed since: see above. Deleting the 1.x
+  provider also clears the setting that pointed at it.
+
 ## [v2.0.0] - 2026-11-02
 
-### Added
+### ✨ Added
 - **First-run setup**: a new installation opens a setup page where you create
   the first administrator, instead of reading `ADMIN_USERNAME` /
   `ADMIN_PASSWORD` from the environment. Until it is done, every page leads
@@ -80,7 +151,7 @@ pages no longer exist.
 - Small (?) tips next to settings that are easy to get wrong (SMTP, LDAP,
   sending speed, placeholders), with links to the guide.
 
-### Changed
+### ♻️ Changed
 - `ADMIN_USERNAME` and `ADMIN_PASSWORD` are no longer used; remove them from
   your environment, compose file or Kubernetes secret. Existing accounts are
   unaffected: on upgrade, the oldest local administrator becomes the initial
@@ -105,14 +176,14 @@ pages no longer exist.
 - Statuses show an icon as well as a colour, so they can be told apart at a
   glance and without relying on colour.
 
-### Fixed
+### 🐛 Fixed
 - After an upgrade, browsers no longer keep running the previous version's
   stylesheet and scripts from cache.
 - `/favicon.ico` now serves the app's icon instead of a 404.
 
 ## [v1.5.1] - 2026-09-28
 
-### Fixed
+### 🐛 Fixed
 - The image is now published for `linux/arm64` as well as `linux/amd64`.
   Pulling it on an Apple Silicon Mac (Docker Desktop, OrbStack, kind,
   minikube) or on ARM cloud nodes failed with "no matching manifest" -
@@ -121,14 +192,14 @@ pages no longer exist.
 
 ## [v1.5.0] - 2026-09-26
 
-### Added
+### ✨ Added
 - Kubernetes manifests in `deploy/kubernetes/`, applied with `kubectl apply -k`:
   one pod on SQLite, or an overlay adding PostgreSQL that can be scaled to
   several replicas. Both run under the *restricted* Pod Security Standard.
   The walkthrough - install, Ingress, upgrades, backups, scaling out - is at
   [bulkmailer.timothestoifl24.dev/kubernetes](https://bulkmailer.timothestoifl24.dev/kubernetes).
 
-### Fixed
+### 🐛 Fixed
 - Two instances on the same PostgreSQL database could send the same campaign
   side by side, so recipients got it twice. A campaign already sending stayed
   claimable by every other instance, and an instance starting up put every
@@ -143,20 +214,20 @@ pages no longer exist.
 - Stopping the app waits for the message in flight, instead of abandoning it
   mid-send.
 
-### Changed
+### ♻️ Changed
 - The image declares its user as `1000:1000` rather than `app`, so Kubernetes'
   `runAsNonRoot` can verify it. Same user, same permissions.
 
 ## [v1.4.1] - 2026-09-24
 
-### Security
+### 🔒️ Security
 - Closed four advisories in the documentation build toolchain (three against
   vite, one against esbuild). VitePress 1.6.4 pins a vite line that has no
   patched release, so `package.json` now forces a fixed vite through an
   `overrides` entry. The site builds identically with it — same pages, same
   content, nothing loaded off-origin — and `npm audit` reports zero.
 
-### Added
+### ✨ Added
 - A documentation site at [bulkmailer.timothestoifl24.dev](https://bulkmailer.timothestoifl24.dev):
   a guide, every screen in screenshots, setup, advanced configuration,
   upgrading notes, an FAQ and the contributing guide. Built from `docs/` with
@@ -164,7 +235,7 @@ pages no longer exist.
 
 ## [v1.4.0] - 2026-08-29
 
-### Added
+### ✨ Added
 - A list filled from an LDAP search can now be kept in sync with it. Tick
   *Keep the list in sync* when importing and the search is re-run on a
   schedule (and on demand from the Lists page): new matches are added, and
@@ -179,12 +250,12 @@ pages no longer exist.
 
 ## [v1.3.0] - 2026-08-26
 
-### Added
+### ✨ Added
 - Every page now has a footer showing the running version, so a bug report can
   quote it without digging through `/healthz`, alongside credit to Tabler for
   the interface and a link back to the source.
 
-### Changed
+### ♻️ Changed
 - GitHub is now the only home of this project. The tests that used to run on
   GitLab — the full suite on both SQLite and PostgreSQL — run as a GitHub
   Actions workflow on every push and pull request, and a release tag has to
@@ -192,11 +263,11 @@ pages no longer exist.
 
 ## [v1.2.0] - 2026-08-24
 
-### Fixed
+### 🐛 Fixed
 - Release notes gave a `docker pull` command for a tag that does not exist —
   they named `ghcr.io/…:v1.1.1` while the image is published as `1.1.1`.
 
-### Changed
+### ♻️ Changed
 - Releases are prepared with `tools/release.py`, which writes the changelog
   entry into the release commit itself. Each tag now carries its own notes,
   so browsing a release's source no longer shows a changelog one version
@@ -242,7 +313,8 @@ The initial release.
 - SQLite or PostgreSQL, with multi-instance-safe sending on PostgreSQL.
 - Docker image and Compose stack; GitLab CI test/build/release pipeline.
 
-[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/timothestoifl24/bulk-mailer/compare/v2.0.1...HEAD
+[v2.0.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v2.0.1
 [v2.0.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v2.0.0
 [v1.5.1]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.1
 [v1.5.0]: https://github.com/timothestoifl24/bulk-mailer/releases/tag/v1.5.0
