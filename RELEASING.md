@@ -104,12 +104,14 @@ A fix that can't wait for the next release:
 [`CHANGELOG.md`](CHANGELOG.md) follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and is written only by
 the maintainer, once per release, from the titles and descriptions of the pull
-requests that went in. Group the notes as **Added**, **Changed**,
-**Deprecated**, **Removed**, **Fixed** and **Security**, and write them for
+requests that went in. Group the notes as `### ✨ Added`, `### ♻️ Changed`,
+`### 🗑️ Deprecated`, `### 🔥 Removed`, `### 🐛 Fixed` and `### 🔒️ Security`
+(the [Gitmoji](https://gitmoji.dev/) for each), and write them for
 people who run Bulk Mailer: what they can now do, or what stopped being
 broken. Several pull requests can become one line, and internal changes
 (refactoring, CI, tests) usually need none. Call out anything that needs
-action when upgrading; the `breaking-change` label marks those pull requests.
+action when upgrading in a `💥 **Before upgrading:**` line at the top of the
+section; the `breaking-change` label marks those pull requests.
 
 - **Release notes:** a release's notes start with the pull command for its
   image and its section of `CHANGELOG.md`. GitHub's list of merged pull
